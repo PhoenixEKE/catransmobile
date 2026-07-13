@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ class ChoixPlacePrestigeScreen extends StatefulWidget {
   final double prix;
   final int nombrePassagers;
   final int points;
+  final SelectedDepartureContext? selectedDepartureContext;
 
   const ChoixPlacePrestigeScreen({
     super.key,
@@ -21,10 +23,12 @@ class ChoixPlacePrestigeScreen extends StatefulWidget {
     required this.prix,
     required this.nombrePassagers,
     required this.points,
+    this.selectedDepartureContext,
   });
 
   @override
-  _ChoixPlacePrestigeScreenState createState() => _ChoixPlacePrestigeScreenState();
+  _ChoixPlacePrestigeScreenState createState() =>
+      _ChoixPlacePrestigeScreenState();
 }
 
 class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
@@ -112,7 +116,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFD807),
                       borderRadius: BorderRadius.circular(12),
@@ -177,7 +182,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(8)),
                         ),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       ),
                     ),
                   ),
@@ -190,7 +196,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(8)),
                         ),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       ),
                     ),
                   ),
@@ -296,7 +303,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.stars, color: Color(0xFFEFD807), size: 16),
+                          const Icon(Icons.stars,
+                              color: Color(0xFFEFD807), size: 16),
                           const SizedBox(width: 4),
                           Text(
                             '+${widget.points * widget.nombrePassagers} pts',
@@ -334,11 +342,14 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                               nombrePassagers: widget.nombrePassagers,
                               points: widget.points,
                               classe: 'prestige',
-                              passagers: List.generate(widget.nombrePassagers, (index) => {
-                                'nom': _nomControllers[index].text,
-                                'prenom': _prenomControllers[index].text,
-                                'place': _placesSelectionnees[index],
-                              }),
+                              passagers: List.generate(
+                                  widget.nombrePassagers,
+                                  (index) => {
+                                        'nom': _nomControllers[index].text,
+                                        'prenom':
+                                            _prenomControllers[index].text,
+                                        'place': _placesSelectionnees[index],
+                                      }),
                             ),
                           ),
                         );
@@ -440,7 +451,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
               // ✅ ENTRÉE UNIQUEMENT CÔTÉ DROIT (CORRIGÉ - sans overflow)
               if (showEntree)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.orange[100],
@@ -458,7 +470,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.door_front_door, color: Colors.orange, size: 16),
+                      Icon(Icons.door_front_door,
+                          color: Colors.orange, size: 16),
                       SizedBox(width: 4),
                       Icon(Icons.arrow_forward, color: Colors.orange, size: 12),
                       SizedBox(width: 4),
@@ -474,7 +487,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                       SizedBox(width: 4),
                       Icon(Icons.arrow_forward, color: Colors.orange, size: 12),
                       SizedBox(width: 4),
-                      Icon(Icons.door_front_door, color: Colors.orange, size: 16),
+                      Icon(Icons.door_front_door,
+                          color: Colors.orange, size: 16),
                     ],
                   ),
                 ),
@@ -493,10 +507,12 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
 
     return GestureDetector(
       onTap: () {
-        if (!isOccupied && !isSelected && _passagerEnCours < widget.nombrePassagers) {
+        if (!isOccupied &&
+            !isSelected &&
+            _passagerEnCours < widget.nombrePassagers) {
           setState(() {
             _placesSelectionnees[_passagerEnCours] = place;
-            
+
             if (_nomControllers[_passagerEnCours].text.trim().isNotEmpty &&
                 _prenomControllers[_passagerEnCours].text.trim().isNotEmpty) {
               if (_passagerEnCours < widget.nombrePassagers - 1) {
@@ -542,7 +558,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
                       : isSelected
                           ? Colors.white
                           : Colors.black87,
-              fontWeight: isCurrentSelected ? FontWeight.bold : FontWeight.normal,
+              fontWeight:
+                  isCurrentSelected ? FontWeight.bold : FontWeight.normal,
               fontSize: 14,
             ),
           ),

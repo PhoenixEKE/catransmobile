@@ -36,10 +36,6 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final prix = _prixParClasse[_selectedClasse] ?? 7000;
-    final total = prix * _nombrePassagers;
-    final points = _pointsParClasse[_selectedClasse] ?? 5;
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -166,8 +162,6 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
             _buildClasseCard(
               titre: 'ÉCONOMIE',
               code: 'economie',
-              prix: _prixParClasse['economie']!,
-              total: _prixParClasse['economie']! * _nombrePassagers,
               points: _pointsParClasse['economie']!,
               description: 'Voyage confortable à petit prix',
               avantages: [
@@ -183,8 +177,6 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
             _buildClasseCard(
               titre: 'PRESTIGE',
               code: 'prestige',
-              prix: _prixParClasse['prestige']!,
-              total: _prixParClasse['prestige']! * _nombrePassagers,
               points: _pointsParClasse['prestige']!,
               description: 'Voyage premium avec services exclusifs',
               avantages: [
@@ -271,8 +263,6 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
   Widget _buildClasseCard({
     required String titre,
     required String code,
-    required double prix,
-    required double total,
     required int points,
     required String description,
     required List<String> avantages,
@@ -337,7 +327,7 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
             Row(
               children: [
                 Text(
-                  '${prix.toStringAsFixed(0)} FCFA / pers.',
+                  'Prix affiché à l’étape suivante',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -402,14 +392,14 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Total pour $_nombrePassagers passager${_nombrePassagers > 1 ? 's' : ''}',
+                  'Tarif final',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
                   ),
                 ),
                 Text(
-                  '${total.toStringAsFixed(0)} FCFA',
+                  'Selon le départ',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

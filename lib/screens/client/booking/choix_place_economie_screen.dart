@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 
 class ChoixPlaceEconomieScreen extends StatefulWidget {
@@ -9,6 +10,7 @@ class ChoixPlaceEconomieScreen extends StatefulWidget {
   final double prix;
   final int nombrePassagers;
   final int points;
+  final SelectedDepartureContext? selectedDepartureContext;
 
   const ChoixPlaceEconomieScreen({
     super.key,
@@ -19,10 +21,12 @@ class ChoixPlaceEconomieScreen extends StatefulWidget {
     required this.prix,
     required this.nombrePassagers,
     required this.points,
+    this.selectedDepartureContext,
   });
 
   @override
-  _ChoixPlaceEconomieScreenState createState() => _ChoixPlaceEconomieScreenState();
+  _ChoixPlaceEconomieScreenState createState() =>
+      _ChoixPlaceEconomieScreenState();
 }
 
 class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
@@ -146,7 +150,8 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Prénom',
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(8)),
                                 ),
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -162,7 +167,8 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Nom',
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(8)),
                                 ),
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -239,7 +245,8 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.stars, color: Color(0xFFEFD807), size: 16),
+                          const Icon(Icons.stars,
+                              color: Color(0xFFEFD807), size: 16),
                           const SizedBox(width: 4),
                           Text(
                             '+${widget.points * widget.nombrePassagers} pts',
@@ -293,11 +300,13 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                         nombrePassagers: widget.nombrePassagers,
                         points: widget.points,
                         classe: 'economie',
-                        passagers: List.generate(widget.nombrePassagers, (index) => {
-                          'nom': _nomControllers[index].text,
-                          'prenom': _prenomControllers[index].text,
-                          'place': 0,
-                        }),
+                        passagers: List.generate(
+                            widget.nombrePassagers,
+                            (index) => {
+                                  'nom': _nomControllers[index].text,
+                                  'prenom': _prenomControllers[index].text,
+                                  'place': 0,
+                                }),
                       ),
                     ),
                   );

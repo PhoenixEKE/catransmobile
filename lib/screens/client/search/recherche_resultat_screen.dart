@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/catalog/catalog_departure.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
+import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/choix_place_economie_screen.dart';
 import 'package:catrans_app/screens/client/booking/choix_place_prestige_screen.dart';
+import 'package:catrans_app/services/api/catalog_api_service.dart';
 
 class RechercheResultatScreen extends StatefulWidget {
   final String depart;
@@ -31,93 +35,85 @@ class RechercheResultatScreen extends StatefulWidget {
 }
 
 class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
-  List<Map<String, dynamic>> _trajets = [];
-  List<Map<String, dynamic>> _filteredTrajets = [];
+  final CatalogApiService _catalogApiService = CatalogApiService();
+
+  List<CatalogDeparture> _departures = [];
+  List<CatalogDeparture> _filteredDepartures = [];
   bool _isLoading = true;
-  String _selectedTri = 'Prix';
-  List<DateTime> _datesAlternatives = [];
-  DateTime? _selectedDateAlternative;
+  String? _errorMessage;
+  String _selectedTri = 'Heure';
 
   @override
   void initState() {
     super.initState();
-    _genererDatesAlternatives();
-    _chargerTrajets();
+    _loadDepartures();
   }
 
-  void _genererDatesAlternatives() {
-    _datesAlternatives = [
-      widget.date,
-      widget.date.add(const Duration(days: 1)),
-      widget.date.add(const Duration(days: 2)),
-      widget.date.add(const Duration(days: 3)),
-      widget.date.add(const Duration(days: 4)),
-      widget.date.add(const Duration(days: 5)),
-    ];
-    _selectedDateAlternative = widget.date;
-  }
+  Future<void> _loadDepartures() async {
+    final criteria = widget.searchCriteria;
 
-  void _chargerTrajets() {
-    final seed = _selectedDateAlternative?.day ?? widget.date.day;
-
-    Future.delayed(const Duration(seconds: 1), () {
+    if (criteria == null) {
       setState(() {
-        _trajets = [
-          {
-            'heure': '08:00',
-            'prix': widget.prixUnitaire,
-            'places': 12 - (seed % 8),
-            'duree': '2h30',
-            'date': _selectedDateAlternative,
-          },
-          {
-            'heure': '10:00',
-            'prix': widget.prixUnitaire + 300,
-            'places': 8 - (seed % 6),
-            'duree': '2h30',
-            'date': _selectedDateAlternative?.add(const Duration(hours: 2)),
-          },
-          {
-            'heure': '12:00',
-            'prix': widget.prixUnitaire + 200,
-            'places': 5 - (seed % 4),
-            'duree': '2h45',
-            'date': _selectedDateAlternative?.add(const Duration(hours: 4)),
-          },
-          {
-            'heure': '09:00',
-            'prix': widget.prixUnitaire + 500,
-            'places': 3 - (seed % 3),
-            'duree': '2h15',
-            'date': _selectedDateAlternative?.add(const Duration(hours: 1)),
-          },
-          {
-            'heure': '11:00',
-            'prix': widget.prixUnitaire + 100,
-            'places': 15 - (seed % 10),
-            'duree': '3h00',
-            'date': _selectedDateAlternative?.add(const Duration(hours: 3)),
-          },
-        ];
-        _filteredTrajets = List.from(_trajets);
         _isLoading = false;
-        _appliquerTri();
+        _errorMessage = 'Recherche incomplète. Veuillez relancer la recherche.';
+        _departures = [];
+        _filteredDepartures = [];
       });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final response = await _catalogApiService.getDepartures(
+        stationId: criteria.stationId,
+        destinationCityId: criteria.destinationCityId,
+        date: criteria.date,
+      );
+
+      if (!mounted) return;
+
+      final filtered = response.results
+          .where((departure) => departure.serviceClass.uiCode == widget.classe)
+          .toList();
+
+      setState(() {
+        _departures = response.results;
+        _filteredDepartures = filtered;
+        _isLoading = false;
+      });
+      _applySort();
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _departures = [];
+        _filteredDepartures = [];
+        _isLoading = false;
+        _errorMessage = _readableErrorMessage(error);
+      });
+    }
   }
 
-  void _appliquerTri() {
-    List<Map<String, dynamic>> resultats = List.from(_trajets);
+  void _applySort() {
+    final results = List<CatalogDeparture>.from(_filteredDepartures);
+
     if (_selectedTri == 'Prix') {
-      resultats.sort((a, b) => a['prix'].compareTo(b['prix']));
+      results.sort((a, b) => _amount(a).compareTo(_amount(b)));
     } else if (_selectedTri == 'Prix décroissant') {
-      resultats.sort((a, b) => b['prix'].compareTo(a['prix']));
-    } else if (_selectedTri == 'Heure') {
-      resultats.sort((a, b) => a['heure'].compareTo(b['heure']));
-    } else if (_selectedTri == 'Durée') {
-      resultats.sort((a, b) => a['duree'].compareTo(b['duree']));
+      results.sort((a, b) => _amount(b).compareTo(_amount(a)));
+    } else {
+      results.sort((a, b) => a.departureTime.compareTo(b.departureTime));
     }
-    setState(() => _filteredTrajets = resultats);
+
+    setState(() => _filteredDepartures = results);
+  }
+
+  double _amount(CatalogDeparture departure) {
+    return departure.fare.amountAsDouble ?? 0;
   }
 
   String _formatDate(DateTime date) {
@@ -147,26 +143,103 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
     return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _formatDateShort(DateTime date) {
-    const months = [
-      'Jan',
-      'Fév',
-      'Mar',
-      'Avr',
-      'Mai',
-      'Juin',
-      'Juil',
-      'Août',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Déc'
-    ];
-    return '${date.day} ${months[date.month - 1]}';
+  String _readableErrorMessage(Object error) {
+    if (error is ApiException) {
+      return error.message;
+    }
+
+    return 'Une erreur est survenue. Veuillez réessayer.';
   }
 
-  String _formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  String _classLabel() {
+    return widget.classe == 'prestige' ? 'Prestige' : 'Économie';
+  }
+
+  String _priceLabel(CatalogDeparture departure) {
+    if (departure.fare.displayAmount.isNotEmpty) {
+      return departure.fare.displayAmount;
+    }
+
+    return '${departure.fare.amount} ${departure.fare.currency}';
+  }
+
+  String _routeLabel(CatalogDeparture departure) {
+    return departure.route.label ?? '${widget.depart} → ${widget.arrivee}';
+  }
+
+  bool _canReserve(CatalogDeparture departure) {
+    return departure.bookingPolicy.salesOpen &&
+        departure.seats.available >= widget.nombrePassagers;
+  }
+
+  String _unavailableMessage(CatalogDeparture departure) {
+    if (!departure.bookingPolicy.salesOpen) {
+      return departure.bookingPolicy.message.isNotEmpty
+          ? departure.bookingPolicy.message
+          : 'Vente fermée pour ce départ.';
+    }
+
+    if (departure.seats.available == 0) {
+      return 'Complet';
+    }
+
+    if (departure.seats.available < widget.nombrePassagers) {
+      return 'Places insuffisantes';
+    }
+
+    return '';
+  }
+
+  SelectedDepartureContext? _selectedContext(CatalogDeparture departure) {
+    final criteria = widget.searchCriteria;
+    if (criteria == null) return null;
+
+    return SelectedDepartureContext(
+      searchCriteria: criteria,
+      departure: departure,
+      selectedClass: widget.classe,
+      passengerCount: widget.nombrePassagers,
+      loyaltyPointsPerPassenger: widget.points,
+    );
+  }
+
+  void _reserve(CatalogDeparture departure) {
+    final selectedContext = _selectedContext(departure);
+    final price = departure.fare.amountAsDouble ?? widget.prixUnitaire;
+
+    if (widget.classe == 'economie') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChoixPlaceEconomieScreen(
+            depart: widget.depart,
+            arrivee: widget.arrivee,
+            date: departure.departureDate,
+            heure: departure.departureTime,
+            prix: price,
+            nombrePassagers: widget.nombrePassagers,
+            points: widget.points,
+            selectedDepartureContext: selectedContext,
+          ),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChoixPlacePrestigeScreen(
+            depart: widget.depart,
+            arrivee: widget.arrivee,
+            date: departure.departureDate,
+            heure: departure.departureTime,
+            prix: price,
+            nombrePassagers: widget.nombrePassagers,
+            points: widget.points,
+            selectedDepartureContext: selectedContext,
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -200,19 +273,22 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '${widget.depart} → ${widget.arrivee}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                Flexible(
+                  child: Text(
+                    '${widget.depart} → ${widget.arrivee}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
-              _formatDate(_selectedDateAlternative ?? widget.date),
+              _formatDate(widget.date),
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white70,
@@ -224,10 +300,7 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () {
-              setState(() => _isLoading = true);
-              _chargerTrajets();
-            },
+            onPressed: _loadDepartures,
           ),
         ],
       ),
@@ -239,19 +312,25 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.calendar_today,
-                        size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Mise à jour: ${_formatDate(DateTime.now())}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today,
+                          size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Départs réels - ${_formatDate(widget.date)}',
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Text(
-                  '${_filteredTrajets.length} trajets',
+                  '${_filteredDepartures.length} départs',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -261,315 +340,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Autres dates disponibles',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F056B),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 50,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _datesAlternatives.length,
-                    itemBuilder: (context, index) {
-                      final date = _datesAlternatives[index];
-                      final isSelected = date == _selectedDateAlternative;
-                      final isToday = date.day == DateTime.now().day &&
-                          date.month == DateTime.now().month;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedDateAlternative = date;
-                            _isLoading = true;
-                          });
-                          _chargerTrajets();
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 10),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFF0F056B)
-                                : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFF0F056B)
-                                  : Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              if (isToday)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 2),
-                                  margin: const EdgeInsets.only(right: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Aujourd\'hui',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              Text(
-                                _formatDateShort(date),
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.black87,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Color(0xFF0F056B)),
-                        SizedBox(height: 20),
-                        Text('Recherche des trajets...',
-                            style: TextStyle(fontSize: 16, color: Colors.grey)),
-                      ],
-                    ),
-                  )
-                : _filteredTrajets.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.directions_bus,
-                                size: 80, color: Colors.grey),
-                            SizedBox(height: 20),
-                            Text('Aucun trajet trouvé',
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey)),
-                            Text('Essayez de modifier votre recherche',
-                                style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filteredTrajets.length,
-                        itemBuilder: (context, index) {
-                          final trajet = _filteredTrajets[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'CA TRANS',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: Color(0xFF0F056B),
-                                        ),
-                                      ),
-                                      if (isPrestige)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green[100],
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(Icons.event_seat,
-                                                  size: 14,
-                                                  color: Colors.green),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${trajet['places']} places',
-                                                style: TextStyle(
-                                                  color: Colors.green[800],
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.access_time,
-                                          size: 20, color: Color(0xFF0F056B)),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Départ à ${trajet['heure']}',
-                                        style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                      const Spacer(),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue[50],
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          trajet['duree'],
-                                          style: TextStyle(
-                                            color: Colors.blue[800],
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text('Prix',
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey)),
-                                          Text(
-                                            '${trajet['prix'].toStringAsFixed(0)} FCFA',
-                                            style: const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF0F056B),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          if (widget.classe == 'economie') {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    ChoixPlaceEconomieScreen(
-                                                  depart: widget.depart,
-                                                  arrivee: widget.arrivee,
-                                                  date:
-                                                      _selectedDateAlternative ??
-                                                          widget.date,
-                                                  heure: trajet['heure'],
-                                                  prix: trajet['prix'],
-                                                  nombrePassagers:
-                                                      widget.nombrePassagers,
-                                                  points: widget.points,
-                                                ),
-                                              ),
-                                            );
-                                          } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    ChoixPlacePrestigeScreen(
-                                                  depart: widget.depart,
-                                                  arrivee: widget.arrivee,
-                                                  date:
-                                                      _selectedDateAlternative ??
-                                                          widget.date,
-                                                  heure: trajet['heure'],
-                                                  prix: trajet['prix'],
-                                                  nombrePassagers:
-                                                      widget.nombrePassagers,
-                                                  points: widget.points,
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFFEFD807),
-                                          foregroundColor: Colors.black,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          minimumSize: const Size(120, 40),
-                                        ),
-                                        child: const Text(
-                                          'RÉSERVER',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            child: _buildBody(),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -587,12 +359,14 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _showSortBottomSheet(context),
+                    onPressed: _showSortBottomSheet,
                     icon: const Icon(Icons.sort, color: Colors.white),
                     label: const Text(
                       'Trier',
                       style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0F056B),
@@ -611,8 +385,267 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
     );
   }
 
-  void _showSortBottomSheet(BuildContext context) {
-    final List<String> options = ['Prix', 'Prix décroissant', 'Heure', 'Durée'];
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF0F056B)),
+            SizedBox(height: 20),
+            Text(
+              'Recherche des départs...',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 72, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadDepartures,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEFD807),
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_filteredDepartures.isEmpty) {
+      final classLabel = _classLabel();
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.directions_bus, size: 80, color: Colors.grey),
+              const SizedBox(height: 20),
+              Text(
+                'Aucun départ disponible en $classLabel pour cette date.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _departures.isEmpty
+                    ? 'Aucun départ réel n’a été trouvé pour ce trajet.'
+                    : 'Essayez une autre classe ou une autre date.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _filteredDepartures.length,
+      itemBuilder: (context, index) {
+        return _buildDepartureCard(_filteredDepartures[index]);
+      },
+    );
+  }
+
+  Widget _buildDepartureCard(CatalogDeparture departure) {
+    final canReserve = _canReserve(departure);
+    final unavailableMessage = _unavailableMessage(departure);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'CA TRANS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Color(0xFF0F056B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _routeLabel(departure),
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: canReserve ? Colors.green[100] : Colors.orange[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    canReserve ? departure.status.label : unavailableMessage,
+                    style: TextStyle(
+                      color:
+                          canReserve ? Colors.green[800] : Colors.orange[900],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.access_time,
+                    size: 20, color: Color(0xFF0F056B)),
+                const SizedBox(width: 8),
+                Text(
+                  'Départ à ${departure.departureTime}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    departure.serviceClass.name,
+                    style: TextStyle(
+                      color: Colors.blue[800],
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Prix',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    Text(
+                      _priceLabel(departure),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F056B),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${departure.seats.available} place${departure.seats.available > 1 ? 's' : ''} disponible${departure.seats.available > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        color:
+                            departure.seats.available >= widget.nombrePassagers
+                                ? Colors.green[800]
+                                : Colors.orange[900],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: canReserve ? () => _reserve(departure) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEFD807),
+                    foregroundColor: Colors.black,
+                    disabledBackgroundColor: Colors.grey[300],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    minimumSize: const Size(120, 40),
+                  ),
+                  child: Text(
+                    canReserve ? 'RÉSERVER' : 'INDISPONIBLE',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!canReserve && unavailableMessage.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                unavailableMessage,
+                style: TextStyle(
+                  color: Colors.orange[900],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSortBottomSheet() {
+    final options = ['Heure', 'Prix', 'Prix décroissant'];
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -651,14 +684,12 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                       ? const Icon(Icons.check, color: Color(0xFF0F056B))
                       : null,
                   onTap: () {
-                    setState(() {
-                      _selectedTri = option;
-                      _appliquerTri();
-                    });
+                    setState(() => _selectedTri = option);
+                    _applySort();
                     Navigator.pop(context);
                   },
                 );
-              }).toList(),
+              }),
               const SizedBox(height: 10),
             ],
           ),
