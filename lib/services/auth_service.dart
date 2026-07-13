@@ -1,52 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/core/storage/token_storage.dart';
 import 'package:catrans_app/models/accounts/user.dart';
+import 'package:catrans_app/services/api/auth_api_service.dart';
 
 class AuthService extends ChangeNotifier {
+  final AuthApiService _authApiService;
+  final TokenStorage _tokenStorage;
+
   User? _currentUser;
   String? _token;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  AuthService({
+    AuthApiService? authApiService,
+    TokenStorage? tokenStorage,
+  })  : _authApiService = authApiService ?? AuthApiService(),
+        _tokenStorage = tokenStorage ?? TokenStorage();
 
   User? get currentUser => _currentUser;
   String? get token => _token;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _currentUser != null;
 
   Future<void> loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString('user');
-    final token = prefs.getString('token');
+    _setLoading(true);
+    _errorMessage = null;
 
-    if (userJson != null && token != null) {
-      _token = token;
-      _currentUser = User.fromJson(jsonDecode(userJson));
-      notifyListeners();
+    try {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        _token = null;
+        _currentUser = null;
+        return;
+      }
+
+      _token = accessToken;
+      _currentUser = await _authApiService.me();
+    } catch (error) {
+      await _tokenStorage.clearTokens();
+      _token = null;
+      _currentUser = null;
+      _errorMessage = _readableErrorMessage(error);
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<bool> login(String phone, String password) async {
-    await Future.delayed(const Duration(seconds: 1));
+    _setLoading(true);
+    _errorMessage = null;
 
-    if (phone.length >= 8 && password.length >= 6) {
-      final user = User(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        lastname: 'Diop',
-        firstname: 'Amadou',
+    try {
+      final tokens = await _authApiService.login(
         phoneNumber: phone,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        password: password,
       );
 
-      _currentUser = user;
-      _token = 'token_${DateTime.now().millisecondsSinceEpoch}';
+      await _tokenStorage.saveTokens(
+        accessToken: tokens.access,
+        refreshToken: tokens.refresh,
+      );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user', jsonEncode(user.toJson()));
-      await prefs.setString('token', _token!);
-
-      notifyListeners();
+      _token = tokens.access;
+      _currentUser = await _authApiService.me();
+      _setLoading(false);
       return true;
+    } catch (error) {
+      await _tokenStorage.clearTokens();
+      _token = null;
+      _currentUser = null;
+      _errorMessage = _readableErrorMessage(error);
+      _setLoading(false);
+      return false;
     }
-    return false;
   }
 
   Future<bool> register({
@@ -54,41 +85,66 @@ class AuthService extends ChangeNotifier {
     required String firstname,
     required String phone,
     required String password,
+    String? passwordConfirm,
   }) async {
-    await Future.delayed(const Duration(seconds: 1));
+    _setLoading(true);
+    _errorMessage = null;
 
-    if (lastname.isNotEmpty &&
-        firstname.isNotEmpty &&
-        phone.length >= 8 &&
-        password.length >= 6) {
-      final user = User(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+    try {
+      final tokens = await _authApiService.register(
         lastname: lastname,
         firstname: firstname,
         phoneNumber: phone,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        password: password,
+        passwordConfirm: passwordConfirm ?? password,
       );
 
-      _currentUser = user;
-      _token = 'token_${DateTime.now().millisecondsSinceEpoch}';
+      await _tokenStorage.saveTokens(
+        accessToken: tokens.access,
+        refreshToken: tokens.refresh,
+      );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user', jsonEncode(user.toJson()));
-      await prefs.setString('token', _token!);
-
-      notifyListeners();
+      _token = tokens.access;
+      _currentUser = await _authApiService.me();
+      _setLoading(false);
       return true;
+    } catch (error) {
+      await _tokenStorage.clearTokens();
+      _token = null;
+      _currentUser = null;
+      _errorMessage = _readableErrorMessage(error);
+      _setLoading(false);
+      return false;
     }
-    return false;
   }
 
   Future<void> logout() async {
+    await _tokenStorage.clearTokens();
+    await _clearLegacySession();
+
+    _currentUser = null;
+    _token = null;
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> _clearLegacySession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user');
     await prefs.remove('token');
-    _currentUser = null;
-    _token = null;
+  }
+
+  void _setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
+  }
+
+  String _readableErrorMessage(Object error) {
+    if (error is ApiException) {
+      return error.message;
+    }
+
+    return 'Une erreur est survenue. Veuillez réessayer.';
   }
 }
