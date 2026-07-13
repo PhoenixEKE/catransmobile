@@ -14,7 +14,7 @@ class PointService {
   Future<LoyaltyAccount> chargerCompte(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString('loyalty_$userId');
-    
+
     if (data != null) {
       final json = jsonDecode(data);
       _account = LoyaltyAccount.fromJson(json);
@@ -25,7 +25,6 @@ class PointService {
         lastname: 'Test',
         firstname: 'User',
         phoneNumber: '771234567',
-        passwordHash: 'hashed',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -55,10 +54,11 @@ class PointService {
     );
   }
 
-  Future<bool> ajouterPoints(String userId, int points, String classe, String trajetInfo) async {
+  Future<bool> ajouterPoints(
+      String userId, int points, String classe, String trajetInfo) async {
     await chargerCompte(userId);
     if (_account == null) return false;
-    
+
     _account = LoyaltyAccount(
       id: _account!.id,
       customer: _account!.customer,
@@ -68,7 +68,7 @@ class PointService {
       createdAt: _account!.createdAt,
       updatedAt: DateTime.now(),
     );
-    
+
     await sauvegarder();
     return true;
   }
