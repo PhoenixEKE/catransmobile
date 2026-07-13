@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
+import 'package:catrans_app/screens/client/auth/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

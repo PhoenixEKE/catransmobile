@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:catrans_app/models/trajet.dart';
-import 'package:catrans_app/screens/choix_place_economie_screen.dart';
-import 'package:catrans_app/screens/choix_place_prestige_screen.dart';
+import 'package:catrans_app/screens/client/booking/choix_place_economie_screen.dart';
+import 'package:catrans_app/screens/client/booking/choix_place_prestige_screen.dart';
 
 class SaisiePassagersScreen extends StatefulWidget {
   final Trajet trajet;
@@ -335,13 +335,12 @@ class _SaisiePassagersScreenState extends State<SaisiePassagersScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ChoixPlacePrestigeScreen(
-                          trajet: widget.trajet,
-                          classe: widget.classe,
-                          passagers: _passagers.map((p) => {
-                            'nom': p['nom']!.text,
-                            'prenom': p['prenom']!.text,
-                          }).toList(),
-                          prixUnitaire: prixUnitaire,
+                          depart: widget.trajet.depart,
+                          arrivee: widget.trajet.arrivee,
+                          date: widget.trajet.date,
+                          heure: widget.trajet.heure,
+                          prix: prixUnitaire.toDouble(),
+                          nombrePassagers: _passagers.length,
                           points: points,
                         ),
                       ),
@@ -351,13 +350,12 @@ class _SaisiePassagersScreenState extends State<SaisiePassagersScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ChoixPlaceEconomieScreen(
-                          trajet: widget.trajet,
-                          classe: widget.classe,
-                          passagers: _passagers.map((p) => {
-                            'nom': p['nom']!.text,
-                            'prenom': p['prenom']!.text,
-                          }).toList(),
-                          prixUnitaire: prixUnitaire,
+                          depart: widget.trajet.depart,
+                          arrivee: widget.trajet.arrivee,
+                          date: widget.trajet.date,
+                          heure: widget.trajet.heure,
+                          prix: prixUnitaire.toDouble(),
+                          nombrePassagers: _passagers.length,
                           points: points,
                         ),
                       ),

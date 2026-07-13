@@ -1,4 +1,4 @@
-import 'package:catrans_app/models/booking/reservation.dart';
+import 'package:catrans_app/models/booking/reservation_item.dart';
 import 'package:catrans_app/models/accounts/customer_profile.dart';
 import 'package:catrans_app/models/operations/departure.dart';
 import 'package:catrans_app/models/operations/departure_seat.dart';

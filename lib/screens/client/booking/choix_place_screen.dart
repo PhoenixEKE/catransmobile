@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 
 class ChoixPlaceScreen extends StatefulWidget {
   final String depart;
