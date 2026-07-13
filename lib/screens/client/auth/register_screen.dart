@@ -55,12 +55,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           firstname: _firstnameController.text,
           phone: _phoneController.text,
           password: _passwordController.text,
+          passwordConfirm: _confirmPasswordController.text,
         );
 
-        if (success && mounted) {
+        if (!mounted) return;
+
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Compte créé avec succès ! Bienvenue 👋'),
+              content: Text('Compte créé avec succès ! Bienvenue'),
               backgroundColor: Colors.green,
             ),
           );
@@ -70,16 +73,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Erreur lors de la création du compte'),
+            SnackBar(
+              content: Text(
+                authService.errorMessage ??
+                    'Erreur lors de la création du compte',
+              ),
               backgroundColor: Colors.red,
             ),
           );
         }
       } catch (e) {
+        if (!mounted) return;
+        final authService = Provider.of<AuthService>(context, listen: false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: ${e.toString()}'),
+            content: Text(
+              authService.errorMessage ??
+                  'Erreur lors de la création du compte',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -396,7 +407,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             onPressed: () {
                               setState(() {
-                                _obscureConfirmPassword = !_obscureConfirmPassword;
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword;
                               });
                             },
                           ),

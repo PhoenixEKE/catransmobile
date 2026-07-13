@@ -16,7 +16,7 @@ class ApiClient {
       : _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: AppConfig.apiBaseUrl,
+                baseUrl: _normalizeBaseUrl(AppConfig.apiBaseUrl),
                 connectTimeout: const Duration(seconds: 15),
                 receiveTimeout: const Duration(seconds: 30),
                 headers: const {
@@ -26,6 +26,7 @@ class ApiClient {
               ),
             ),
         _tokenStorage = tokenStorage ?? TokenStorage() {
+    _dio.options.baseUrl = _normalizeBaseUrl(_dio.options.baseUrl);
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -64,20 +65,35 @@ class ApiClient {
     Map<String, dynamic>? queryParameters,
   }) {
     return _guard(
-      () => _dio.get<dynamic>(path, queryParameters: queryParameters),
+      () => _dio.get<dynamic>(
+        _normalizePath(path),
+        queryParameters: queryParameters,
+      ),
     );
   }
 
   Future<Response<dynamic>> post(String path, {dynamic data}) {
-    return _guard(() => _dio.post<dynamic>(path, data: data));
+    return _guard(() => _dio.post<dynamic>(_normalizePath(path), data: data));
   }
 
   Future<Response<dynamic>> patch(String path, {dynamic data}) {
-    return _guard(() => _dio.patch<dynamic>(path, data: data));
+    return _guard(() => _dio.patch<dynamic>(_normalizePath(path), data: data));
   }
 
   Future<Response<dynamic>> delete(String path, {dynamic data}) {
-    return _guard(() => _dio.delete<dynamic>(path, data: data));
+    return _guard(() => _dio.delete<dynamic>(_normalizePath(path), data: data));
+  }
+
+  static String _normalizeBaseUrl(String baseUrl) {
+    return baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+  }
+
+  static String _normalizePath(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    return path.startsWith('/') ? path.substring(1) : path;
   }
 
   Future<Response<dynamic>> _guard(
@@ -115,7 +131,7 @@ class ApiClient {
       }
 
       final refreshResponse = await _dio.post<dynamic>(
-        '/auth/token/refresh/',
+        _normalizePath('auth/token/refresh/'),
         data: {'refresh': refreshToken},
         options: Options(extra: {_skipAuthHeaderKey: true}),
       );
@@ -138,7 +154,7 @@ class ApiClient {
       headers['Authorization'] = 'Bearer $newAccessToken';
 
       return _dio.request<dynamic>(
-        requestOptions.path,
+        _normalizePath(requestOptions.path),
         data: requestOptions.data,
         queryParameters: requestOptions.queryParameters,
         options: Options(
@@ -172,29 +188,49 @@ class ApiClient {
     final response = error.response;
 
     return ApiException(
-      message: _readErrorMessage(response?.data) ??
-          error.message ??
-          'Une erreur API est survenue.',
+      message: _extractErrorMessage(response?.data) ??
+          'Une erreur est survenue. Veuillez réessayer.',
       statusCode: response?.statusCode,
       details: response?.data,
     );
   }
 
-  String? _readErrorMessage(dynamic data) {
+  String? _extractErrorMessage(dynamic data) {
     if (data is String && data.isNotEmpty) {
       return data;
     }
 
-    if (data is Map<String, dynamic>) {
+    if (data is Map) {
       for (final key in ['detail', 'message', 'error', 'non_field_errors']) {
-        final value = data[key];
-        if (value is String && value.isNotEmpty) {
-          return value;
-        }
-        if (value is List && value.isNotEmpty) {
-          return value.join(', ');
-        }
+        final message = _messageFromValue(data[key]);
+        if (message != null) return message;
       }
+
+      for (final entry in data.entries) {
+        final message = _messageFromValue(entry.value);
+        if (message != null) return message;
+      }
+    }
+
+    return null;
+  }
+
+  String? _messageFromValue(dynamic value) {
+    if (value is String && value.isNotEmpty) {
+      return value;
+    }
+
+    if (value is List && value.isNotEmpty) {
+      final messages = value
+          .map(_messageFromValue)
+          .whereType<String>()
+          .where((message) => message.isNotEmpty)
+          .toList();
+      return messages.isEmpty ? null : messages.join(', ');
+    }
+
+    if (value is Map && value.isNotEmpty) {
+      return _extractErrorMessage(value);
     }
 
     return null;

@@ -23,7 +23,7 @@ class AuthApiService {
       },
     );
 
-    return AuthTokens.fromJson(_readObject(response.data));
+    return _readAuthTokens(_readObject(response.data));
   }
 
   Future<AuthTokens> register({
@@ -44,7 +44,7 @@ class AuthApiService {
       },
     );
 
-    return AuthTokens.fromJson(_readObject(response.data));
+    return _readAuthTokens(_readObject(response.data));
   }
 
   Future<String> refreshAccessToken({
@@ -112,6 +112,27 @@ class AuthApiService {
 
     throw ApiException(
       message: 'Réponse API invalide.',
+      details: data,
+    );
+  }
+
+  AuthTokens _readAuthTokens(Map<String, dynamic> data) {
+    final rawTokens = data['tokens'];
+    final tokenData =
+        rawTokens is Map ? Map<String, dynamic>.from(rawTokens) : data;
+
+    final access = tokenData['access'];
+    final refresh = tokenData['refresh'];
+
+    if (access is String &&
+        access.isNotEmpty &&
+        refresh is String &&
+        refresh.isNotEmpty) {
+      return AuthTokens(access: access, refresh: refresh);
+    }
+
+    throw ApiException(
+      message: 'Réponse d’authentification invalide.',
       details: data,
     );
   }

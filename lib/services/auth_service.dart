@@ -118,6 +118,28 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateProfile({
+    String? lastname,
+    String? firstname,
+  }) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      await _authApiService.updateClientProfile(
+        lastname: lastname,
+        firstname: firstname,
+      );
+      _currentUser = await _authApiService.me();
+      _setLoading(false);
+      return true;
+    } catch (error) {
+      _errorMessage = _readableErrorMessage(error);
+      _setLoading(false);
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _tokenStorage.clearTokens();
     await _clearLegacySession();

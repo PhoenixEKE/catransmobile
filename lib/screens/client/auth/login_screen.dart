@@ -36,23 +36,29 @@ class _LoginScreenState extends State<LoginScreen> {
           _passwordController.text,
         );
 
-        if (success && mounted) {
+        if (!mounted) return;
+
+        if (success) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const AccueilScreen()),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Numéro ou mot de passe incorrect'),
+            SnackBar(
+              content: Text(
+                authService.errorMessage ?? 'Numéro ou mot de passe incorrect',
+              ),
               backgroundColor: Colors.red,
             ),
           );
         }
       } catch (e) {
+        if (!mounted) return;
+        final authService = Provider.of<AuthService>(context, listen: false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erreur de connexion'),
+          SnackBar(
+            content: Text(authService.errorMessage ?? 'Erreur de connexion'),
             backgroundColor: Colors.red,
           ),
         );
@@ -116,13 +122,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         keyboardType: TextInputType.phone,
                         decoration: const InputDecoration(
                           labelText: 'Numéro de téléphone',
-                          prefixIcon: Icon(Icons.phone, color: Color(0xFF0F056B)),
+                          prefixIcon:
+                              Icon(Icons.phone, color: Color(0xFF0F056B)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre numéro';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre numéro';
                           if (value.length < 8) return 'Numéro invalide';
                           return null;
                         },
@@ -133,21 +141,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           labelText: 'Mot de passe',
-                          prefixIcon: const Icon(Icons.lock, color: Color(0xFF0F056B)),
+                          prefixIcon:
+                              const Icon(Icons.lock, color: Color(0xFF0F056B)),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                               color: Colors.grey,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                           ),
                           border: const OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre mot de passe';
-                          if (value.length < 6) return 'Mot de passe trop court';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre mot de passe';
+                          if (value.length < 6)
+                            return 'Mot de passe trop court';
                           return null;
                         },
                       ),
@@ -166,7 +180,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             elevation: 3,
                           ),
                           child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.black)
+                              ? const CircularProgressIndicator(
+                                  color: Colors.black)
                               : const Text(
                                   'SE CONNECTER',
                                   style: TextStyle(
@@ -193,7 +208,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const RegisterScreen()),
                       );
                     },
                     child: const Text(

@@ -38,15 +38,30 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 1));
+
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final success = await authService.updateProfile(
+        lastname: _nomController.text.trim(),
+        firstname: _prenomController.text.trim(),
+      );
+
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
-        _isEditing = false;
+        _isEditing = !success;
       });
+
+      _loadUserData();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil mis à jour avec succès !'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(
+            success
+                ? 'Profil mis à jour avec succès !'
+                : authService.errorMessage ?? 'Erreur lors de la mise à jour',
+          ),
+          backgroundColor: success ? Colors.green : Colors.red,
         ),
       );
     }
@@ -65,9 +80,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              final authService = Provider.of<AuthService>(context, listen: false);
-              authService.logout();
+            onPressed: () async {
+              final authService =
+                  Provider.of<AuthService>(context, listen: false);
+              await authService.logout();
+              if (!mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const SplashScreen()),
@@ -76,7 +93,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Déconnecter'),
           ),
@@ -128,7 +146,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F056B).withOpacity(0.1),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF0F056B), width: 3),
+                      border:
+                          Border.all(color: const Color(0xFF0F056B), width: 3),
                     ),
                     child: Center(
                       child: Text(
@@ -145,8 +164,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    user != null ? '${user.firstname} ${user.lastname}' : 'Utilisateur',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    user != null
+                        ? '${user.firstname} ${user.lastname}'
+                        : 'Utilisateur',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Text(
                     user != null ? user.phoneNumber : 'Non renseigné',
@@ -157,7 +179,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
             ),
             Card(
               elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Form(
@@ -180,12 +203,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         decoration: InputDecoration(
                           labelText: 'Nom',
                           prefixIcon: const Icon(Icons.person),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: _isEditing ? Colors.white : Colors.grey[50],
+                          fillColor:
+                              _isEditing ? Colors.white : Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre nom';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre nom';
                           return null;
                         },
                       ),
@@ -196,12 +222,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         decoration: InputDecoration(
                           labelText: 'Prénom',
                           prefixIcon: const Icon(Icons.person_outline),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: _isEditing ? Colors.white : Colors.grey[50],
+                          fillColor:
+                              _isEditing ? Colors.white : Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre prénom';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre prénom';
                           return null;
                         },
                       ),
@@ -213,13 +242,18 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         decoration: InputDecoration(
                           labelText: 'Adresse email',
                           prefixIcon: const Icon(Icons.email),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: _isEditing ? Colors.white : Colors.grey[50],
+                          fillColor:
+                              _isEditing ? Colors.white : Colors.grey[50],
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre email';
-                          if (!value.contains('@')) return 'Email invalide';
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              !value.contains('@')) {
+                            return 'Email invalide';
+                          }
                           return null;
                         },
                       ),
@@ -230,7 +264,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         decoration: InputDecoration(
                           labelText: 'Numéro de téléphone',
                           prefixIcon: const Icon(Icons.phone),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           filled: true,
                           fillColor: Colors.grey[100],
                           hintText: 'Non modifiable',
@@ -246,13 +281,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFEFD807),
                               foregroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
                                     height: 24,
                                     width: 24,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.black),
                                   )
                                 : const Text(
                                     'ENREGISTRER',
@@ -272,7 +309,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
             const SizedBox(height: 16),
             Card(
               elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
               child: ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -280,14 +318,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     color: const Color(0xFF0F056B).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.lock_outline, color: Color(0xFF0F056B)),
+                  child:
+                      const Icon(Icons.lock_outline, color: Color(0xFF0F056B)),
                 ),
-                title: const Text('Modifier le mot de passe', style: TextStyle(fontWeight: FontWeight.w500)),
+                title: const Text('Modifier le mot de passe',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const ChangePasswordScreen()),
                   );
                 },
               ),
@@ -295,7 +336,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
             const SizedBox(height: 16),
             Card(
               elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
               child: ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -307,9 +349,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 ),
                 title: const Text(
                   'Déconnexion',
-                  style: TextStyle(fontWeight: FontWeight.w500, color: Colors.red),
+                  style:
+                      TextStyle(fontWeight: FontWeight.w500, color: Colors.red),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
+                trailing: const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.red),
                 onTap: _logout,
               ),
             ),

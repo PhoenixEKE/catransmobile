@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:catrans_app/services/auth_service.dart';
+import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/client/auth/login_screen.dart';
 import 'package:catrans_app/screens/client/auth/register_screen.dart';
 import 'package:catrans_app/screens/admin/admin_login_screen.dart';
@@ -10,7 +13,8 @@ class SplashScreen extends StatefulWidget {
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -18,38 +22,52 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
       ),
     );
-    
+
     _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
         curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
       ),
     );
-    
+
     _animationController.forward();
-    _navigateToAuth();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _navigateToAuth();
+      }
+    });
   }
 
-  _navigateToAuth() async {
-    await Future.delayed(const Duration(seconds: 5));
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AuthChoiceScreen()),
-      );
-    }
+  Future<void> _navigateToAuth() async {
+    final authService = context.read<AuthService>();
+
+    await Future.wait([
+      Future.delayed(const Duration(seconds: 5)),
+      authService.loadUser(),
+    ]);
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => authService.isAuthenticated
+            ? const AccueilScreen()
+            : const AuthChoiceScreen(),
+      ),
+    );
   }
 
   @override
@@ -75,7 +93,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   width: 150,
                   height: 150,
                   errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.directions_bus, size: 150, color: Colors.white);
+                    return const Icon(Icons.directions_bus,
+                        size: 150, color: Colors.white);
                   },
                 ),
               ),
@@ -126,18 +145,19 @@ class AuthChoiceScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              
+
               // Logo
               Image.asset(
                 'assets/icons/logo.png',
                 width: 120,
                 height: 120,
                 errorBuilder: (context, error, stackTrace) {
-                  return const Icon(Icons.directions_bus, size: 120, color: Colors.white);
+                  return const Icon(Icons.directions_bus,
+                      size: 120, color: Colors.white);
                 },
               ),
               const SizedBox(height: 30),
-              
+
               // Texte
               const Text(
                 'Voyagez sans stress',
@@ -159,7 +179,7 @@ class AuthChoiceScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(flex: 3),
-              
+
               // Bouton SE CONNECTER
               SizedBox(
                 width: double.infinity,
@@ -168,7 +188,8 @@ class AuthChoiceScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const LoginScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -190,7 +211,7 @@ class AuthChoiceScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              
+
               // Bouton CRÉER UN COMPTE
               SizedBox(
                 width: double.infinity,
@@ -199,7 +220,8 @@ class AuthChoiceScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const RegisterScreen()),
                     );
                   },
                   style: OutlinedButton.styleFrom(
@@ -220,19 +242,21 @@ class AuthChoiceScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // ✅ ACCÈS ADMIN
               GestureDetector(
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AdminLoginScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const AdminLoginScreen()),
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -261,7 +285,7 @@ class AuthChoiceScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 10),
             ],
           ),
