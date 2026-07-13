@@ -1,0 +1,118 @@
+import 'package:catrans_app/core/network/api_client.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/accounts/customer_profile.dart';
+import 'package:catrans_app/models/accounts/user.dart';
+import 'package:catrans_app/models/auth/auth_tokens.dart';
+
+class AuthApiService {
+  final ApiClient _apiClient;
+
+  AuthApiService({
+    ApiClient? apiClient,
+  }) : _apiClient = apiClient ?? ApiClient();
+
+  Future<AuthTokens> login({
+    required String phoneNumber,
+    required String password,
+  }) async {
+    final response = await _apiClient.post(
+      'auth/token/',
+      data: {
+        'phone_number': phoneNumber,
+        'password': password,
+      },
+    );
+
+    return AuthTokens.fromJson(_readObject(response.data));
+  }
+
+  Future<AuthTokens> register({
+    required String lastname,
+    required String firstname,
+    required String phoneNumber,
+    required String password,
+    required String passwordConfirm,
+  }) async {
+    final response = await _apiClient.post(
+      'auth/register/',
+      data: {
+        'phone_number': phoneNumber,
+        'lastname': lastname,
+        'firstname': firstname,
+        'password': password,
+        'password_confirm': passwordConfirm,
+      },
+    );
+
+    return AuthTokens.fromJson(_readObject(response.data));
+  }
+
+  Future<String> refreshAccessToken({
+    required String refreshToken,
+  }) async {
+    final response = await _apiClient.post(
+      'auth/token/refresh/',
+      data: {'refresh': refreshToken},
+    );
+
+    final data = _readObject(response.data);
+    final accessToken = data['access'];
+    if (accessToken is String && accessToken.isNotEmpty) {
+      return accessToken;
+    }
+
+    throw ApiException(
+      message: 'Réponse de rafraîchissement JWT invalide.',
+      statusCode: response.statusCode,
+      details: response.data,
+    );
+  }
+
+  Future<User> me() async {
+    final response = await _apiClient.get('auth/me/');
+    return User.fromJson(_readObject(response.data));
+  }
+
+  Future<CustomerProfile> getClientProfile() async {
+    final response = await _apiClient.get('client/profile/');
+    return CustomerProfile.fromJson(_readObject(response.data));
+  }
+
+  Future<CustomerProfile> updateClientProfile({
+    String? lastname,
+    String? firstname,
+  }) async {
+    final data = <String, dynamic>{
+      if (lastname != null) 'lastname': lastname,
+      if (firstname != null) 'firstname': firstname,
+    };
+
+    if (data.isEmpty) {
+      throw ApiException(
+        message: 'Aucune donnée de profil à mettre à jour.',
+      );
+    }
+
+    final response = await _apiClient.patch(
+      'client/profile/',
+      data: data,
+    );
+
+    return CustomerProfile.fromJson(_readObject(response.data));
+  }
+
+  Map<String, dynamic> _readObject(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw ApiException(
+      message: 'Réponse API invalide.',
+      details: data,
+    );
+  }
+}
