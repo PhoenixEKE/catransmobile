@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
 import 'package:catrans_app/screens/client/booking/choix_place_economie_screen.dart';
 import 'package:catrans_app/screens/client/booking/choix_place_prestige_screen.dart';
 
@@ -10,6 +11,7 @@ class RechercheResultatScreen extends StatefulWidget {
   final int nombrePassagers;
   final double prixUnitaire;
   final int points;
+  final CatalogSearchCriteria? searchCriteria;
 
   const RechercheResultatScreen({
     super.key,
@@ -20,10 +22,12 @@ class RechercheResultatScreen extends StatefulWidget {
     required this.nombrePassagers,
     required this.prixUnitaire,
     required this.points,
+    this.searchCriteria,
   });
 
   @override
-  _RechercheResultatScreenState createState() => _RechercheResultatScreenState();
+  _RechercheResultatScreenState createState() =>
+      _RechercheResultatScreenState();
 }
 
 class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
@@ -55,7 +59,7 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
 
   void _chargerTrajets() {
     final seed = _selectedDateAlternative?.day ?? widget.date.day;
-    
+
     Future.delayed(const Duration(seconds: 1), () {
       setState(() {
         _trajets = [
@@ -117,13 +121,47 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
   }
 
   String _formatDate(DateTime date) {
-    const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-    const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const months = [
+      'Janvier',
+      'Février',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Août',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Décembre'
+    ];
+    const days = [
+      'Lundi',
+      'Mardi',
+      'Mercredi',
+      'Jeudi',
+      'Vendredi',
+      'Samedi',
+      'Dimanche'
+    ];
     return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   String _formatDateShort(DateTime date) {
-    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    const months = [
+      'Jan',
+      'Fév',
+      'Mar',
+      'Avr',
+      'Mai',
+      'Juin',
+      'Juil',
+      'Août',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Déc'
+    ];
     return '${date.day} ${months[date.month - 1]}';
   }
 
@@ -146,7 +184,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                   decoration: BoxDecoration(
                     color: isPrestige ? const Color(0xFFEFD807) : Colors.blue,
                     borderRadius: BorderRadius.circular(10),
@@ -202,7 +241,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                    const Icon(Icons.calendar_today,
+                        size: 16, color: Colors.grey),
                     const SizedBox(width: 8),
                     Text(
                       'Mise à jour: ${_formatDate(DateTime.now())}',
@@ -248,7 +288,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                     itemBuilder: (context, index) {
                       final date = _datesAlternatives[index];
                       final isSelected = date == _selectedDateAlternative;
-                      final isToday = date.day == DateTime.now().day && date.month == DateTime.now().month;
+                      final isToday = date.day == DateTime.now().day &&
+                          date.month == DateTime.now().month;
                       return GestureDetector(
                         onTap: () {
                           setState(() {
@@ -259,12 +300,17 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                         },
                         child: Container(
                           margin: const EdgeInsets.only(right: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF0F056B) : Colors.grey[100],
+                            color: isSelected
+                                ? const Color(0xFF0F056B)
+                                : Colors.grey[100],
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isSelected ? const Color(0xFF0F056B) : Colors.grey[300]!,
+                              color: isSelected
+                                  ? const Color(0xFF0F056B)
+                                  : Colors.grey[300]!,
                               width: 1,
                             ),
                           ),
@@ -272,7 +318,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                             children: [
                               if (isToday)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 2),
                                   margin: const EdgeInsets.only(right: 4),
                                   decoration: BoxDecoration(
                                     color: Colors.green,
@@ -290,8 +337,12 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                               Text(
                                 _formatDateShort(date),
                                 style: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                   fontSize: 14,
                                 ),
                               ),
@@ -313,7 +364,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                       children: [
                         CircularProgressIndicator(color: Color(0xFF0F056B)),
                         SizedBox(height: 20),
-                        Text('Recherche des trajets...', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                        Text('Recherche des trajets...',
+                            style: TextStyle(fontSize: 16, color: Colors.grey)),
                       ],
                     ),
                   )
@@ -322,10 +374,16 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.directions_bus, size: 80, color: Colors.grey),
+                            Icon(Icons.directions_bus,
+                                size: 80, color: Colors.grey),
                             SizedBox(height: 20),
-                            Text('Aucun trajet trouvé', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
-                            Text('Essayez de modifier votre recherche', style: TextStyle(color: Colors.grey)),
+                            Text('Aucun trajet trouvé',
+                                style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey)),
+                            Text('Essayez de modifier votre recherche',
+                                style: TextStyle(color: Colors.grey)),
                           ],
                         ),
                       )
@@ -345,7 +403,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                               child: Column(
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
                                         'CA TRANS',
@@ -363,11 +422,14 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colors.green[100],
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                           child: Row(
                                             children: [
-                                              const Icon(Icons.event_seat, size: 14, color: Colors.green),
+                                              const Icon(Icons.event_seat,
+                                                  size: 14,
+                                                  color: Colors.green),
                                               const SizedBox(width: 4),
                                               Text(
                                                 '${trajet['places']} places',
@@ -385,11 +447,14 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                   const SizedBox(height: 12),
                                   Row(
                                     children: [
-                                      const Icon(Icons.access_time, size: 20, color: Color(0xFF0F056B)),
+                                      const Icon(Icons.access_time,
+                                          size: 20, color: Color(0xFF0F056B)),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Départ à ${trajet['heure']}',
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       const Spacer(),
                                       Container(
@@ -399,7 +464,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.blue[50],
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           trajet['duree'],
@@ -414,12 +480,17 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                   ),
                                   const SizedBox(height: 12),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          const Text('Prix', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                          const Text('Prix',
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey)),
                                           Text(
                                             '${trajet['prix'].toStringAsFixed(0)} FCFA',
                                             style: const TextStyle(
@@ -436,13 +507,17 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) => ChoixPlaceEconomieScreen(
+                                                builder: (context) =>
+                                                    ChoixPlaceEconomieScreen(
                                                   depart: widget.depart,
                                                   arrivee: widget.arrivee,
-                                                  date: _selectedDateAlternative ?? widget.date,
+                                                  date:
+                                                      _selectedDateAlternative ??
+                                                          widget.date,
                                                   heure: trajet['heure'],
                                                   prix: trajet['prix'],
-                                                  nombrePassagers: widget.nombrePassagers,
+                                                  nombrePassagers:
+                                                      widget.nombrePassagers,
                                                   points: widget.points,
                                                 ),
                                               ),
@@ -451,13 +526,17 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (context) => ChoixPlacePrestigeScreen(
+                                                builder: (context) =>
+                                                    ChoixPlacePrestigeScreen(
                                                   depart: widget.depart,
                                                   arrivee: widget.arrivee,
-                                                  date: _selectedDateAlternative ?? widget.date,
+                                                  date:
+                                                      _selectedDateAlternative ??
+                                                          widget.date,
                                                   heure: trajet['heure'],
                                                   prix: trajet['prix'],
-                                                  nombrePassagers: widget.nombrePassagers,
+                                                  nombrePassagers:
+                                                      widget.nombrePassagers,
                                                   points: widget.points,
                                                 ),
                                               ),
@@ -465,10 +544,12 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                                           }
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFEFD807),
+                                          backgroundColor:
+                                              const Color(0xFFEFD807),
                                           foregroundColor: Colors.black,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
                                           ),
                                           minimumSize: const Size(120, 40),
                                         ),
@@ -510,7 +591,8 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                     icon: const Icon(Icons.sort, color: Colors.white),
                     label: const Text(
                       'Trier',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0F056B),
@@ -557,11 +639,17 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
                   title: Text(
                     option,
                     style: TextStyle(
-                      fontWeight: _selectedTri == option ? FontWeight.bold : FontWeight.normal,
-                      color: _selectedTri == option ? const Color(0xFF0F056B) : Colors.black,
+                      fontWeight: _selectedTri == option
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: _selectedTri == option
+                          ? const Color(0xFF0F056B)
+                          : Colors.black,
                     ),
                   ),
-                  trailing: _selectedTri == option ? const Icon(Icons.check, color: Color(0xFF0F056B)) : null,
+                  trailing: _selectedTri == option
+                      ? const Icon(Icons.check, color: Color(0xFF0F056B))
+                      : null,
                   onTap: () {
                     setState(() {
                       _selectedTri = option;

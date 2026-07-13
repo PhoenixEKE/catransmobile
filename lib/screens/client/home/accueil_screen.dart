@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/catalog/catalog_destination.dart';
+import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
+import 'package:catrans_app/models/catalog/catalog_station.dart';
+import 'package:catrans_app/models/catalog/catalog_travel_date.dart';
 import 'package:catrans_app/widgets/client/bottom_nav_bar.dart';
 import 'package:catrans_app/widgets/client/trajet_populaire.dart';
 import 'package:catrans_app/widgets/client/hero_promo.dart';
 import 'package:catrans_app/screens/client/search/choix_classe_screen.dart';
 import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
 import 'package:catrans_app/screens/client/profile/profil_screen.dart';
-import 'package:catrans_app/screens/client/profile/points_fidelite_screen.dart';
 import 'package:catrans_app/screens/client/support/support_screen.dart';
+import 'package:catrans_app/services/api/catalog_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -20,29 +25,33 @@ class AccueilScreen extends StatefulWidget {
 
 class _AccueilScreenState extends State<AccueilScreen> {
   int _selectedIndex = 0;
-  String? _selectedDepart;
-  String? _selectedArrivee;
-  DateTime _selectedDate = DateTime.now();
-  
+  final CatalogApiService _catalogApiService = CatalogApiService();
+
+  List<CatalogStation> _stations = [];
+  List<CatalogDestination> _destinations = [];
+  List<CatalogTravelDate> _travelDates = [];
+
+  CatalogStation? _selectedStation;
+  CatalogDestination? _selectedDestination;
+  CatalogTravelDate? _selectedTravelDate;
+
+  bool _isLoadingStations = false;
+  bool _isLoadingDestinations = false;
+  bool _isLoadingDates = false;
+
+  String? _stationsError;
+  String? _destinationsError;
+  String? _datesError;
+
   late PageController _pageController;
   int _currentPage = 0;
 
-  final List<String> _villes = [
-    'Dakar',
-    'Thiès',
-    'Saint-Louis',
-    'Mbour',
-    'Kaolack',
-    'Ziguinchor',
-    'Touba',
-    'Diourbel',
-    'Louga',
-    'Tambacounda',
-  ];
-
   final List<Map<String, dynamic>> _promotions = [
     {'title': 'Promotion Été', 'subtitle': '-20% sur tous les trajets'},
-    {'title': 'Offre Famille', 'subtitle': 'Achetez 3 billets, le 4ème gratuit'},
+    {
+      'title': 'Offre Famille',
+      'subtitle': 'Achetez 3 billets, le 4ème gratuit'
+    },
     {'title': 'Student Discount', 'subtitle': '10% pour les étudiants'},
   ];
 
@@ -60,6 +69,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _loadStations();
     Future.delayed(const Duration(seconds: 3), _autoScroll);
   }
 
@@ -70,6 +80,8 @@ class _AccueilScreenState extends State<AccueilScreen> {
   }
 
   void _autoScroll() {
+    if (!mounted) return;
+
     if (_pageController.hasClients) {
       final nextPage = (_currentPage + 1) % _promotions.length;
       _pageController.animateToPage(
@@ -85,27 +97,297 @@ class _AccueilScreenState extends State<AccueilScreen> {
     return DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(date);
   }
 
-  void _permuterVilles() {
+  Future<void> _loadStations() async {
     setState(() {
-      final temp = _selectedDepart;
-      _selectedDepart = _selectedArrivee;
-      _selectedArrivee = temp;
+      _isLoadingStations = true;
+      _stationsError = null;
+    });
+
+    try {
+      final stations = await _catalogApiService.getStations();
+      if (!mounted) return;
+
+      setState(() {
+        _stations = stations;
+        _isLoadingStations = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _stations = [];
+        _destinations = [];
+        _travelDates = [];
+        _selectedStation = null;
+        _selectedDestination = null;
+        _selectedTravelDate = null;
+        _isLoadingStations = false;
+        _stationsError = _readableErrorMessage(error);
+      });
+    }
+  }
+
+  Future<void> _loadDestinations(CatalogStation station) async {
+    setState(() {
+      _isLoadingDestinations = true;
+      _destinationsError = null;
+    });
+
+    try {
+      final destinations = await _catalogApiService.getDestinations(
+        stationId: station.id,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _destinations = destinations;
+        _isLoadingDestinations = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _destinations = [];
+        _travelDates = [];
+        _selectedDestination = null;
+        _selectedTravelDate = null;
+        _isLoadingDestinations = false;
+        _destinationsError = _readableErrorMessage(error);
+      });
+    }
+  }
+
+  Future<void> _loadDates({
+    required CatalogStation station,
+    required CatalogDestination destination,
+  }) async {
+    setState(() {
+      _isLoadingDates = true;
+      _datesError = null;
+    });
+
+    try {
+      final dates = await _catalogApiService.getDates(
+        stationId: station.id,
+        destinationCityId: destination.id,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _travelDates = dates;
+        _isLoadingDates = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _travelDates = [];
+        _selectedTravelDate = null;
+        _isLoadingDates = false;
+        _datesError = _readableErrorMessage(error);
+      });
+    }
+  }
+
+  void _onStationChanged(CatalogStation? station) {
+    setState(() {
+      _selectedStation = station;
+      _selectedDestination = null;
+      _selectedTravelDate = null;
+      _destinations = [];
+      _travelDates = [];
+      _destinationsError = null;
+      _datesError = null;
+    });
+
+    if (station != null) {
+      _loadDestinations(station);
+    }
+  }
+
+  void _onDestinationChanged(CatalogDestination? destination) {
+    final station = _selectedStation;
+
+    setState(() {
+      _selectedDestination = destination;
+      _selectedTravelDate = null;
+      _travelDates = [];
+      _datesError = null;
+    });
+
+    if (station != null && destination != null) {
+      _loadDates(station: station, destination: destination);
+    }
+  }
+
+  Future<void> _selectTravelDate() async {
+    if (_selectedStation == null) {
+      _showMessage('Veuillez sélectionner une gare de départ.');
+      return;
+    }
+
+    if (_selectedDestination == null) {
+      _showMessage('Veuillez sélectionner une destination.');
+      return;
+    }
+
+    if (_isLoadingDates) {
+      _showMessage('Chargement des dates disponibles...');
+      return;
+    }
+
+    if (_travelDates.isEmpty) {
+      _showMessage('Aucune date disponible pour ce trajet.');
+      return;
+    }
+
+    final selectedDate = await showModalBottomSheet<CatalogTravelDate>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Dates disponibles',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F056B),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _travelDates.length,
+                  itemBuilder: (context, index) {
+                    final travelDate = _travelDates[index];
+                    final isSelected = travelDate == _selectedTravelDate;
+
+                    return ListTile(
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        color: const Color(0xFF0F056B),
+                      ),
+                      title: Text(_formatDate(travelDate.date)),
+                      subtitle: Text(
+                        '${travelDate.departuresCount} départ${travelDate.departuresCount > 1 ? 's' : ''} disponible${travelDate.departuresCount > 1 ? 's' : ''}',
+                      ),
+                      onTap: () => Navigator.pop(context, travelDate),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selectedDate == null) return;
+
+    setState(() {
+      _selectedTravelDate = selectedDate;
     });
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
-      locale: const Locale('fr', 'FR'),
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+  void _search() {
+    final station = _selectedStation;
+    final destination = _selectedDestination;
+    final travelDate = _selectedTravelDate;
+
+    if (station == null) {
+      _showMessage('Veuillez sélectionner une gare de départ.');
+      return;
     }
+
+    if (destination == null) {
+      _showMessage('Veuillez sélectionner une destination.');
+      return;
+    }
+
+    if (travelDate == null) {
+      _showMessage('Veuillez sélectionner une date de départ.');
+      return;
+    }
+
+    final criteria = CatalogSearchCriteria(
+      station: station,
+      destination: destination,
+      travelDate: travelDate,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChoixClasseScreen(
+          depart: criteria.stationName,
+          arrivee: criteria.destinationName,
+          date: criteria.date,
+          searchCriteria: criteria,
+        ),
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  String _readableErrorMessage(Object error) {
+    if (error is ApiException) {
+      return error.message;
+    }
+
+    return 'Une erreur est survenue. Veuillez réessayer.';
+  }
+
+  Widget _buildInlineStatus({
+    required String message,
+    bool isError = false,
+    VoidCallback? onRetry,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.info_outline,
+            size: 16,
+            color: isError ? Colors.red : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: isError ? Colors.red : Colors.grey[700],
+                fontSize: 12,
+              ),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Réessayer'),
+            ),
+        ],
+      ),
+    );
   }
 
   void _onItemTapped(int index) {
@@ -119,7 +401,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
         context,
         MaterialPageRoute(builder: (context) => const MesReservationsScreen()),
       ).then((_) {
-        setState(() => _selectedIndex = 0);
+        if (mounted) setState(() => _selectedIndex = 0);
       });
     } else if (index == 2) {
       // Support
@@ -127,7 +409,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
         context,
         MaterialPageRoute(builder: (context) => const SupportScreen()),
       ).then((_) {
-        setState(() => _selectedIndex = 0);
+        if (mounted) setState(() => _selectedIndex = 0);
       });
     } else if (index == 3) {
       // Profil
@@ -135,7 +417,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
         context,
         MaterialPageRoute(builder: (context) => const ProfilScreen()),
       ).then((_) {
-        setState(() => _selectedIndex = 0);
+        if (mounted) setState(() => _selectedIndex = 0);
       });
     }
   }
@@ -189,7 +471,8 @@ class _AccueilScreenState extends State<AccueilScreen> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Aucune notification pour le moment'),
+                              content:
+                                  Text('Aucune notification pour le moment'),
                               backgroundColor: Colors.blue,
                             ),
                           );
@@ -231,88 +514,176 @@ class _AccueilScreenState extends State<AccueilScreen> {
                 child: Column(
                   children: [
                     // Départ
-                    DropdownButtonFormField<String>(
-                      value: _selectedDepart,
-                      decoration: const InputDecoration(
+                    DropdownButtonFormField<CatalogStation>(
+                      value: _selectedStation,
+                      decoration: InputDecoration(
                         labelText: 'Départ',
-                        prefixIcon: Icon(Icons.location_on, color: Color(0xFF0F056B)),
-                        border: OutlineInputBorder(
+                        prefixIcon: const Icon(
+                          Icons.location_on,
+                          color: Color(0xFF0F056B),
+                        ),
+                        suffixIcon: _isLoadingStations
+                            ? const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : null,
+                        border: const OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(12)),
                         ),
                       ),
-                      items: _villes.map((ville) {
-                        return DropdownMenuItem<String>(
-                          value: ville,
-                          child: Text(ville),
+                      items: _stations.map((station) {
+                        return DropdownMenuItem<CatalogStation>(
+                          value: station,
+                          child: Text(
+                            station.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedDepart = value;
-                        });
-                      },
+                      onChanged: _isLoadingStations ? null : _onStationChanged,
                     ),
+                    if (_stationsError != null)
+                      _buildInlineStatus(
+                        message: _stationsError!,
+                        isError: true,
+                        onRetry: _loadStations,
+                      )
+                    else if (!_isLoadingStations && _stations.isEmpty)
+                      _buildInlineStatus(
+                        message: 'Aucune gare de départ disponible.',
+                      ),
 
                     const SizedBox(height: 10),
 
-                    // Bouton permuter
+                    // Bouton permuter désactivé : le catalogue backend est directionnel.
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
                           icon: const Icon(
                             Icons.swap_vert,
-                            color: Color(0xFF0F056B),
+                            color: Colors.grey,
                             size: 30,
                           ),
-                          onPressed: _permuterVilles,
-                          tooltip: 'Permuter départ et arrivée',
+                          onPressed: null,
+                          tooltip: 'Permutation indisponible',
                         ),
                       ],
                     ),
 
                     // Arrivée
-                    DropdownButtonFormField<String>(
-                      value: _selectedArrivee,
-                      decoration: const InputDecoration(
+                    DropdownButtonFormField<CatalogDestination>(
+                      value: _selectedDestination,
+                      decoration: InputDecoration(
                         labelText: 'Arrivée',
-                        prefixIcon: Icon(Icons.flag, color: Color(0xFF0F056B)),
-                        border: OutlineInputBorder(
+                        prefixIcon: const Icon(
+                          Icons.flag,
+                          color: Color(0xFF0F056B),
+                        ),
+                        suffixIcon: _isLoadingDestinations
+                            ? const Padding(
+                                padding: EdgeInsets.all(14),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : null,
+                        border: const OutlineInputBorder(
                           borderRadius: BorderRadius.all(Radius.circular(12)),
                         ),
                       ),
-                      items: _villes.map((ville) {
-                        return DropdownMenuItem<String>(
-                          value: ville,
-                          child: Text(ville),
+                      items: _destinations.map((destination) {
+                        return DropdownMenuItem<CatalogDestination>(
+                          value: destination,
+                          child: Text(
+                            destination.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedArrivee = value;
-                        });
-                      },
+                      onChanged:
+                          _selectedStation == null || _isLoadingDestinations
+                              ? null
+                              : _onDestinationChanged,
                     ),
+                    if (_destinationsError != null)
+                      _buildInlineStatus(
+                        message: _destinationsError!,
+                        isError: true,
+                        onRetry: _selectedStation == null
+                            ? null
+                            : () => _loadDestinations(_selectedStation!),
+                      )
+                    else if (_selectedStation != null &&
+                        !_isLoadingDestinations &&
+                        _destinations.isEmpty)
+                      _buildInlineStatus(
+                        message:
+                            'Aucune destination disponible depuis cette gare.',
+                      ),
 
                     const SizedBox(height: 15),
 
                     // Date
                     InkWell(
-                      onTap: () => _selectDate(context),
+                      onTap: _selectTravelDate,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Date de départ',
-                          prefixIcon: Icon(Icons.calendar_today, color: Color(0xFF0F056B)),
-                          border: OutlineInputBorder(
+                          prefixIcon: const Icon(
+                            Icons.calendar_today,
+                            color: Color(0xFF0F056B),
+                          ),
+                          suffixIcon: _isLoadingDates
+                              ? const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                          border: const OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         child: Text(
-                          _formatDate(_selectedDate),
+                          _selectedTravelDate == null
+                              ? 'Sélectionnez une date disponible'
+                              : _formatDate(_selectedTravelDate!.date),
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),
                     ),
+                    if (_datesError != null)
+                      _buildInlineStatus(
+                        message: _datesError!,
+                        isError: true,
+                        onRetry: _selectedStation == null ||
+                                _selectedDestination == null
+                            ? null
+                            : () => _loadDates(
+                                  station: _selectedStation!,
+                                  destination: _selectedDestination!,
+                                ),
+                      )
+                    else if (_selectedDestination != null &&
+                        !_isLoadingDates &&
+                        _travelDates.isEmpty)
+                      _buildInlineStatus(
+                        message: 'Aucune date disponible pour ce trajet.',
+                      ),
 
                     const SizedBox(height: 20),
 
@@ -321,27 +692,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (_selectedDepart != null && _selectedArrivee != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChoixClasseScreen(
-                                  depart: _selectedDepart!,
-                                  arrivee: _selectedArrivee!,
-                                  date: _selectedDate,
-                                ),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Veuillez sélectionner un départ et une arrivée'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: _search,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFEFD807),
                           foregroundColor: Colors.black,
@@ -415,7 +766,9 @@ class _AccueilScreenState extends State<AccueilScreen> {
 
               // Liste des trajets populaires
               Column(
-                children: (_showAllTrajets ? _trajetsPopulaires : _trajetsPopulaires.take(3).toList())
+                children: (_showAllTrajets
+                        ? _trajetsPopulaires
+                        : _trajetsPopulaires.take(3).toList())
                     .map((trajet) => TrajetPopulaire(
                           depart: trajet['depart'] as String,
                           arrivee: trajet['arrivee'] as String,

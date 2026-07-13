@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
 import 'package:catrans_app/screens/client/search/recherche_resultat_screen.dart';
 
 class ChoixClasseScreen extends StatefulWidget {
   final String depart;
   final String arrivee;
   final DateTime date;
+  final CatalogSearchCriteria? searchCriteria;
 
   const ChoixClasseScreen({
     super.key,
     required this.depart,
     required this.arrivee,
     required this.date,
+    this.searchCriteria,
   });
 
   @override
@@ -86,7 +89,8 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFD807),
                       borderRadius: BorderRadius.circular(12),
@@ -211,6 +215,7 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                         nombrePassagers: _nombrePassagers,
                         prixUnitaire: _prixParClasse[_selectedClasse]!,
                         points: _pointsParClasse[_selectedClasse]!,
+                        searchCriteria: widget.searchCriteria,
                       ),
                     ),
                   );
@@ -287,7 +292,12 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
             width: isSelected ? 3 : 1,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: couleur.withOpacity(0.3), blurRadius: 10, spreadRadius: 2)]
+              ? [
+                  BoxShadow(
+                      color: couleur.withOpacity(0.3),
+                      blurRadius: 10,
+                      spreadRadius: 2)
+                ]
               : null,
         ),
         child: Column(
@@ -306,7 +316,8 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                 ),
                 if (isSelected)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.green,
                       borderRadius: BorderRadius.circular(10),
@@ -335,14 +346,16 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                 ),
                 const SizedBox(width: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEFD807).withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.stars, size: 12, color: Color(0xFFEFD807)),
+                      const Icon(Icons.stars,
+                          size: 12, color: Color(0xFFEFD807)),
                       const SizedBox(width: 4),
                       Text(
                         '+$points pts/billet',
@@ -367,23 +380,23 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
             ),
             const SizedBox(height: 8),
             ...avantages.map((avantage) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: couleur, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      avantage,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[700],
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: couleur, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          avantage,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            )),
+                )),
             const Divider(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
