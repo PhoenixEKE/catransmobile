@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
+import 'package:catrans_app/models/reservation/reservation_detail.dart';
+import 'package:catrans_app/screens/client/home/accueil_screen.dart';
+import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 
 class RecapitulatifScreen extends StatelessWidget {
@@ -13,6 +17,8 @@ class RecapitulatifScreen extends StatelessWidget {
   final String classe;
   final List<Map<String, dynamic>> passagers;
   final SelectedSeatHoldContext? selectedSeatHoldContext;
+  final ReservationDetail? reservationDetail;
+  final bool isBlockingPendingResume;
 
   const RecapitulatifScreen({
     super.key,
@@ -26,7 +32,58 @@ class RecapitulatifScreen extends StatelessWidget {
     required this.classe,
     required this.passagers,
     this.selectedSeatHoldContext,
+    this.reservationDetail,
+    this.isBlockingPendingResume = false,
   });
+
+  factory RecapitulatifScreen.fromReservation({
+    Key? key,
+    required ReservationDetail reservationDetail,
+    bool isBlockingPendingResume = false,
+  }) {
+    final items = reservationDetail.items;
+    final firstItem = items.isNotEmpty ? items.first : null;
+    final travelDate = DateTime.tryParse(firstItem?.departureDate ?? '') ??
+        reservationDetail.createdAt ??
+        DateTime.now();
+    final unitPrice = double.tryParse(
+          firstItem?.unitPrice ?? reservationDetail.totalAmount,
+        ) ??
+        0;
+    final serviceClassCode = firstItem?.serviceClassCode?.toLowerCase() ?? '';
+    final passengers = items.isEmpty
+        ? <Map<String, dynamic>>[
+            {
+              'nom': '',
+              'prenom': 'Voyageur',
+              'telephone': '',
+              'place': 0,
+            }
+          ]
+        : items.map((item) {
+            return <String, dynamic>{
+              'nom': item.travelerLastname ?? '',
+              'prenom': item.travelerFirstname ?? 'Voyageur',
+              'telephone': item.travelerPhone ?? '',
+              'place': item.seatNumber ?? 0,
+            };
+          }).toList();
+
+    return RecapitulatifScreen(
+      key: key,
+      depart: firstItem?.stationName ?? 'Départ',
+      arrivee: firstItem?.destinationName ?? 'Arrivée',
+      date: travelDate,
+      heure: firstItem?.departureTime ?? '',
+      prix: unitPrice,
+      nombrePassagers: passengers.length,
+      points: 0,
+      classe: serviceClassCode == 'prestige' ? 'prestige' : 'economie',
+      passagers: passengers,
+      reservationDetail: reservationDetail,
+      isBlockingPendingResume: isBlockingPendingResume,
+    );
+  }
 
   String _formatDate(DateTime date) {
     const months = [
@@ -64,7 +121,18 @@ class RecapitulatifScreen extends StatelessWidget {
     return '$day/$month/${localDate.year} à $hour:$minute';
   }
 
-  String _temporaryReference() {
+  String _referenceLabel() {
+    return reservationDetail != null
+        ? 'Référence de réservation'
+        : 'Référence temporaire';
+  }
+
+  String _referenceValue() {
+    final reservation = reservationDetail;
+    if (reservation != null && reservation.reference.isNotEmpty) {
+      return reservation.reference;
+    }
+
     final holds = selectedSeatHoldContext?.holds ?? const [];
     if (holds.isNotEmpty && holds.first.id.isNotEmpty) {
       final compactId = holds.first.id.replaceAll('-', '').toUpperCase();
@@ -79,10 +147,11 @@ class RecapitulatifScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = prix * nombrePassagers;
+    final total = double.tryParse(reservationDetail?.totalAmount ?? '') ??
+        prix * nombrePassagers;
     final isPrestige = classe == 'prestige';
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Récapitulatif'),
@@ -169,15 +238,15 @@ class RecapitulatifScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Référence temporaire',
+                              Text(
+                                _referenceLabel(),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey,
                                 ),
                               ),
                               Text(
-                                _temporaryReference(),
+                                _referenceValue(),
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -190,7 +259,10 @@ class RecapitulatifScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (selectedSeatHoldContext != null) ...[
+                  if (reservationDetail != null) ...[
+                    _buildReservationInfoCard(reservationDetail!),
+                    const SizedBox(height: 20),
+                  ] else if (selectedSeatHoldContext != null) ...[
                     _buildHoldInfoCard(selectedSeatHoldContext!),
                     const SizedBox(height: 20),
                   ],
@@ -471,29 +543,117 @@ class RecapitulatifScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            _buildActionButtons(context, total),
+          ],
+        ),
+      ),
+    );
+
+    if (!isBlockingPendingResume) {
+      return scaffold;
+    }
+
+    return WillPopScope(
+      onWillPop: () async {
+        _showBlockingReturnMessage(context);
+        return false;
+      },
+      child: scaffold,
+    );
+  }
+
+  void _showBlockingReturnMessage(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Vous devez payer ou annuler cette réservation avant de continuer.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, double total) {
+    final canCancel = reservationDetail?.isPendingPayment == true;
+    var isCancelling = false;
+
+    return StatefulBuilder(
+      builder: (context, setButtonState) {
+        Future<void> cancelPendingReservation() async {
+          final reservation = reservationDetail;
+          if (reservation == null || isCancelling) return;
+
+          setButtonState(() {
+            isCancelling = true;
+          });
+
+          try {
+            await ReservationApiService().cancelReservation(
+              reservationId: reservation.id,
+            );
+
+            if (!context.mounted) return;
+
+            final messenger = ScaffoldMessenger.of(context);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const AccueilScreen()),
+              (route) => false,
+            );
+
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Réservation annulée.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } catch (error) {
+            if (!context.mounted) return;
+
+            setButtonState(() {
+              isCancelling = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  error is ApiException
+                      ? error.message
+                      : 'Impossible d’annuler la réservation.',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+
+        return Column(
+          children: [
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PaiementScreen(
-                        depart: depart,
-                        arrivee: arrivee,
-                        date: date,
-                        heure: heure,
-                        prix: prix,
-                        nombrePassagers: nombrePassagers,
-                        points: points,
-                        classe: classe,
-                        passagers: passagers,
-                        total: total,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: isCancelling
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PaiementScreen(
+                              depart: depart,
+                              arrivee: arrivee,
+                              date: date,
+                              heure: heure,
+                              prix: prix,
+                              nombrePassagers: nombrePassagers,
+                              points: points,
+                              classe: classe,
+                              passagers: passagers,
+                              total: total,
+                            ),
+                          ),
+                        );
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFD807),
                   foregroundColor: Colors.black,
@@ -511,8 +671,104 @@ class RecapitulatifScreen extends StatelessWidget {
                 ),
               ),
             ),
+            if (canCancel) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton(
+                  onPressed: isCancelling ? null : cancelPendingReservation,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: isCancelling
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.red,
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Text('Annulation en cours...'),
+                          ],
+                        )
+                      : const Text(
+                          'ANNULER LA RÉSERVATION',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ],
-        ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReservationInfoCard(ReservationDetail reservation) {
+    final expiresAt = reservation.localExpiresAt;
+    final withoutSeat = reservation.isEconomyWithoutSeat ||
+        !reservation.items.any((item) => item.hasSeat);
+    final seatLabels = reservation.items
+        .where((item) => item.hasSeat)
+        .map((item) => item.seatDisplayLabel)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.assignment_turned_in, color: Colors.green, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Réservation en attente de paiement',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (withoutSeat)
+                  Text(
+                    'Placement effectué à la gare',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  )
+                else if (seatLabels.isNotEmpty)
+                  Text(
+                    seatLabels.join(', '),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+                if (expiresAt != null)
+                  Text(
+                    'À payer avant le ${_formatDateTime(expiresAt)}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

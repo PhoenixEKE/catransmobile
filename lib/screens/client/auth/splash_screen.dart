@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:catrans_app/services/auth_service.dart';
+import 'package:catrans_app/models/reservation/reservation_detail.dart';
+import 'package:catrans_app/services/api/reservation_api_service.dart';
+import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/client/auth/login_screen.dart';
 import 'package:catrans_app/screens/client/auth/register_screen.dart';
@@ -60,6 +63,24 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    if (authService.isAuthenticated) {
+      final pendingReservation = await _loadPendingReservation();
+      if (!mounted) return;
+
+      if (pendingReservation != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RecapitulatifScreen.fromReservation(
+              reservationDetail: pendingReservation,
+              isBlockingPendingResume: true,
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -68,6 +89,16 @@ class _SplashScreenState extends State<SplashScreen>
             : const AuthChoiceScreen(),
       ),
     );
+  }
+
+  Future<ReservationDetail?> _loadPendingReservation() async {
+    try {
+      final pending =
+          await ReservationApiService().getCurrentPendingReservation();
+      return pending.hasActiveReservation ? pending.reservation : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
-import 'package:catrans_app/models/booking/seat_hold_response.dart';
-import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
 import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
-import 'package:catrans_app/services/api/booking_api_service.dart';
+import 'package:catrans_app/models/reservation/reservation_create_item.dart';
+import 'package:catrans_app/services/api/reservation_api_service.dart';
+import 'package:catrans_app/services/auth_service.dart';
 
 class ChoixPlaceEconomieScreen extends StatefulWidget {
   final String depart;
@@ -36,15 +37,24 @@ class ChoixPlaceEconomieScreen extends StatefulWidget {
 class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
   final List<TextEditingController> _nomControllers = [];
   final List<TextEditingController> _prenomControllers = [];
-  final BookingApiService _bookingApiService = BookingApiService();
-  bool _isHoldingSeats = false;
+  final List<TextEditingController> _phoneControllers = [];
+  final ReservationApiService _reservationApiService = ReservationApiService();
+  bool _isCreatingReservation = false;
 
   @override
   void initState() {
     super.initState();
+    final currentUser = context.read<AuthService>().currentUser;
     for (int i = 0; i < widget.nombrePassagers; i++) {
-      _nomControllers.add(TextEditingController());
-      _prenomControllers.add(TextEditingController());
+      _nomControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.lastname ?? '' : '',
+      ));
+      _prenomControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.firstname ?? '' : '',
+      ));
+      _phoneControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.phoneNumber ?? '' : '',
+      ));
     }
   }
 
@@ -56,13 +66,23 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
     for (var controller in _prenomControllers) {
       controller.dispose();
     }
+    for (var controller in _phoneControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   bool _arePassengerFieldsFilled() {
+    final hasCurrentUser = context.read<AuthService>().currentUser != null;
+
     for (int i = 0; i < widget.nombrePassagers; i++) {
+      final isCurrentCustomer = i == 0 && hasCurrentUser;
       if (_nomControllers[i].text.trim().isEmpty ||
           _prenomControllers[i].text.trim().isEmpty) {
+        return false;
+      }
+
+      if (!isCurrentCustomer && _phoneControllers[i].text.trim().isEmpty) {
         return false;
       }
     }
@@ -70,26 +90,37 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
     return true;
   }
 
-  List<Map<String, dynamic>> _buildPassengers({
-    List<int> seatNumbers = const [],
-  }) {
+  List<Map<String, dynamic>> _buildPassengers() {
     return List.generate(widget.nombrePassagers, (index) {
-      final hasSeatNumber = index < seatNumbers.length;
-
       return {
         'nom': _nomControllers[index].text.trim(),
         'prenom': _prenomControllers[index].text.trim(),
-        'place': hasSeatNumber ? seatNumbers[index] : 0,
+        'telephone': _phoneControllers[index].text.trim(),
+        'place': 0,
       };
     });
   }
 
-  DateTime? _earliestExpiration(List<SeatHoldResponse> holds) {
-    if (holds.isEmpty) return null;
+  List<ReservationCreateItem> _buildReservationItems() {
+    final hasCurrentUser = context.read<AuthService>().currentUser != null;
 
-    return holds
-        .map((hold) => hold.expiresAt)
-        .reduce((current, next) => current.isBefore(next) ? current : next);
+    return List.generate(widget.nombrePassagers, (index) {
+      final isCurrentCustomer = index == 0 && hasCurrentUser;
+      if (isCurrentCustomer) {
+        return const ReservationCreateItem(
+          isForCustomer: true,
+          useLoyaltyPoints: false,
+        );
+      }
+
+      return ReservationCreateItem(
+        isForCustomer: false,
+        useLoyaltyPoints: false,
+        travelerLastname: _nomControllers[index].text.trim(),
+        travelerFirstname: _prenomControllers[index].text.trim(),
+        travelerPhone: _phoneControllers[index].text.trim(),
+      );
+    });
   }
 
   void _showError(String message) {
@@ -99,6 +130,30 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  Future<bool> _openCurrentPendingReservation() async {
+    try {
+      final pending =
+          await _reservationApiService.getCurrentPendingReservation();
+      final reservation = pending.reservation;
+      if (!mounted || reservation == null || !pending.hasActiveReservation) {
+        return false;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RecapitulatifScreen.fromReservation(
+            reservationDetail: reservation,
+            isBlockingPendingResume: true,
+          ),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _confirmReservation() async {
@@ -120,28 +175,21 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
     }
 
     setState(() {
-      _isHoldingSeats = true;
+      _isCreatingReservation = true;
     });
 
     try {
-      final holds = await _bookingApiService.createAutomaticSeatHold(
+      final reservation =
+          await _reservationApiService.createEconomyPendingReservation(
         departureId: departureContext.departureId,
-        passengersCount: widget.nombrePassagers,
+        serviceClassCode: 'ECONOMIE',
+        items: _buildReservationItems(),
       );
 
       if (!mounted) return;
 
-      final seatNumbers = holds.map((hold) => hold.seatNumber).toList();
-      final selectedSeatHoldContext = SelectedSeatHoldContext(
-        departureContext: departureContext,
-        holds: holds,
-        seatNumbers: seatNumbers,
-        passengerCount: widget.nombrePassagers,
-        expiresAt: _earliestExpiration(holds),
-      );
-
       setState(() {
-        _isHoldingSeats = false;
+        _isCreatingReservation = false;
       });
 
       Navigator.push(
@@ -156,8 +204,8 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
             nombrePassagers: widget.nombrePassagers,
             points: widget.points,
             classe: 'economie',
-            passagers: _buildPassengers(seatNumbers: seatNumbers),
-            selectedSeatHoldContext: selectedSeatHoldContext,
+            passagers: _buildPassengers(),
+            reservationDetail: reservation,
           ),
         ),
       );
@@ -165,13 +213,18 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
       if (!mounted) return;
 
       setState(() {
-        _isHoldingSeats = false;
+        _isCreatingReservation = false;
       });
+
+      if (error is ApiException && error.statusCode == 409) {
+        final openedPending = await _openCurrentPendingReservation();
+        if (openedPending) return;
+      }
 
       _showError(
         error is ApiException
             ? error.message
-            : 'Impossible de réserver temporairement les places.',
+            : 'Impossible de créer la réservation en attente.',
       );
     }
   }
@@ -302,6 +355,21 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _phoneControllers[index],
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Téléphone',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -391,7 +459,7 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: _isHoldingSeats ? null : _confirmReservation,
+                onPressed: _isCreatingReservation ? null : _confirmReservation,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFD807),
                   foregroundColor: Colors.black,
@@ -399,7 +467,7 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: _isHoldingSeats
+                child: _isCreatingReservation
                     ? const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -413,7 +481,7 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                           ),
                           SizedBox(width: 10),
                           Text(
-                            'Réservation temporaire des places...',
+                            'Création de la réservation en attente...',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
