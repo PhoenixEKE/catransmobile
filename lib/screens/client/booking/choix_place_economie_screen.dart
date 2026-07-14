@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/booking/seat_hold_response.dart';
+import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
 import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
+import 'package:catrans_app/services/api/booking_api_service.dart';
 
 class ChoixPlaceEconomieScreen extends StatefulWidget {
   final String depart;
@@ -32,6 +36,8 @@ class ChoixPlaceEconomieScreen extends StatefulWidget {
 class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
   final List<TextEditingController> _nomControllers = [];
   final List<TextEditingController> _prenomControllers = [];
+  final BookingApiService _bookingApiService = BookingApiService();
+  bool _isHoldingSeats = false;
 
   @override
   void initState() {
@@ -51,6 +57,123 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  bool _arePassengerFieldsFilled() {
+    for (int i = 0; i < widget.nombrePassagers; i++) {
+      if (_nomControllers[i].text.trim().isEmpty ||
+          _prenomControllers[i].text.trim().isEmpty) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  List<Map<String, dynamic>> _buildPassengers({
+    List<int> seatNumbers = const [],
+  }) {
+    return List.generate(widget.nombrePassagers, (index) {
+      final hasSeatNumber = index < seatNumbers.length;
+
+      return {
+        'nom': _nomControllers[index].text.trim(),
+        'prenom': _prenomControllers[index].text.trim(),
+        'place': hasSeatNumber ? seatNumbers[index] : 0,
+      };
+    });
+  }
+
+  DateTime? _earliestExpiration(List<SeatHoldResponse> holds) {
+    if (holds.isEmpty) return null;
+
+    return holds
+        .map((hold) => hold.expiresAt)
+        .reduce((current, next) => current.isBefore(next) ? current : next);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  Future<void> _confirmReservation() async {
+    if (!_arePassengerFieldsFilled()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez remplir tous les champs'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final departureContext = widget.selectedDepartureContext;
+    if (departureContext == null) {
+      _showError(
+          'Départ sélectionné introuvable. Veuillez relancer la recherche.');
+      return;
+    }
+
+    setState(() {
+      _isHoldingSeats = true;
+    });
+
+    try {
+      final holds = await _bookingApiService.createAutomaticSeatHold(
+        departureId: departureContext.departureId,
+        passengersCount: widget.nombrePassagers,
+      );
+
+      if (!mounted) return;
+
+      final seatNumbers = holds.map((hold) => hold.seatNumber).toList();
+      final selectedSeatHoldContext = SelectedSeatHoldContext(
+        departureContext: departureContext,
+        holds: holds,
+        seatNumbers: seatNumbers,
+        passengerCount: widget.nombrePassagers,
+        expiresAt: _earliestExpiration(holds),
+      );
+
+      setState(() {
+        _isHoldingSeats = false;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RecapitulatifScreen(
+            depart: widget.depart,
+            arrivee: widget.arrivee,
+            date: widget.date,
+            heure: widget.heure,
+            prix: widget.prix,
+            nombrePassagers: widget.nombrePassagers,
+            points: widget.points,
+            classe: 'economie',
+            passagers: _buildPassengers(seatNumbers: seatNumbers),
+            selectedSeatHoldContext: selectedSeatHoldContext,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isHoldingSeats = false;
+      });
+
+      _showError(
+        error is ApiException
+            ? error.message
+            : 'Impossible de réserver temporairement les places.',
+      );
+    }
   }
 
   @override
@@ -268,49 +391,7 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: () {
-                  bool allFilled = true;
-                  for (int i = 0; i < widget.nombrePassagers; i++) {
-                    if (_nomControllers[i].text.trim().isEmpty ||
-                        _prenomControllers[i].text.trim().isEmpty) {
-                      allFilled = false;
-                      break;
-                    }
-                  }
-
-                  if (!allFilled) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Veuillez remplir tous les champs'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                    return;
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RecapitulatifScreen(
-                        depart: widget.depart,
-                        arrivee: widget.arrivee,
-                        date: widget.date,
-                        heure: widget.heure,
-                        prix: widget.prix,
-                        nombrePassagers: widget.nombrePassagers,
-                        points: widget.points,
-                        classe: 'economie',
-                        passagers: List.generate(
-                            widget.nombrePassagers,
-                            (index) => {
-                                  'nom': _nomControllers[index].text,
-                                  'prenom': _prenomControllers[index].text,
-                                  'place': 0,
-                                }),
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _isHoldingSeats ? null : _confirmReservation,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFD807),
                   foregroundColor: Colors.black,
@@ -318,14 +399,37 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'CONFIRMER LA RÉSERVATION',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
+                child: _isHoldingSeats
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Réservation temporaire des places...',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        'CONFIRMER LA RÉSERVATION',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
               ),
             ),
           ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 
 class RecapitulatifScreen extends StatelessWidget {
@@ -11,6 +12,7 @@ class RecapitulatifScreen extends StatelessWidget {
   final int points;
   final String classe;
   final List<Map<String, dynamic>> passagers;
+  final SelectedSeatHoldContext? selectedSeatHoldContext;
 
   const RecapitulatifScreen({
     super.key,
@@ -23,12 +25,56 @@ class RecapitulatifScreen extends StatelessWidget {
     required this.points,
     required this.classe,
     required this.passagers,
+    this.selectedSeatHoldContext,
   });
 
   String _formatDate(DateTime date) {
-    const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-    const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const months = [
+      'Janvier',
+      'Février',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Août',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Décembre'
+    ];
+    const days = [
+      'Lundi',
+      'Mardi',
+      'Mercredi',
+      'Jeudi',
+      'Vendredi',
+      'Samedi',
+      'Dimanche'
+    ];
     return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    final localDate = date.toLocal();
+    final day = localDate.day.toString().padLeft(2, '0');
+    final month = localDate.month.toString().padLeft(2, '0');
+    final hour = localDate.hour.toString().padLeft(2, '0');
+    final minute = localDate.minute.toString().padLeft(2, '0');
+    return '$day/$month/${localDate.year} à $hour:$minute';
+  }
+
+  String _temporaryReference() {
+    final holds = selectedSeatHoldContext?.holds ?? const [];
+    if (holds.isNotEmpty && holds.first.id.isNotEmpty) {
+      final compactId = holds.first.id.replaceAll('-', '').toUpperCase();
+      final suffix = compactId.length > 6
+          ? compactId.substring(compactId.length - 6)
+          : compactId;
+      return 'HOLD-$suffix';
+    }
+
+    return 'TEMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(6, 12)}';
   }
 
   @override
@@ -78,12 +124,27 @@ class RecapitulatifScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Réservation confirmée',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Réservation en attente de paiement',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Vos places sont gardées pendant quelques minutes. Finalisez le paiement pour confirmer votre voyage.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -109,14 +170,14 @@ class RecapitulatifScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Référence du billet',
+                                'Référence temporaire',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey,
                                 ),
                               ),
                               Text(
-                                'CIT-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().millisecondsSinceEpoch.toString().substring(6, 12)}',
+                                _temporaryReference(),
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -129,6 +190,10 @@ class RecapitulatifScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (selectedSeatHoldContext != null) ...[
+                    _buildHoldInfoCard(selectedSeatHoldContext!),
+                    const SizedBox(height: 20),
+                  ],
                   const SizedBox(height: 20),
                   const Text(
                     'Informations du trajet',
@@ -140,28 +205,30 @@ class RecapitulatifScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _buildInfoRow(Icons.route, 'Trajet', '$depart → $arrivee'),
-                  _buildInfoRow(Icons.calendar_today, 'Date', _formatDate(date)),
+                  _buildInfoRow(
+                      Icons.calendar_today, 'Date', _formatDate(date)),
                   _buildInfoRow(Icons.access_time, 'Heure de départ', heure),
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isPrestige 
+                      color: isPrestige
                           ? const Color(0xFFEFD807).withOpacity(0.2)
                           : Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isPrestige 
-                            ? const Color(0xFFEFD807)
-                            : Colors.blue,
+                        color:
+                            isPrestige ? const Color(0xFFEFD807) : Colors.blue,
                         width: 1,
                       ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          isPrestige ? Icons.stars : Icons.airline_seat_recline_normal,
-                          color: isPrestige 
+                          isPrestige
+                              ? Icons.stars
+                              : Icons.airline_seat_recline_normal,
+                          color: isPrestige
                               ? const Color(0xFFEFD807)
                               : Colors.blue,
                           size: 24,
@@ -176,13 +243,13 @@ class RecapitulatifScreen extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: isPrestige 
+                                  color: isPrestige
                                       ? const Color(0xFFEFD807)
                                       : Colors.blue,
                                 ),
                               ),
                               Text(
-                                isPrestige 
+                                isPrestige
                                     ? 'Collation • Toilettes • Sans escale'
                                     : 'Confort • Prix accessible',
                                 style: TextStyle(
@@ -194,9 +261,10 @@ class RecapitulatifScreen extends StatelessWidget {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(
-                            color: isPrestige 
+                            color: isPrestige
                                 ? const Color(0xFFEFD807)
                                 : Colors.blue,
                             borderRadius: BorderRadius.circular(12),
@@ -240,7 +308,7 @@ class RecapitulatifScreen extends StatelessWidget {
                             width: 30,
                             height: 30,
                             decoration: BoxDecoration(
-                              color: isPrestige 
+                              color: isPrestige
                                   ? const Color(0xFFEFD807).withOpacity(0.3)
                                   : Colors.blue.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
@@ -250,7 +318,7 @@ class RecapitulatifScreen extends StatelessWidget {
                                 '${index + 1}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: isPrestige 
+                                  color: isPrestige
                                       ? const Color(0xFFEFD807)
                                       : Colors.blue,
                                   fontSize: 14,
@@ -272,7 +340,7 @@ class RecapitulatifScreen extends StatelessWidget {
                                 ),
                                 if (passager['place'] != 0)
                                   Text(
-                                    'Place N°${passager['place']}',
+                                    'Siège ${passager['place']}',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey[600],
@@ -283,7 +351,8 @@ class RecapitulatifScreen extends StatelessWidget {
                           ),
                           if (passager['place'] != 0)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.green[100],
                                 borderRadius: BorderRadius.circular(10),
@@ -375,7 +444,8 @@ class RecapitulatifScreen extends StatelessWidget {
                               ],
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEFD807).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
@@ -443,6 +513,62 @@ class RecapitulatifScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHoldInfoCard(SelectedSeatHoldContext context) {
+    final expiresAt = context.firstExpiresAt;
+    final seatNumbers = context.seatNumbers;
+    final placesLabel = context.holds.length == 1
+        ? '1 place gardée'
+        : '${context.holds.length} places gardées';
+    final seatsLabel = seatNumbers.length == 1
+        ? 'Siège attribué : ${seatNumbers.first}'
+        : 'Sièges attribués : ${seatNumbers.join(', ')}';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.event_seat, color: Colors.green, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Places gardées',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  placesLabel,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+                if (seatNumbers.isNotEmpty)
+                  Text(
+                    seatsLabel,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+                if (expiresAt != null)
+                  Text(
+                    'À payer avant le ${_formatDateTime(expiresAt)}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
