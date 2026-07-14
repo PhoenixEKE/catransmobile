@@ -640,6 +640,7 @@ class RecapitulatifScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => PaiementScreen(
+                              reservationDetail: reservationDetail,
                               depart: depart,
                               arrivee: arrivee,
                               date: date,
