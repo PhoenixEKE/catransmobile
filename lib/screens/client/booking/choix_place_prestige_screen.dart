@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:catrans_app/models/catalog/selected_departure_context.dart';
-import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
-import 'package:catrans_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
+
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/booking/seat_hold_response.dart';
+import 'package:catrans_app/models/booking/seat_map_response.dart';
+import 'package:catrans_app/models/booking/seat_map_seat.dart';
+import 'package:catrans_app/models/catalog/selected_departure_context.dart';
+import 'package:catrans_app/models/reservation/reservation_create_item.dart';
+import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
+import 'package:catrans_app/services/api/booking_api_service.dart';
+import 'package:catrans_app/services/api/reservation_api_service.dart';
+import 'package:catrans_app/services/auth_service.dart';
 
 class ChoixPlacePrestigeScreen extends StatefulWidget {
   final String depart;
@@ -34,40 +42,336 @@ class ChoixPlacePrestigeScreen extends StatefulWidget {
 class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   final List<TextEditingController> _nomControllers = [];
   final List<TextEditingController> _prenomControllers = [];
-  final List<int> _placesSelectionnees = [];
-  final List<int> _placesOccupees = [12, 18, 22, 29, 31];
+  final List<TextEditingController> _phoneControllers = [];
+  final List<SeatMapSeat> _selectedSeats = [];
+  final BookingApiService _bookingApiService = BookingApiService();
+  final ReservationApiService _reservationApiService = ReservationApiService();
+
+  SeatMapResponse? _seatMap;
+  String? _seatMapError;
   int _passagerEnCours = 0;
-  bool _isSelectionComplete = false;
+  bool _isLoadingSeatMap = true;
+  bool _isCreatingReservation = false;
 
   @override
   void initState() {
     super.initState();
+    final currentUser = context.read<AuthService>().currentUser;
     for (int i = 0; i < widget.nombrePassagers; i++) {
-      _nomControllers.add(TextEditingController());
-      _prenomControllers.add(TextEditingController());
-      _placesSelectionnees.add(0);
+      _prenomControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.firstname ?? '' : '',
+      ));
+      _nomControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.lastname ?? '' : '',
+      ));
+      _phoneControllers.add(TextEditingController(
+        text: i == 0 ? currentUser?.phoneNumber ?? '' : '',
+      ));
     }
-    _remplirPassagerPrincipal();
-  }
-
-  void _remplirPassagerPrincipal() {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final user = authService.currentUser;
-    if (user != null && widget.nombrePassagers > 0) {
-      _prenomControllers[0].text = user.firstname;
-      _nomControllers[0].text = user.lastname;
-    }
+    _loadSeatMap();
   }
 
   @override
   void dispose() {
-    for (var controller in _nomControllers) {
+    for (final controller in _nomControllers) {
       controller.dispose();
     }
-    for (var controller in _prenomControllers) {
+    for (final controller in _prenomControllers) {
+      controller.dispose();
+    }
+    for (final controller in _phoneControllers) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  List<int> get _selectedSeatNumbers =>
+      _selectedSeats.map((seat) => seat.seatNumber).toList();
+
+  bool get _isSelectionComplete =>
+      _selectedSeats.length == widget.nombrePassagers;
+
+  Future<void> _loadSeatMap() async {
+    final departureContext = widget.selectedDepartureContext;
+    if (departureContext == null) {
+      setState(() {
+        _isLoadingSeatMap = false;
+        _seatMapError =
+            'Départ sélectionné introuvable. Veuillez relancer la recherche.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingSeatMap = true;
+      _seatMapError = null;
+    });
+
+    try {
+      final seatMap = await _bookingApiService.getSeatMap(
+        departureId: departureContext.departureId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _seatMap = seatMap;
+        _selectedSeats.removeWhere(
+          (selected) => !seatMap.seats.any(
+            (seat) =>
+                seat.seatNumber == selected.seatNumber &&
+                seat.isAvailableForSelection,
+          ),
+        );
+        _isLoadingSeatMap = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingSeatMap = false;
+        _seatMapError = error is ApiException
+            ? error.message
+            : 'Impossible de charger le plan des sièges.';
+      });
+    }
+  }
+
+  bool _arePassengerFieldsFilled() {
+    final hasCurrentUser = context.read<AuthService>().currentUser != null;
+
+    for (int i = 0; i < widget.nombrePassagers; i++) {
+      final isCurrentCustomer = i == 0 && hasCurrentUser;
+      if (_nomControllers[i].text.trim().isEmpty ||
+          _prenomControllers[i].text.trim().isEmpty) {
+        return false;
+      }
+
+      if (!isCurrentCustomer && _phoneControllers[i].text.trim().isEmpty) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  List<Map<String, dynamic>> _buildPassengers({
+    required List<int> seatNumbers,
+  }) {
+    return List.generate(widget.nombrePassagers, (index) {
+      return {
+        'nom': _nomControllers[index].text.trim(),
+        'prenom': _prenomControllers[index].text.trim(),
+        'telephone': _phoneControllers[index].text.trim(),
+        'place': index < seatNumbers.length ? seatNumbers[index] : 0,
+      };
+    });
+  }
+
+  List<ReservationCreateItem> _buildReservationItems({
+    required List<SeatHoldResponse> holds,
+  }) {
+    final currentUser = context.read<AuthService>().currentUser;
+    final holdBySeatNumber = {
+      for (final hold in holds) hold.seatNumber: hold,
+    };
+    final orderedHolds = _selectedSeatNumbers
+        .map((seatNumber) => holdBySeatNumber[seatNumber])
+        .whereType<SeatHoldResponse>()
+        .toList();
+
+    return List.generate(widget.nombrePassagers, (index) {
+      final hold = index < orderedHolds.length ? orderedHolds[index] : holds[index];
+      final isCurrentCustomer = index == 0 && currentUser != null;
+
+      if (isCurrentCustomer) {
+        return ReservationCreateItem(
+          seatHoldId: hold.id,
+          isForCustomer: true,
+          useLoyaltyPoints: false,
+        );
+      }
+
+      return ReservationCreateItem(
+        seatHoldId: hold.id,
+        isForCustomer: false,
+        useLoyaltyPoints: false,
+        travelerLastname: _nomControllers[index].text.trim(),
+        travelerFirstname: _prenomControllers[index].text.trim(),
+        travelerPhone: _phoneControllers[index].text.trim(),
+      );
+    });
+  }
+
+  void _showMessage(String message, {Color backgroundColor = Colors.orange}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+      ),
+    );
+  }
+
+  Future<bool> _openCurrentPendingReservation() async {
+    try {
+      final pending =
+          await _reservationApiService.getCurrentPendingReservation();
+      final reservation = pending.reservation;
+      if (!mounted || reservation == null || !pending.hasActiveReservation) {
+        return false;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RecapitulatifScreen.fromReservation(
+            reservationDetail: reservation,
+            isBlockingPendingResume: true,
+          ),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _redirectIfPendingAlreadyExists() async {
+    final opened = await _openCurrentPendingReservation();
+    return opened;
+  }
+
+  Future<void> _confirmPrestigeReservation() async {
+    if (!_arePassengerFieldsFilled()) {
+      _showMessage('Veuillez remplir tous les champs des passagers.');
+      return;
+    }
+
+    final departureContext = widget.selectedDepartureContext;
+    if (departureContext == null) {
+      _showMessage(
+        'Départ sélectionné introuvable. Veuillez relancer la recherche.',
+        backgroundColor: Colors.red,
+      );
+      return;
+    }
+
+    if (_selectedSeats.length != widget.nombrePassagers) {
+      _showMessage('Veuillez sélectionner ${widget.nombrePassagers} siège(s).');
+      return;
+    }
+
+    setState(() {
+      _isCreatingReservation = true;
+    });
+
+    try {
+      final hasActivePending = await _redirectIfPendingAlreadyExists();
+      if (hasActivePending) return;
+
+      final holds = await _bookingApiService.createManualSeatHold(
+        departureId: departureContext.departureId,
+        seatNumbers: _selectedSeatNumbers,
+      );
+
+      final reservation = await _reservationApiService
+          .createPrestigePendingReservation(
+        items: _buildReservationItems(holds: holds),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isCreatingReservation = false;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RecapitulatifScreen(
+            depart: widget.depart,
+            arrivee: widget.arrivee,
+            date: widget.date,
+            heure: widget.heure,
+            prix: widget.prix,
+            nombrePassagers: widget.nombrePassagers,
+            points: widget.points,
+            classe: 'prestige',
+            passagers: _buildPassengers(
+              seatNumbers: reservation.items
+                  .map((item) => item.seatNumber)
+                  .whereType<int>()
+                  .toList(),
+            ),
+            reservationDetail: reservation,
+            isBlockingPendingResume: true,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isCreatingReservation = false;
+      });
+
+      if (error is ApiException && error.statusCode == 409) {
+        final openedPending = await _openCurrentPendingReservation();
+        if (openedPending) return;
+      }
+
+      _showMessage(
+        error is ApiException
+            ? error.message
+            : 'Impossible de créer la réservation en attente.',
+        backgroundColor: Colors.red,
+      );
+
+      await _loadSeatMap();
+    }
+  }
+
+  void _toggleSeat(SeatMapSeat seat) {
+    final existingIndex = _selectedSeats.indexWhere(
+      (selected) => selected.seatNumber == seat.seatNumber,
+    );
+
+    if (existingIndex >= 0) {
+      setState(() {
+        _selectedSeats.removeAt(existingIndex);
+        _passagerEnCours = _selectedSeats.length.clamp(
+          0,
+          widget.nombrePassagers - 1,
+        ).toInt();
+      });
+      return;
+    }
+
+    if (!seat.isInServiceClassZone) {
+      _showMessage('Ce siège n’est pas disponible pour la classe Prestige.');
+      return;
+    }
+
+    if (!seat.canSelect) {
+      final isOccupied = seat.isHeld || seat.isReserved;
+      _showMessage(
+        isOccupied ? 'Ce siège n’est plus disponible.' : 'Ce siège est indisponible.',
+      );
+      return;
+    }
+
+    if (_selectedSeats.length >= widget.nombrePassagers) {
+      _showMessage('Vous avez déjà sélectionné le nombre de sièges nécessaire.');
+      return;
+    }
+
+    setState(() {
+      _selectedSeats.add(seat);
+      _passagerEnCours = _selectedSeats.length.clamp(
+        0,
+        widget.nombrePassagers - 1,
+      );
+    });
   }
 
   @override
@@ -105,295 +409,250 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Passager en cours
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFD807).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFEFD807)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFD807),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${passagerActuel + 1}/${widget.nombrePassagers}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _prenomControllers[passagerActuel].text.isNotEmpty
-                              ? '${_prenomControllers[passagerActuel].text} ${_nomControllers[passagerActuel].text}'
-                              : 'Passager ${passagerActuel + 1}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Color(0xFF0F056B),
-                          ),
-                        ),
-                        if (_placesSelectionnees[passagerActuel] != 0)
-                          Text(
-                            'Siège N°${_placesSelectionnees[passagerActuel]}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (_placesSelectionnees[passagerActuel] != 0)
-                    const Icon(Icons.check_circle, color: Colors.green),
-                ],
-              ),
-            ),
+            _buildCurrentPassengerCard(passagerActuel),
             const SizedBox(height: 12),
-
-            // Formulaire
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _prenomControllers[passagerActuel],
-                      decoration: const InputDecoration(
-                        labelText: 'Prénom',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(8)),
-                        ),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _nomControllers[passagerActuel],
-                      decoration: const InputDecoration(
-                        labelText: 'Nom',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(8)),
-                        ),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildPassengerForm(passagerActuel),
             const SizedBox(height: 12),
-
-            // Légende
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildLegendeItem('Disponible', Colors.green),
-                  _buildLegendeItem('Occupée', Colors.grey),
-                  _buildLegendeItem('Sélectionnée', const Color(0xFF0F056B)),
-                  _buildLegendeItem('Entrée', Colors.orange),
-                ],
-              ),
-            ),
+            _buildLegend(),
             const SizedBox(height: 12),
-
-            // Plan du bus
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 5,
-                  ),
-                ],
-              ),
-              child: _buildBusGrid(),
-            ),
+            _buildSeatMapCard(),
             const SizedBox(height: 12),
-
-            // Récapitulatif
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 5,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Passagers',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
-                      Text(
-                        '${_placesSelectionnees.where((p) => p != 0).length}/${widget.nombrePassagers}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Total',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '${total.toStringAsFixed(0)} FCFA',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F056B),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Points gagnés',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.stars,
-                              color: Color(0xFFEFD807), size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            '+${widget.points * widget.nombrePassagers} pts',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFEFD807),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            _buildSummary(total),
             const SizedBox(height: 16),
-
-            // Bouton Confirmer
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _placesSelectionnees.every((p) => p != 0)
-                    ? () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => RecapitulatifScreen(
-                              depart: widget.depart,
-                              arrivee: widget.arrivee,
-                              date: widget.date,
-                              heure: widget.heure,
-                              prix: widget.prix,
-                              nombrePassagers: widget.nombrePassagers,
-                              points: widget.points,
-                              classe: 'prestige',
-                              passagers: List.generate(
-                                  widget.nombrePassagers,
-                                  (index) => {
-                                        'nom': _nomControllers[index].text,
-                                        'prenom':
-                                            _prenomControllers[index].text,
-                                        'place': _placesSelectionnees[index],
-                                      }),
-                            ),
-                          ),
-                        );
-                      }
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEFD807),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  _placesSelectionnees.every((p) => p != 0)
-                      ? 'CONFIRMER LA RÉSERVATION'
-                      : 'Sélectionnez une place pour le passager ${passagerActuel + 1}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
+            _buildConfirmButton(passagerActuel),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBusGrid() {
-    final List<List<int>> rows = [
-      [11, 12, 13, 14],
-      [15, 16, 17, 18],
-      [19, 20, 21, 22],
-      [23, 24, 25, 26],
-      [27, 28, 29, 30],
-      [31, 32, 33, 34],
-      [35, 36, 37],
-    ];
+  Widget _buildCurrentPassengerCard(int passagerActuel) {
+    final selectedSeat = passagerActuel < _selectedSeats.length
+        ? _selectedSeats[passagerActuel].seatNumber
+        : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFD807).withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFEFD807)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFD807),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${passagerActuel + 1}/${widget.nombrePassagers}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _prenomControllers[passagerActuel].text.isNotEmpty
+                      ? '${_prenomControllers[passagerActuel].text} ${_nomControllers[passagerActuel].text}'
+                      : 'Passager ${passagerActuel + 1}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Color(0xFF0F056B),
+                  ),
+                ),
+                if (selectedSeat != 0)
+                  Text(
+                    'Siège $selectedSeat',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (selectedSeat != 0)
+            const Icon(Icons.check_circle, color: Colors.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPassengerForm(int passagerActuel) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _prenomControllers[passagerActuel],
+                  decoration: const InputDecoration(
+                    labelText: 'Prénom',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  controller: _nomControllers[passagerActuel],
+                  decoration: const InputDecoration(
+                    labelText: 'Nom',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _phoneControllers[passagerActuel],
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Téléphone',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegend() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          _buildLegendeItem('Disponible', Colors.green),
+          _buildLegendeItem('Sélectionné', const Color(0xFF0F056B)),
+          _buildLegendeItem('Occupé', Colors.grey),
+          _buildLegendeItem('Bloqué', Colors.red),
+          _buildLegendeItem('Hors zone Prestige', Colors.grey.shade300),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeatMapCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: _buildSeatMapContent(),
+    );
+  }
+
+  Widget _buildSeatMapContent() {
+    if (_isLoadingSeatMap) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Column(
+          children: [
+            CircularProgressIndicator(color: Color(0xFF0F056B)),
+            SizedBox(height: 12),
+            Text('Chargement du plan des sièges...'),
+          ],
+        ),
+      );
+    }
+
+    if (_seatMapError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 34),
+            const SizedBox(height: 8),
+            Text(
+              _seatMapError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _loadSeatMap,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final seatMap = _seatMap;
+    if (seatMap == null || seatMap.seats.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('Aucun siège disponible pour ce départ.'),
+      );
+    }
+
+    return _buildBusGrid(seatMap);
+  }
+
+  Widget _buildBusGrid(SeatMapResponse seatMap) {
+    final seatsByRow = <int, List<SeatMapSeat>>{};
+    for (final seat in seatMap.seats) {
+      seatsByRow.putIfAbsent(seat.visual.rowNumber, () => []).add(seat);
+    }
+
+    final rowNumbers = seatsByRow.keys.toList()..sort();
+    if (rowNumbers.isEmpty) {
+      final sortedSeats = [...seatMap.seats]
+        ..sort((a, b) => a.seatNumber.compareTo(b.seatNumber));
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: sortedSeats.map(_buildSeatButton).toList(),
+      );
+    }
 
     return Column(
       children: [
-        // Volant
         Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -418,149 +677,85 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             ],
           ),
         ),
-        ...rows.map((row) {
-          final rowIndex = rows.indexOf(row);
-          final showEntree = rowIndex == 3;
+        ...rowNumbers.map((rowNumber) {
+          final seats = seatsByRow[rowNumber]!
+            ..sort((a, b) => a.visual.columnNumber.compareTo(
+                  b.visual.columnNumber,
+                ));
 
-          return Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Côté gauche
-                  if (row.length >= 2) _buildPlaceButton(row[0]),
-                  if (row.length >= 2) const SizedBox(width: 4),
-                  if (row.length >= 2) _buildPlaceButton(row[1]),
-                  // Allée
-                  const SizedBox(width: 16),
-                  Container(
-                    width: 4,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Côté droit
-                  if (row.length >= 3) _buildPlaceButton(row[2]),
-                  if (row.length >= 4) const SizedBox(width: 4),
-                  if (row.length >= 4) _buildPlaceButton(row[3]),
-                ],
-              ),
-              // ✅ ENTRÉE UNIQUEMENT CÔTÉ DROIT (CORRIGÉ - sans overflow)
-              if (showEntree)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[100],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.door_front_door,
-                          color: Colors.orange, size: 16),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward, color: Colors.orange, size: 12),
-                      SizedBox(width: 4),
-                      Text(
-                        'ENTRÉE',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 9,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward, color: Colors.orange, size: 12),
-                      SizedBox(width: 4),
-                      Icon(Icons.door_front_door,
-                          color: Colors.orange, size: 16),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 4),
-            ],
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: seats.map((seat) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _buildSeatButton(seat),
+                );
+              }).toList(),
+            ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
 
-  Widget _buildPlaceButton(int place) {
-    final isOccupied = _placesOccupees.contains(place);
-    final isSelected = _placesSelectionnees.contains(place);
-    final isCurrentSelected = _placesSelectionnees[_passagerEnCours] == place;
+  Widget _buildSeatButton(SeatMapSeat seat) {
+    final isSelected = _selectedSeatNumbers.contains(seat.seatNumber);
+    final isOccupied = seat.isHeld || seat.isReserved;
+    final isOutOfZone = seat.isOutOfServiceClassZone;
+
+    Color backgroundColor;
+    Color borderColor;
+    Color textColor;
+
+    if (isSelected) {
+      backgroundColor = const Color(0xFF0F056B);
+      borderColor = const Color(0xFF0F056B);
+      textColor = Colors.white;
+    } else if (isOutOfZone) {
+      backgroundColor = Colors.grey.shade200;
+      borderColor = Colors.grey.shade300;
+      textColor = Colors.grey.shade500;
+    } else if (seat.isBlocked) {
+      backgroundColor = Colors.red.shade100;
+      borderColor = Colors.red.shade300;
+      textColor = Colors.red.shade700;
+    } else if (isOccupied || !seat.canSelect) {
+      backgroundColor = Colors.grey.shade300;
+      borderColor = Colors.grey.shade400;
+      textColor = Colors.grey.shade700;
+    } else {
+      backgroundColor = Colors.green.shade100;
+      borderColor = Colors.green.shade300;
+      textColor = Colors.black87;
+    }
 
     return GestureDetector(
-      onTap: () {
-        if (!isOccupied &&
-            !isSelected &&
-            _passagerEnCours < widget.nombrePassagers) {
-          setState(() {
-            _placesSelectionnees[_passagerEnCours] = place;
-
-            if (_nomControllers[_passagerEnCours].text.trim().isNotEmpty &&
-                _prenomControllers[_passagerEnCours].text.trim().isNotEmpty) {
-              if (_passagerEnCours < widget.nombrePassagers - 1) {
-                _passagerEnCours++;
-              } else {
-                _isSelectionComplete = true;
-              }
-            }
-          });
-        }
-      },
-      child: Container(
-        width: 50,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isOccupied
-              ? Colors.grey[300]
-              : isCurrentSelected
-                  ? const Color(0xFF0F056B)
-                  : isSelected
-                      ? Colors.green
-                      : Colors.green[100],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isOccupied
-                ? Colors.grey[300]!
-                : isCurrentSelected
-                    ? const Color(0xFF0F056B)
-                    : isSelected
-                        ? Colors.green
-                        : Colors.green[300]!,
-            width: isCurrentSelected ? 3 : 2,
+      onTap: _isCreatingReservation ? null : () => _toggleSeat(seat),
+      child: Opacity(
+        opacity: isOutOfZone ? 0.75 : 1,
+        child: Container(
+          width: 50,
+          height: 40,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: borderColor,
+              width: isSelected ? 3 : 2,
+            ),
           ),
-        ),
-        child: Center(
-          child: Text(
-            place.toString(),
-            style: TextStyle(
-              color: isOccupied
-                  ? Colors.grey[600]
-                  : isCurrentSelected
-                      ? Colors.white
-                      : isSelected
-                          ? Colors.white
-                          : Colors.black87,
-              fontWeight:
-                  isCurrentSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 14,
+          child: Center(
+            child: Text(
+              seat.displayLabel.isNotEmpty
+                  ? seat.displayLabel
+                  : seat.seatNumber.toString(),
+              style: TextStyle(
+                color: textColor,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
             ),
           ),
         ),
@@ -568,8 +763,139 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     );
   }
 
+  Widget _buildSummary(double total) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Passagers',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              Text(
+                '${_selectedSeats.length}/${widget.nombrePassagers}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const Divider(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '${total.toStringAsFixed(0)} FCFA',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F056B),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Points gagnés',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.stars, color: Color(0xFFEFD807), size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '+${widget.points * widget.nombrePassagers} pts',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFEFD807),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmButton(int passagerActuel) {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        onPressed: _isCreatingReservation ? null : _confirmPrestigeReservation,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFEFD807),
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: _isCreatingReservation
+            ? const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Création de la réservation en attente...',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                _isSelectionComplete
+                    ? 'CONFIRMER LA RÉSERVATION'
+                    : 'Sélectionnez ${widget.nombrePassagers} siège(s)',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+      ),
+    );
+  }
+
   Widget _buildLegendeItem(String label, Color color) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 14,
@@ -577,6 +903,7 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey.shade400),
           ),
         ),
         const SizedBox(width: 4),

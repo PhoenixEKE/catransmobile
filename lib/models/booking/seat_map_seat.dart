@@ -9,6 +9,7 @@ class SeatMapSeat {
   final SeatMapStatus status;
   final bool isAvailable;
   final bool isSelectable;
+  final bool isInServiceClassZone;
   final bool canSelect;
   final String? selectionBlockedReason;
   final SeatMapSeatVisual visual;
@@ -21,6 +22,7 @@ class SeatMapSeat {
     required this.status,
     required this.isAvailable,
     required this.isSelectable,
+    this.isInServiceClassZone = true,
     required this.canSelect,
     this.selectionBlockedReason,
     required this.visual,
@@ -35,6 +37,8 @@ class SeatMapSeat {
       status: SeatMapStatus.fromJson(_readObject(json['status'])),
       isAvailable: json['is_available'] as bool? ?? false,
       isSelectable: json['is_selectable'] as bool? ?? false,
+      isInServiceClassZone:
+          json['is_in_service_class_zone'] as bool? ?? true,
       canSelect: json['can_select'] as bool? ?? false,
       selectionBlockedReason: json['selection_blocked_reason'] as String?,
       visual: SeatMapSeatVisual.fromJson(_readObject(json['visual'])),
@@ -48,7 +52,10 @@ class SeatMapSeat {
 
   bool get isBlocked => status.code == 'blocked';
 
-  bool get isAvailableForSelection => isAvailable && isSelectable && canSelect;
+  bool get isOutOfServiceClassZone => !isInServiceClassZone;
+
+  bool get isAvailableForSelection =>
+      isAvailable && isSelectable && canSelect && isInServiceClassZone;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -57,6 +64,7 @@ class SeatMapSeat {
         'status': status.toJson(),
         'is_available': isAvailable,
         'is_selectable': isSelectable,
+        'is_in_service_class_zone': isInServiceClassZone,
         'can_select': canSelect,
         'selection_blocked_reason': selectionBlockedReason,
         'visual': visual.toJson(),
