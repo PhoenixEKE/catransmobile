@@ -53,6 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           firstname: _firstnameController.text,
           phone: _phoneController.text,
           password: _passwordController.text,
+          passwordConfirm: _confirmPasswordController.text,
         );
 
         if (success && mounted) {
@@ -62,8 +63,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Erreur lors de la création du compte'),
+            SnackBar(
+              content: Text(
+                authService.errorMessage ??
+                    'Erreur lors de la création du compte',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -134,13 +138,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _lastnameController,
                         decoration: const InputDecoration(
                           labelText: 'Nom',
-                          prefixIcon: Icon(Icons.person, color: Color(0xFF0F056B)),
+                          prefixIcon:
+                              Icon(Icons.person, color: Color(0xFF0F056B)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre nom';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre nom';
                           return null;
                         },
                       ),
@@ -149,13 +155,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _firstnameController,
                         decoration: const InputDecoration(
                           labelText: 'Prénom',
-                          prefixIcon: Icon(Icons.person_outline, color: Color(0xFF0F056B)),
+                          prefixIcon: Icon(Icons.person_outline,
+                              color: Color(0xFF0F056B)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre prénom';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre prénom';
                           return null;
                         },
                       ),
@@ -165,13 +173,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         keyboardType: TextInputType.phone,
                         decoration: const InputDecoration(
                           labelText: 'Numéro de téléphone',
-                          prefixIcon: Icon(Icons.phone, color: Color(0xFF0F056B)),
+                          prefixIcon:
+                              Icon(Icons.phone, color: Color(0xFF0F056B)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer votre numéro';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer votre numéro';
                           if (value.length < 8) return 'Numéro invalide';
                           return null;
                         },
@@ -182,21 +192,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           labelText: 'Mot de passe',
-                          prefixIcon: const Icon(Icons.lock, color: Color(0xFF0F056B)),
+                          prefixIcon:
+                              const Icon(Icons.lock, color: Color(0xFF0F056B)),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                               color: Colors.grey,
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                           ),
                           border: const OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez entrer un mot de passe';
-                          if (value.length < 6) return 'Le mot de passe doit avoir au moins 6 caractères';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez entrer un mot de passe';
+                          if (value.length < 6)
+                            return 'Le mot de passe doit avoir au moins 6 caractères';
                           return null;
                         },
                       ),
@@ -206,20 +222,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscureConfirmPassword,
                         decoration: InputDecoration(
                           labelText: 'Confirmer le mot de passe',
-                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF0F056B)),
+                          prefixIcon: const Icon(Icons.lock_outline,
+                              color: Color(0xFF0F056B)),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                              _obscureConfirmPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                               color: Colors.grey,
                             ),
-                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            onPressed: () => setState(() =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword),
                           ),
                           border: const OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Veuillez confirmer votre mot de passe';
+                          if (value == null || value.isEmpty)
+                            return 'Veuillez confirmer votre mot de passe';
                           return null;
                         },
                       ),
@@ -238,7 +260,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             elevation: 3,
                           ),
                           child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.black)
+                              ? const CircularProgressIndicator(
+                                  color: Colors.black)
                               : const Text(
                                   'CRÉER LE COMPTE',
                                   style: TextStyle(

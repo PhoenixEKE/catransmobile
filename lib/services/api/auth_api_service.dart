@@ -18,7 +18,7 @@ class AuthApiService {
     final response = await _apiClient.post(
       'auth/token/',
       data: {
-        'phone_number': phoneNumber,
+        'phone_number': phoneNumber.trim(),
         'password': password,
       },
     );
@@ -36,7 +36,7 @@ class AuthApiService {
     final response = await _apiClient.post(
       'auth/register/',
       data: {
-        'phone_number': phoneNumber,
+        'phone_number': phoneNumber.trim(),
         'lastname': lastname,
         'firstname': firstname,
         'password': password,

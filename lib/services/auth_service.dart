@@ -85,7 +85,7 @@ class AuthService extends ChangeNotifier {
     required String firstname,
     required String phone,
     required String password,
-    String? passwordConfirm,
+    required String passwordConfirm,
   }) async {
     _setLoading(true);
     _errorMessage = null;
@@ -96,7 +96,7 @@ class AuthService extends ChangeNotifier {
         firstname: firstname,
         phoneNumber: phone,
         password: password,
-        passwordConfirm: passwordConfirm ?? password,
+        passwordConfirm: passwordConfirm,
       );
 
       await _tokenStorage.saveTokens(
