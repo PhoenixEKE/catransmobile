@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
+import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
+import 'package:catrans_app/services/api/payment_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 
@@ -549,8 +551,30 @@ class RecapitulatifScreen extends StatelessWidget {
       ),
     );
 
+    final paymentAwareScaffold = reservationDetail == null
+        ? scaffold
+        : _RecapitulatifPaymentRecoveryGate(
+            reservationDetail: reservationDetail!,
+            paymentScreenBuilder: (currentPayment) => PaiementScreen(
+              reservationDetail: reservationDetail,
+              depart: depart,
+              arrivee: arrivee,
+              date: date,
+              heure: heure,
+              prix: prix,
+              nombrePassagers: nombrePassagers,
+              points: points,
+              classe: classe,
+              passagers: passagers,
+              total: total,
+              existingPayment: currentPayment.payment,
+              canStartNewPayment: currentPayment.canStartNewPayment,
+            ),
+            child: scaffold,
+          );
+
     if (!isBlockingPendingResume) {
-      return scaffold;
+      return paymentAwareScaffold;
     }
 
     return WillPopScope(
@@ -558,7 +582,7 @@ class RecapitulatifScreen extends StatelessWidget {
         _showBlockingReturnMessage(context);
         return false;
       },
-      child: scaffold,
+      child: paymentAwareScaffold,
     );
   }
 
@@ -663,7 +687,7 @@ class RecapitulatifScreen extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'PAYER',
+                  'PAYER AVEC WAVE',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -854,6 +878,102 @@ class RecapitulatifScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RecapitulatifPaymentRecoveryGate extends StatefulWidget {
+  final ReservationDetail reservationDetail;
+  final Widget child;
+  final Widget Function(WaveCurrentPaymentResponse currentPayment)
+      paymentScreenBuilder;
+
+  const _RecapitulatifPaymentRecoveryGate({
+    required this.reservationDetail,
+    required this.child,
+    required this.paymentScreenBuilder,
+  });
+
+  @override
+  State<_RecapitulatifPaymentRecoveryGate> createState() =>
+      _RecapitulatifPaymentRecoveryGateState();
+}
+
+class _RecapitulatifPaymentRecoveryGateState
+    extends State<_RecapitulatifPaymentRecoveryGate> {
+  final PaymentApiService _paymentApiService = PaymentApiService();
+
+  bool _isCheckingPayment = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkCurrentPayment();
+      }
+    });
+  }
+
+  Future<void> _checkCurrentPayment() async {
+    try {
+      final currentPayment =
+          await _paymentApiService.getCurrentWavePaymentForReservation(
+        reservationId: widget.reservationDetail.id,
+      );
+
+      if (!mounted) return;
+
+      if (currentPayment.shouldGoToPaymentScreen &&
+          currentPayment.payment != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => widget.paymentScreenBuilder(currentPayment),
+          ),
+        );
+        return;
+      }
+    } catch (_) {
+      // Fallback prudent : le récap reste accessible si la récupération échoue.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isCheckingPayment = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isCheckingPayment) return widget.child;
+
+    return Stack(
+      children: [
+        widget.child,
+        Container(
+          color: Colors.black.withOpacity(0.08),
+          child: const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(18),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Vérification du paiement...'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

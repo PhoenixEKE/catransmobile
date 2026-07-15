@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:catrans_app/services/auth_service.dart';
+import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
+import 'package:catrans_app/services/api/payment_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
+import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/client/auth/login_screen.dart';
@@ -68,12 +71,16 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
 
       if (pendingReservation != null) {
+        final currentPayment =
+            await _loadCurrentWavePayment(pendingReservation);
+        if (!mounted) return;
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => RecapitulatifScreen.fromReservation(
-              reservationDetail: pendingReservation,
-              isBlockingPendingResume: true,
+            builder: (context) => _resumePendingReservationScreen(
+              pendingReservation,
+              currentPayment,
             ),
           ),
         );
@@ -99,6 +106,52 @@ class _SplashScreenState extends State<SplashScreen>
     } catch (_) {
       return null;
     }
+  }
+
+  Future<WaveCurrentPaymentResponse?> _loadCurrentWavePayment(
+    ReservationDetail reservation,
+  ) async {
+    try {
+      return await PaymentApiService().getCurrentWavePaymentForReservation(
+        reservationId: reservation.id,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _resumePendingReservationScreen(
+    ReservationDetail reservation,
+    WaveCurrentPaymentResponse? currentPayment,
+  ) {
+    final payment = currentPayment?.payment;
+    if (currentPayment?.shouldGoToPaymentScreen == true && payment != null) {
+      final recap = RecapitulatifScreen.fromReservation(
+        reservationDetail: reservation,
+        isBlockingPendingResume: true,
+      );
+
+      return PaiementScreen(
+        reservationDetail: reservation,
+        depart: recap.depart,
+        arrivee: recap.arrivee,
+        date: recap.date,
+        heure: recap.heure,
+        prix: recap.prix,
+        nombrePassagers: recap.nombrePassagers,
+        points: recap.points,
+        classe: recap.classe,
+        passagers: recap.passagers,
+        total: double.tryParse(reservation.totalAmount) ?? recap.prix,
+        existingPayment: payment,
+        canStartNewPayment: currentPayment?.canStartNewPayment ?? false,
+      );
+    }
+
+    return RecapitulatifScreen.fromReservation(
+      reservationDetail: reservation,
+      isBlockingPendingResume: true,
+    );
   }
 
   @override

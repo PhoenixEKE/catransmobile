@@ -5,6 +5,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/payment/wave_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
+import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
 import 'package:catrans_app/services/api/payment_api_service.dart';
 
 class PaiementScreen extends StatefulWidget {
@@ -19,6 +20,8 @@ class PaiementScreen extends StatefulWidget {
   final String classe;
   final List<Map<String, dynamic>> passagers;
   final double total;
+  final WavePaymentResponse? existingPayment;
+  final bool canStartNewPayment;
 
   const PaiementScreen({
     super.key,
@@ -33,6 +36,8 @@ class PaiementScreen extends StatefulWidget {
     required this.classe,
     required this.passagers,
     required this.total,
+    this.existingPayment,
+    this.canStartNewPayment = true,
   });
 
   @override
@@ -46,9 +51,17 @@ class _PaiementScreenState extends State<PaiementScreen> {
   bool _isCreatingCheckout = false;
   bool _isCheckingStatus = false;
   bool _hasOpenedWave = false;
+  late bool _canStartNewPayment;
   String? _errorMessage;
 
   bool get _isBusy => _isCreatingCheckout || _isCheckingStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _payment = widget.existingPayment;
+    _canStartNewPayment = widget.canStartNewPayment;
+  }
 
   ReservationDetail? get _reservation => widget.reservationDetail;
 
@@ -137,6 +150,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
 
       setState(() {
         _payment = payment;
+        _canStartNewPayment = false;
         _isCreatingCheckout = false;
       });
 
@@ -425,27 +439,84 @@ class _PaiementScreenState extends State<PaiementScreen> {
 
   Widget _buildActions(ReservationDetail? reservation) {
     final payment = _payment;
-    final canStart = reservation != null && reservation.isPayable;
+    final canStart =
+        reservation != null && reservation.isPayable && _canStartNewPayment;
     final canOpenWave = payment?.canOpenWave == true;
     final canCheckStatus = payment?.canCheckStatus == true;
 
     if (payment?.isSuccess == true) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MesReservationsScreen(),
+                  ),
+                );
+              },
+              style: _primaryButtonStyle(),
+              child: const Text(
+                'VOIR MES BILLETS',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: OutlinedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AccueilScreen()),
+                  (route) => false,
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F056B),
+                side: const BorderSide(color: Color(0xFF0F056B), width: 2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'RETOUR À L’ACCUEIL',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (payment?.isAnomaly == true) {
+      return const SizedBox.shrink();
+    }
+
+    if (payment != null && payment.isTerminal) {
+      if (!canStart) {
+        return const SizedBox.shrink();
+      }
+
       return SizedBox(
         width: double.infinity,
         height: 55,
         child: ElevatedButton(
-          onPressed: () {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const AccueilScreen()),
-              (route) => false,
-            );
-          },
+          onPressed: _isBusy ? null : _startWavePayment,
           style: _primaryButtonStyle(),
-          child: const Text(
-            'CONTINUER',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          child: _isCreatingCheckout
+              ? const _ButtonLoader(label: 'INITIALISATION...')
+              : const Text(
+                  'RELANCER LE PAIEMENT',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
         ),
       );
     }
@@ -456,7 +527,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
           width: double.infinity,
           height: 55,
           child: ElevatedButton(
-            onPressed: _isBusy || !canStart
+            onPressed: _isBusy || (!canOpenWave && !canStart)
                 ? null
                 : canOpenWave
                     ? () => _openWaveUrl(payment!.wave!.waveLaunchUrl!)
@@ -473,7 +544,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
                   ),
           ),
         ),
-        if (canCheckStatus) ...[
+        if (canCheckStatus && payment?.isPendingLike == true) ...[
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

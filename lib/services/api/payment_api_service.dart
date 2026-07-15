@@ -1,6 +1,7 @@
 import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/payment/wave_checkout_session_request.dart';
+import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
 import 'package:catrans_app/models/payment/wave_payment_response.dart';
 
 class PaymentApiService {
@@ -43,6 +44,23 @@ class PaymentApiService {
     );
 
     return WavePaymentResponse.fromJson(_readObject(response.data));
+  }
+
+  Future<WaveCurrentPaymentResponse> getCurrentWavePaymentForReservation({
+    required String reservationId,
+  }) async {
+    final normalizedReservationId = reservationId.trim();
+    if (normalizedReservationId.isEmpty) {
+      throw ApiException(
+        message: 'La reservation est introuvable.',
+      );
+    }
+
+    final response = await _apiClient.get(
+      'payments/wave/reservations/$normalizedReservationId/current/',
+    );
+
+    return WaveCurrentPaymentResponse.fromJson(_readObject(response.data));
   }
 
   Map<String, dynamic> _readObject(dynamic data) {
