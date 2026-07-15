@@ -72,7 +72,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
     final payment = _payment;
     if (payment == null) return 'En attente de paiement';
     if (payment.isSuccess) return 'Paiement confirmé';
-    if (payment.isPendingLike) return 'Paiement en attente de confirmation';
+    if (payment.isPendingLike) return 'Paiement non confirmé';
     if (payment.isFailed) return 'Paiement échoué';
     if (payment.isCancelled) return 'Paiement annulé';
     if (payment.isExpired) return 'Délai de paiement expiré';
@@ -98,13 +98,15 @@ class _PaiementScreenState extends State<PaiementScreen> {
       return 'Paiement confirmé. Votre réservation est validée.';
     }
     if (payment.isPendingLike) {
-      return _hasOpenedWave
-          ? 'Terminez le paiement dans Wave, puis revenez ici pour vérifier.'
-          : 'Paiement en attente de confirmation.';
+      return 'Votre paiement n’a pas encore été validé par Wave. Si votre solde est insuffisant, rechargez votre compte Wave puis rouvrez le paiement.';
     }
-    if (payment.isFailed) return 'Le paiement a échoué.';
-    if (payment.isCancelled) return 'Le paiement a été annulé.';
-    if (payment.isExpired) return 'Le délai de paiement a expiré.';
+    if (payment.isFailed) {
+      return 'Le paiement a échoué. Vérifiez votre solde Wave puis réessayez.';
+    }
+    if (payment.isCancelled) return 'Le paiement a été annulé dans Wave.';
+    if (payment.isExpired) {
+      return 'Le délai de paiement a expiré. Veuillez relancer votre réservation.';
+    }
     if (payment.isAnomaly) {
       return 'Paiement reçu mais non confirmé automatiquement. Contactez le support.';
     }
