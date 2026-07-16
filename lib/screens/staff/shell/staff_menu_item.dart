@@ -136,8 +136,12 @@ class StaffMenuItem {
             icon: Icons.how_to_reg,
             description: 'Suivi du manifeste et validations embarquement.',
             nextStep:
-                'Le manifeste et les contrôles embarquement seront disponibles ici.',
-            scopes: ['boarding.manifest.read'],
+                'Ouvrez les départs du jour, consultez le manifeste et validez les billets.',
+            scopes: [
+              'station.departures.read',
+              'boarding.manifest.read',
+              'boarding.summary.read',
+            ],
           ),
           _item(
             id: 'reports',
@@ -180,22 +184,18 @@ class StaffMenuItem {
         return [
           _home('Embarquement'),
           _item(
-            id: 'manifest',
-            title: 'Manifeste',
-            icon: Icons.list_alt,
-            description: 'Consultation du manifeste passagers.',
+            id: 'boarding',
+            title: 'Embarquement',
+            icon: Icons.how_to_reg,
+            description: 'Départs du jour, manifeste et validation billet.',
             nextStep:
-                'Le manifeste passagers sera disponible depuis cet espace.',
-            scopes: ['boarding.manifest.read'],
-          ),
-          _item(
-            id: 'qr_validation',
-            title: 'Validation QR',
-            icon: Icons.qr_code_scanner,
-            description: 'Validation des tickets au moment de l’embarquement.',
-            nextStep:
-                'La validation des tickets sera disponible depuis cet espace.',
-            scopes: ['boarding.validate'],
+                'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
+            scopes: [
+              'station.departures.read',
+              'boarding.manifest.read',
+              'boarding.validate',
+              'boarding.summary.read',
+            ],
           ),
         ];
       case InternalRole.support:

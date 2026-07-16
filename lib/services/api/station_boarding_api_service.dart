@@ -1,0 +1,219 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
+import 'package:catrans_app/core/network/api_client.dart';
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/station/station_boarding_manifest.dart';
+import 'package:catrans_app/models/station/station_boarding_summary.dart';
+import 'package:catrans_app/models/station/station_departure.dart';
+import 'package:catrans_app/models/station/station_ticket_validation.dart';
+
+class StationBoardingApiService {
+  final ApiClient _apiClient;
+
+  StationBoardingApiService({ApiClient? apiClient})
+      : _apiClient = apiClient ?? ApiClient();
+
+  Future<List<StationDeparture>> getTodayDepartures({DateTime? date}) async {
+    const path = 'station/departures/today/';
+    final queryParameters = {
+      if (date != null) 'date': _formatDate(date),
+    };
+
+    debugPrint(
+      '[Boarding] getTodayDepartures start path=$path query=$queryParameters',
+    );
+
+    try {
+      final response = await _apiClient.get(
+        path,
+        queryParameters: queryParameters,
+        options: Options(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+
+      debugPrint(
+        '[Boarding] getTodayDepartures response status=${response.statusCode} dataType=${response.data.runtimeType}',
+      );
+
+      final data = response.data;
+      final departures = _readDepartureList(data);
+      debugPrint(
+        '[Boarding] getTodayDepartures parsed count=${departures.length}',
+      );
+
+      return departures.map((item) => StationDeparture.fromJson(item)).toList();
+    } on ApiException catch (error) {
+      debugPrint(
+        '[Boarding] getTodayDepartures ApiException status=${error.statusCode} message=${error.message} details=${_safeDiagnostics(error.details)}',
+      );
+      rethrow;
+    } catch (error) {
+      debugPrint(
+        '[Boarding] getTodayDepartures errorType=${error.runtimeType} message=$error',
+      );
+      rethrow;
+    }
+  }
+
+  Future<StationDeparture> getDepartureDetail({
+    required String departureId,
+  }) async {
+    final response = await _apiClient.get('station/departures/$departureId/');
+    return StationDeparture.fromJson(_readObject(response.data));
+  }
+
+  Future<List<StationBoardingTicket>> getDeparturePassengers({
+    required String departureId,
+  }) async {
+    final response = await _apiClient.get(
+      'station/departures/$departureId/passengers/',
+    );
+    return _readPassengerList(response.data);
+  }
+
+  Future<List<StationBoardingTicket>> getDepartureTickets({
+    required String departureId,
+    String? status,
+  }) async {
+    final response = await _apiClient.get(
+      'station/departures/$departureId/tickets/',
+      queryParameters: {
+        if (status != null && status.trim().isNotEmpty) 'status': status.trim(),
+      },
+    );
+    return _readPassengerList(response.data);
+  }
+
+  Future<List<StationTicketValidation>> getDepartureValidations({
+    required String departureId,
+  }) async {
+    final response = await _apiClient.get(
+      'station/departures/$departureId/validations/',
+    );
+
+    final data = response.data;
+    if (data is! List) {
+      throw ApiException(
+        message: 'Réponse validations embarquement invalide.',
+        details: data,
+      );
+    }
+
+    return data
+        .map((item) => StationTicketValidation.fromJson(_readObject(item)))
+        .toList();
+  }
+
+  Future<StationBoardingManifestResponse> getBoardingManifest({
+    required String departureId,
+  }) async {
+    final response = await _apiClient.get(
+      'station/departures/$departureId/boarding-manifest/',
+    );
+    return StationBoardingManifestResponse.fromJson(_readObject(response.data));
+  }
+
+  Future<StationBoardingSummaryResponse> getBoardingSummary({
+    required String departureId,
+  }) async {
+    final response = await _apiClient.get(
+      'station/departures/$departureId/boarding-summary/',
+    );
+    return StationBoardingSummaryResponse.fromJson(_readObject(response.data));
+  }
+
+  Future<StationTicketValidation> validateTicket({
+    required String validationToken,
+    String? departureId,
+    String? deviceIdentifier,
+  }) async {
+    final normalizedToken = validationToken.trim();
+    if (normalizedToken.isEmpty) {
+      throw ApiException(message: 'Saisissez une référence ou un code ticket.');
+    }
+
+    final response = await _apiClient.post(
+      'tickets/validate/',
+      data: {
+        'validation_token': normalizedToken,
+        if (departureId != null && departureId.trim().isNotEmpty)
+          'departure_id': departureId.trim(),
+        if (deviceIdentifier != null && deviceIdentifier.trim().isNotEmpty)
+          'device_identifier': deviceIdentifier.trim(),
+      },
+    );
+
+    return StationTicketValidation.fromJson(_readObject(response.data));
+  }
+
+  String _safeDiagnostics(dynamic details) {
+    if (details is Map) {
+      final safe = <String, dynamic>{};
+      for (final entry in details.entries) {
+        final key = entry.key.toString().toLowerCase();
+        if (key.contains('authorization') ||
+            key.contains('token') ||
+            key.contains('password') ||
+            key.contains('secret')) {
+          continue;
+        }
+        safe[entry.key.toString()] = entry.value;
+      }
+      return safe.toString();
+    }
+
+    return details?.runtimeType.toString() ?? 'null';
+  }
+
+  List<Map<String, dynamic>> _readDepartureList(dynamic data) {
+    if (data is List) {
+      return data.map(_readObject).toList();
+    }
+
+    if (data is Map) {
+      final object = Map<String, dynamic>.from(data);
+      final results = object['results'];
+      if (results is List) return results.map(_readObject).toList();
+
+      final departures = object['departures'];
+      if (departures is List) return departures.map(_readObject).toList();
+    }
+
+    throw ApiException(
+      message: 'Réponse départs du jour invalide.',
+      details: data,
+    );
+  }
+
+  List<StationBoardingTicket> _readPassengerList(dynamic data) {
+    if (data is! List) {
+      throw ApiException(
+        message: 'Réponse passagers embarquement invalide.',
+        details: data,
+      );
+    }
+
+    return data
+        .map((item) => StationBoardingTicket.fromJson(_readObject(item)))
+        .toList();
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Map<String, dynamic> _readObject(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+
+    throw ApiException(
+      message: 'Réponse embarquement invalide.',
+      details: data,
+    );
+  }
+}

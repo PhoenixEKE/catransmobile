@@ -191,10 +191,42 @@ class ApiClient {
 
     return ApiException(
       message: _extractErrorMessage(response?.data) ??
-          'Une erreur est survenue. Veuillez réessayer.',
+          _messageFromDioException(error),
       statusCode: response?.statusCode,
-      details: response?.data,
+      details: response?.data ?? _diagnosticsFromDioException(error),
     );
+  }
+
+  String _messageFromDioException(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+        return 'Connexion au serveur trop lente. Veuillez réessayer.';
+      case DioExceptionType.sendTimeout:
+        return 'Envoi de la requête trop long. Veuillez réessayer.';
+      case DioExceptionType.receiveTimeout:
+        return 'Le serveur met trop de temps à répondre. Veuillez réessayer.';
+      case DioExceptionType.transformTimeout:
+        return 'La réponse du serveur met trop de temps à être traitée. Veuillez réessayer.';
+      case DioExceptionType.cancel:
+        return 'Requête annulée. Veuillez réessayer.';
+      case DioExceptionType.connectionError:
+        return 'Connexion au serveur impossible. Vérifiez le réseau.';
+      case DioExceptionType.badCertificate:
+        return 'Certificat serveur invalide.';
+      case DioExceptionType.badResponse:
+      case DioExceptionType.unknown:
+        return error.message ?? 'Une erreur est survenue. Veuillez réessayer.';
+    }
+  }
+
+  Map<String, dynamic> _diagnosticsFromDioException(DioException error) {
+    return {
+      'dio_type': error.type.name,
+      'message': error.message,
+      'method': error.requestOptions.method,
+      'path': error.requestOptions.path,
+      'query_parameters': error.requestOptions.queryParameters,
+    };
   }
 
   String? _extractErrorMessage(dynamic data) {

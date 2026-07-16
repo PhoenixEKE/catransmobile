@@ -1,0 +1,1882 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/accounts/user.dart';
+import 'package:catrans_app/models/station/station_boarding_manifest.dart';
+import 'package:catrans_app/models/station/station_boarding_summary.dart';
+import 'package:catrans_app/models/station/station_departure.dart';
+import 'package:catrans_app/models/station/station_ticket_validation.dart';
+import 'package:catrans_app/services/api/station_boarding_api_service.dart';
+import 'package:catrans_app/services/auth_service.dart';
+
+const _brandPurple = Color(0xFF0F056B);
+const _staffBg = Color(0xFFF5F6FA);
+const _cardBg = Colors.white;
+const _softPanel = Color(0xFFF7F8FC);
+const _success = Color(0xFF157347);
+const _warning = Color(0xFFB8860B);
+const _danger = Color(0xFFB42318);
+
+class BoardingScreen extends StatefulWidget {
+  const BoardingScreen({super.key});
+
+  @override
+  State<BoardingScreen> createState() => _BoardingScreenState();
+}
+
+class _BoardingScreenState extends State<BoardingScreen> {
+  final _apiService = StationBoardingApiService();
+  final _searchController = TextEditingController();
+
+  List<StationDeparture> _departures = const [];
+  String _searchText = '';
+  String _selectedClass = 'all';
+  String _selectedStatus = 'all';
+  bool _withTicketsOnly = false;
+  String? _departuresError;
+  bool _isLoadingDepartures = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() => _searchText = _searchController.text.trim());
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadDepartures();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthService>().currentUser;
+    if (user == null || !_canAccessBoarding(user)) {
+      return const _AccessDeniedBoarding();
+    }
+
+    final filteredDepartures = _filteredDepartures;
+    final overview = _BoardingOverview.fromDepartures(_departures);
+
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        _Header(user: user),
+        const SizedBox(height: 18),
+        _OverviewBand(overview: overview),
+        const SizedBox(height: 18),
+        _FiltersPanel(
+          controller: _searchController,
+          selectedClass: _selectedClass,
+          selectedStatus: _selectedStatus,
+          withTicketsOnly: _withTicketsOnly,
+          onClassChanged: (value) => setState(() => _selectedClass = value),
+          onStatusChanged: (value) => setState(() => _selectedStatus = value),
+          onWithTicketsChanged: (value) {
+            setState(() => _withTicketsOnly = value);
+          },
+        ),
+        const SizedBox(height: 18),
+        _buildDepartures(filteredDepartures),
+      ],
+    );
+  }
+
+  bool _canAccessBoarding(User user) {
+    final scopes = user.scopes.toSet();
+    return scopes.contains('station.departures.read') ||
+        scopes.contains('boarding.manifest.read') ||
+        scopes.contains('boarding.validate') ||
+        scopes.contains('boarding.summary.read');
+  }
+
+  Future<void> _loadDepartures() async {
+    setState(() {
+      _isLoadingDepartures = true;
+      _departuresError = null;
+    });
+
+    try {
+      final departures = await _apiService.getTodayDepartures();
+      if (!mounted) return;
+      setState(() => _departures = departures);
+    } catch (error) {
+      debugPrint('Erreur chargement départs embarquement: $error');
+      if (!mounted) return;
+      setState(() {
+        _departures = const [];
+        _departuresError =
+            'Impossible de charger les départs. Vérifiez la connexion puis réessayez.';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingDepartures = false);
+    }
+  }
+
+  List<StationDeparture> get _filteredDepartures {
+    final query = _normalize(_searchText);
+    return _departures.where((departure) {
+      final destination = _normalize(departure.destinationName ?? '');
+      final route = _normalize(departure.routeLabel);
+      final className = _classFilterValue(departure);
+      final status = _statusFilterValue(departure.statusCode);
+
+      if (query.isNotEmpty &&
+          !destination.contains(query) &&
+          !route.contains(query)) {
+        return false;
+      }
+      if (_selectedClass != 'all' && className != _selectedClass) return false;
+      if (_selectedStatus != 'all' && status != _selectedStatus) return false;
+      if (_withTicketsOnly && departure.tickets.total <= 0) return false;
+      return true;
+    }).toList();
+  }
+
+  Widget _buildDepartures(List<StationDeparture> visibleDepartures) {
+    if (_isLoadingDepartures && _departures.isEmpty) {
+      return const _LoadingPanel(message: 'Chargement des départs du jour...');
+    }
+
+    if (_departuresError != null) {
+      return _StatePanel(
+        icon: Icons.error_outline,
+        title: 'Départs indisponibles',
+        message: _departuresError!,
+        actionLabel: 'Réessayer',
+        onAction: _loadDepartures,
+      );
+    }
+
+    if (_departures.isEmpty) {
+      return _StatePanel(
+        icon: Icons.event_busy,
+        title: 'Aucun départ aujourd’hui',
+        message: 'Aucun départ prévu aujourd’hui pour votre gare.',
+        actionLabel: 'Actualiser',
+        onAction: _loadDepartures,
+      );
+    }
+
+    if (visibleDepartures.isEmpty) {
+      return _StatePanel(
+        icon: Icons.filter_alt_off,
+        title: 'Aucun départ dans cette vue',
+        message: 'Aucun départ ne correspond aux filtres sélectionnés.',
+        actionLabel: 'Réinitialiser',
+        onAction: _clearFilters,
+      );
+    }
+
+    return _Panel(
+      title: 'Départs du jour',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isLoadingDepartures)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          IconButton(
+            onPressed: _isLoadingDepartures ? null : _loadDepartures,
+            tooltip: 'Actualiser',
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final columns = width >= 1180
+              ? 3
+              : width >= 760
+                  ? 2
+                  : 1;
+          final cardWidth = (width - (columns - 1) * 14) / columns;
+
+          return Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: visibleDepartures
+                .map(
+                  (departure) => SizedBox(
+                    width: cardWidth,
+                    child: _DepartureCard(
+                      departure: departure,
+                      onOpen: () => _openDeparturePanel(departure),
+                    ),
+                  ),
+                )
+                .toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openDeparturePanel(StationDeparture departure) async {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) {
+        return Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+          backgroundColor: Colors.transparent,
+          child: _DepartureWorkspace(
+            departure: departure,
+            user: user,
+            apiService: _apiService,
+            onValidated: _loadDepartures,
+          ),
+        );
+      },
+    );
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _searchText = '';
+      _selectedClass = 'all';
+      _selectedStatus = 'all';
+      _withTicketsOnly = false;
+    });
+  }
+}
+
+class _DepartureWorkspace extends StatefulWidget {
+  final StationDeparture departure;
+  final User user;
+  final StationBoardingApiService apiService;
+  final VoidCallback onValidated;
+
+  const _DepartureWorkspace({
+    required this.departure,
+    required this.user,
+    required this.apiService,
+    required this.onValidated,
+  });
+
+  @override
+  State<_DepartureWorkspace> createState() => _DepartureWorkspaceState();
+}
+
+class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
+  final _validationController = TextEditingController();
+
+  StationBoardingManifestResponse? _manifest;
+  StationBoardingSummaryResponse? _summary;
+  StationTicketValidation? _lastValidation;
+  String? _loadError;
+  String? _validationError;
+  bool _isLoading = true;
+  bool _isValidating = false;
+  int _selectedTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBoardingData();
+  }
+
+  @override
+  void dispose() {
+    _validationController.dispose();
+    super.dispose();
+  }
+
+  bool get _canValidate => widget.user.scopes.contains('boarding.validate');
+  bool get _canReadManifest =>
+      widget.user.scopes.contains('boarding.manifest.read') ||
+      widget.user.scopes.contains('station.departures.read');
+  bool get _canReadSummary =>
+      widget.user.scopes.contains('boarding.summary.read');
+
+  Future<void> _loadBoardingData() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final results = await Future.wait<dynamic>([
+        if (_canReadManifest)
+          widget.apiService
+              .getBoardingManifest(departureId: widget.departure.id)
+        else
+          Future<StationBoardingManifestResponse?>.value(null),
+        if (_canReadSummary)
+          widget.apiService.getBoardingSummary(departureId: widget.departure.id)
+        else
+          Future<StationBoardingSummaryResponse?>.value(null),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _manifest = results[0] as StationBoardingManifestResponse?;
+        _summary = results[1] as StationBoardingSummaryResponse?;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _manifest = null;
+        _summary = null;
+        _loadError = _messageFromError(error);
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _validateTicket() async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isValidating = true;
+      _validationError = null;
+      _lastValidation = null;
+    });
+
+    try {
+      final validation = await widget.apiService.validateTicket(
+        validationToken: _validationController.text,
+        departureId: widget.departure.id,
+        deviceIdentifier: 'staff_portal',
+      );
+      if (!mounted) return;
+      setState(() {
+        _lastValidation = validation;
+        _validationController.clear();
+      });
+      widget.onValidated();
+      await _loadBoardingData();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _validationError = _messageFromError(error);
+        _lastValidation = null;
+      });
+    } finally {
+      if (mounted) setState(() => _isValidating = false);
+    }
+  }
+
+  String _messageFromError(Object error) {
+    if (error is ApiException) return error.message;
+    return 'Une erreur est survenue. Veuillez réessayer.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.clamp(320.0, 1180.0);
+        final height = constraints.maxHeight.clamp(420.0, 820.0);
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: width, maxHeight: height),
+          child: Material(
+            color: _staffBg,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                _WorkspaceHeader(departure: widget.departure),
+                _WorkspaceQuickSummary(
+                  departure: widget.departure,
+                  summary: _summary,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: _SegmentedTabs(
+                    selectedIndex: _selectedTab,
+                    onChanged: (index) => setState(() => _selectedTab = index),
+                    tabs: const [
+                      _TabItem(icon: Icons.list_alt, label: 'Manifeste'),
+                      _TabItem(
+                          icon: Icons.verified, label: 'Validation billet'),
+                      _TabItem(icon: Icons.query_stats, label: 'Résumé'),
+                    ],
+                  ),
+                ),
+                Expanded(child: _buildTabContent()),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTabContent() {
+    if (_isLoading) {
+      return const _WorkspaceBody(
+        child:
+            _SoftLoading(message: 'Chargement des informations du départ...'),
+      );
+    }
+
+    if (_loadError != null && (_selectedTab == 0 || _selectedTab == 2)) {
+      return _WorkspaceBody(
+        child: _StatePanel(
+          icon: Icons.error_outline,
+          title: 'Informations indisponibles',
+          message: _loadError!,
+          actionLabel: 'Réessayer',
+          onAction: _loadBoardingData,
+        ),
+      );
+    }
+
+    if (_selectedTab == 0) {
+      return _WorkspaceBody(
+        child: _ManifestSection(manifest: _manifest),
+      );
+    }
+
+    if (_selectedTab == 1) {
+      return _WorkspaceBody(
+        child: _ValidationSection(
+          controller: _validationController,
+          isValidating: _isValidating,
+          canValidate: _canValidate,
+          validation: _lastValidation,
+          errorMessage: _validationError,
+          onValidate: _validateTicket,
+        ),
+      );
+    }
+
+    return _WorkspaceBody(
+      child: _SummarySection(
+        departure: widget.departure,
+        summary: _summary,
+        manifest: _manifest,
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final User user;
+
+  const _Header({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final station = user.internalProfile?.station?.name;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: _brandPurple,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.how_to_reg, color: Colors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Embarquement',
+                  style: TextStyle(
+                    color: _brandPurple,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  station == null
+                      ? 'Départs du jour de votre gare.'
+                      : 'Départs du jour de $station.',
+                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BoardingOverview {
+  final int departuresCount;
+  final int ticketsIssued;
+  final int ticketsValidated;
+  final int passengersRemaining;
+  final int departuresWithTickets;
+
+  const _BoardingOverview({
+    required this.departuresCount,
+    required this.ticketsIssued,
+    required this.ticketsValidated,
+    required this.passengersRemaining,
+    required this.departuresWithTickets,
+  });
+
+  factory _BoardingOverview.fromDepartures(List<StationDeparture> departures) {
+    final ticketsIssued = departures.fold<int>(
+      0,
+      (sum, departure) => sum + departure.tickets.issued,
+    );
+    final ticketsValidated = departures.fold<int>(
+      0,
+      (sum, departure) => sum + departure.validationsAccepted,
+    );
+    final passengersRemaining = departures.fold<int>(
+      0,
+      (sum, departure) => sum + departure.tickets.remaining,
+    );
+    final departuresWithTickets =
+        departures.where((departure) => departure.tickets.total > 0).length;
+
+    return _BoardingOverview(
+      departuresCount: departures.length,
+      ticketsIssued: ticketsIssued,
+      ticketsValidated: ticketsValidated,
+      passengersRemaining: passengersRemaining,
+      departuresWithTickets: departuresWithTickets,
+    );
+  }
+}
+
+class _OverviewBand extends StatelessWidget {
+  final _BoardingOverview overview;
+
+  const _OverviewBand({required this.overview});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _OverviewItem(
+        title: 'Départs du jour',
+        value: overview.departuresCount.toString(),
+        icon: Icons.directions_bus,
+      ),
+      _OverviewItem(
+        title: 'Tickets émis',
+        value: overview.ticketsIssued.toString(),
+        icon: Icons.airplane_ticket,
+      ),
+      _OverviewItem(
+        title: 'Tickets validés',
+        value: overview.ticketsValidated.toString(),
+        icon: Icons.verified,
+      ),
+      _OverviewItem(
+        title: 'Passagers restants',
+        value: overview.passengersRemaining.toString(),
+        icon: Icons.pending_actions,
+      ),
+      _OverviewItem(
+        title: 'Départs avec tickets',
+        value: overview.departuresWithTickets.toString(),
+        icon: Icons.fact_check,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1100
+            ? 5
+            : constraints.maxWidth >= 760
+                ? 3
+                : 1;
+        final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children:
+              items.map((item) => SizedBox(width: width, child: item)).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _OverviewItem extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const _OverviewItem({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _brandPurple.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: _brandPurple),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _brandPurple,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(title, style: const TextStyle(color: Colors.black54)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FiltersPanel extends StatelessWidget {
+  final TextEditingController controller;
+  final String selectedClass;
+  final String selectedStatus;
+  final bool withTicketsOnly;
+  final ValueChanged<String> onClassChanged;
+  final ValueChanged<String> onStatusChanged;
+  final ValueChanged<bool> onWithTicketsChanged;
+
+  const _FiltersPanel({
+    required this.controller,
+    required this.selectedClass,
+    required this.selectedStatus,
+    required this.withTicketsOnly,
+    required this.onClassChanged,
+    required this.onStatusChanged,
+    required this.onWithTicketsChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: 'Vue opérationnelle',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 760;
+          final search = TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Rechercher une destination',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          );
+          final filters = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _ChoicePillGroup(
+                value: selectedClass,
+                options: const [
+                  _FilterOption('all', 'Tous'),
+                  _FilterOption('economie', 'Économie'),
+                  _FilterOption('prestige', 'Prestige'),
+                ],
+                onChanged: onClassChanged,
+              ),
+              _ChoicePillGroup(
+                value: selectedStatus,
+                options: const [
+                  _FilterOption('all', 'Tous statuts'),
+                  _FilterOption('open', 'Ouvert'),
+                  _FilterOption('closed', 'Fermé'),
+                  _FilterOption('departed', 'Parti'),
+                ],
+                onChanged: onStatusChanged,
+              ),
+              FilterChip(
+                label: const Text('Avec tickets'),
+                selected: withTicketsOnly,
+                onSelected: onWithTicketsChanged,
+                selectedColor: _brandPurple.withValues(alpha: 0.12),
+                checkmarkColor: _brandPurple,
+                side: const BorderSide(color: Color(0xFFDCE0EE)),
+              ),
+            ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [search, const SizedBox(height: 12), filters],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 320, child: search),
+              const SizedBox(width: 14),
+              Expanded(child: filters),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FilterOption {
+  final String value;
+  final String label;
+
+  const _FilterOption(this.value, this.label);
+}
+
+class _ChoicePillGroup extends StatelessWidget {
+  final String value;
+  final List<_FilterOption> options;
+  final ValueChanged<String> onChanged;
+
+  const _ChoicePillGroup({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      children: options.map((option) {
+        final selected = option.value == value;
+        return ChoiceChip(
+          label: Text(option.label),
+          selected: selected,
+          onSelected: (_) => onChanged(option.value),
+          selectedColor: _brandPurple.withValues(alpha: 0.12),
+          labelStyle: TextStyle(
+            color: selected ? _brandPurple : Colors.black87,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+          side: BorderSide(
+            color: selected ? _brandPurple : const Color(0xFFDCE0EE),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _DepartureCard extends StatelessWidget {
+  final StationDeparture departure;
+  final VoidCallback onOpen;
+
+  const _DepartureCard({required this.departure, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = departure.tickets.total == 0
+        ? 0.0
+        : (departure.validationsAccepted / departure.tickets.total)
+            .clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  departure.displayTime,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    color: _brandPurple,
+                  ),
+                ),
+              ),
+              _StatusChip(
+                label: _shortDepartureStatus(
+                  departure.statusCode,
+                  departure.statusLabel,
+                ),
+                status: departure.statusCode,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            departure.routeLabel.isEmpty
+                ? 'Trajet non renseigné'
+                : departure.routeLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2330),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.event_seat, size: 16, color: Colors.black54),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  departure.serviceClassName ?? 'Classe non renseignée',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black54),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniMetric(
+                label: 'Places',
+                value: '${departure.seats.available}/${departure.seats.total}',
+              ),
+              _MiniMetric(
+                label: 'Tickets',
+                value: '${departure.tickets.issued}/${departure.tickets.total}',
+              ),
+              _MiniMetric(
+                label: 'Validés',
+                value:
+                    '${departure.validationsAccepted}/${departure.validationsTotal}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress,
+              backgroundColor: const Color(0xFFE9ECF5),
+              valueColor: const AlwaysStoppedAnimation<Color>(_brandPurple),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Ouvrir'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceHeader extends StatelessWidget {
+  final StationDeparture departure;
+
+  const _WorkspaceHeader({required this.departure});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 14, 18),
+      color: _brandPurple,
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.directions_bus, color: Colors.white),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  departure.routeLabel.isEmpty
+                      ? 'Départ sélectionné'
+                      : departure.routeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${departure.displayTime} · ${departure.serviceClassName ?? 'Classe non renseignée'}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Fermer',
+            icon: const Icon(Icons.close, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceQuickSummary extends StatelessWidget {
+  final StationDeparture departure;
+  final StationBoardingSummaryResponse? summary;
+
+  const _WorkspaceQuickSummary(
+      {required this.departure, required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = summary?.summary;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      color: Colors.white,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cards = [
+            _CompactMetric('Tickets', departure.tickets.total.toString()),
+            _CompactMetric('Émis', departure.tickets.issued.toString()),
+            _CompactMetric(
+              'Validés',
+              (counts?.boarded ?? departure.validationsAccepted).toString(),
+            ),
+            _CompactMetric(
+              'Restants',
+              (counts?.remainingToBoard ?? departure.tickets.remaining)
+                  .toString(),
+            ),
+          ];
+
+          if (constraints.maxWidth < 640) {
+            return Wrap(spacing: 8, runSpacing: 8, children: cards);
+          }
+          return Row(
+              children: cards.map((card) => Expanded(child: card)).toList());
+        },
+      ),
+    );
+  }
+}
+
+class _CompactMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CompactMetric(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _softPanel,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(label,
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceBody extends StatelessWidget {
+  final Widget child;
+
+  const _WorkspaceBody({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: child,
+    );
+  }
+}
+
+class _TabItem {
+  final IconData icon;
+  final String label;
+
+  const _TabItem({required this.icon, required this.label});
+}
+
+class _SegmentedTabs extends StatelessWidget {
+  final int selectedIndex;
+  final List<_TabItem> tabs;
+  final ValueChanged<int> onChanged;
+
+  const _SegmentedTabs({
+    required this.selectedIndex,
+    required this.tabs,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Row(
+        children: List.generate(tabs.length, (index) {
+          final tab = tabs[index];
+          final selected = index == selectedIndex;
+          return Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => onChanged(index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: selected ? _brandPurple : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(tab.icon,
+                        size: 18,
+                        color: selected ? Colors.white : _brandPurple),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        tab.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: selected ? Colors.white : _brandPurple,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _ManifestSection extends StatelessWidget {
+  final StationBoardingManifestResponse? manifest;
+
+  const _ManifestSection({required this.manifest});
+
+  @override
+  Widget build(BuildContext context) {
+    if (manifest == null) {
+      return const _StatePanel(
+        icon: Icons.list_alt,
+        title: 'Manifeste non disponible',
+        message:
+            'Le manifeste de ce départ n’est pas disponible pour le moment.',
+      );
+    }
+
+    final passengers = manifest!.passengers;
+    if (passengers.isEmpty) {
+      return const _StatePanel(
+        icon: Icons.people_outline,
+        title: 'Aucun voyageur enregistré',
+        message: 'Aucun voyageur enregistré pour ce départ.',
+      );
+    }
+
+    return _Panel(
+      title: 'Manifeste passagers',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 820) {
+            return Column(
+              children: passengers
+                  .map((passenger) => _PassengerCard(passenger: passenger))
+                  .toList(),
+            );
+          }
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 20,
+              horizontalMargin: 14,
+              dataRowMinHeight: 62,
+              dataRowMaxHeight: 74,
+              headingRowColor: WidgetStateProperty.all(_softPanel),
+              columns: const [
+                DataColumn(label: Text('Voyageur')),
+                DataColumn(label: Text('Téléphone')),
+                DataColumn(label: Text('Réservation')),
+                DataColumn(label: Text('Ticket')),
+                DataColumn(label: Text('Siège')),
+                DataColumn(label: Text('Classe')),
+                DataColumn(label: Text('Ticket')),
+                DataColumn(label: Text('Validation')),
+              ],
+              rows: passengers
+                  .map(
+                    (passenger) => DataRow(
+                      cells: [
+                        DataCell(_TextCell(passenger.displayTraveler)),
+                        DataCell(_TextCell(passenger.travelerPhone ?? '—')),
+                        DataCell(
+                            _TextCell(passenger.reservationReference ?? '—')),
+                        DataCell(_TextCell(passenger.reference)),
+                        DataCell(_TextCell(passenger.displaySeat)),
+                        DataCell(_TextCell(passenger.serviceClass ?? '—')),
+                        DataCell(_StatusChip(
+                          label: passenger.statusLabel,
+                          status: passenger.statusCode,
+                        )),
+                        DataCell(_StatusChip(
+                          label: _boardingLabel(passenger),
+                          status: _boardingStatus(passenger),
+                        )),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ValidationSection extends StatelessWidget {
+  final TextEditingController controller;
+  final bool isValidating;
+  final bool canValidate;
+  final StationTicketValidation? validation;
+  final String? errorMessage;
+  final VoidCallback onValidate;
+
+  const _ValidationSection({
+    required this.controller,
+    required this.isValidating,
+    required this.canValidate,
+    required this.validation,
+    required this.errorMessage,
+    required this.onValidate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canValidate) {
+      return const _StatePanel(
+        icon: Icons.lock_outline,
+        title: 'Validation non autorisée',
+        message:
+            'Votre profil permet la consultation mais pas la validation des billets.',
+      );
+    }
+
+    return _Panel(
+      title: 'Validation billet',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'La validation est liée au départ ouvert. Saisissez la référence ticket ou le contenu QR présenté par le voyageur.',
+            style: TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final field = TextField(
+                controller: controller,
+                enabled: !isValidating,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => isValidating ? null : onValidate(),
+                decoration: const InputDecoration(
+                  labelText: 'Référence ticket ou contenu QR',
+                  hintText: 'Ex. TCK-2026-...',
+                  prefixIcon: Icon(Icons.confirmation_number),
+                  border: OutlineInputBorder(),
+                ),
+              );
+
+              final button = FilledButton.icon(
+                onPressed: isValidating ? null : onValidate,
+                icon: isValidating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.verified),
+                label:
+                    Text(isValidating ? 'Validation...' : 'Valider le billet'),
+              );
+
+              if (constraints.maxWidth < 680) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [field, const SizedBox(height: 12), button],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: field),
+                  const SizedBox(width: 12),
+                  SizedBox(height: 56, child: button),
+                ],
+              );
+            },
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 14),
+            _ValidationResultBox(
+              isSuccess: false,
+              title: 'Validation refusée',
+              message: errorMessage!,
+            ),
+          ],
+          if (validation != null) ...[
+            const SizedBox(height: 14),
+            _ValidationResultBox(
+              isSuccess: validation!.isAccepted,
+              title: validation!.isAccepted
+                  ? 'Billet validé'
+                  : validation!.statusLabel,
+              message: validation!.resultMessage ??
+                  (validation!.isAccepted
+                      ? 'Le voyageur peut embarquer sur ce départ.'
+                      : 'Le billet n’a pas été accepté pour ce départ.'),
+              details: [
+                validation!.ticketReference,
+                validation!.travelerFullName,
+                validation!.displaySeat,
+              ]
+                  .where((part) => part != null && part.trim().isNotEmpty)
+                  .join(' · '),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySection extends StatelessWidget {
+  final StationDeparture departure;
+  final StationBoardingSummaryResponse? summary;
+  final StationBoardingManifestResponse? manifest;
+
+  const _SummarySection({
+    required this.departure,
+    required this.summary,
+    required this.manifest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = summary?.summary;
+    final totalTickets = counts?.totalTickets ?? departure.tickets.total;
+    final issued = counts?.issued ?? departure.tickets.issued;
+    final boarded = counts?.boarded ?? departure.validationsAccepted;
+    final cancelled = counts?.cancelled ?? departure.tickets.cancelled;
+    final remaining = counts?.remainingToBoard ?? departure.tickets.remaining;
+    final rejected = departure.validationsRejected;
+    final rate =
+        totalTickets == 0 ? null : (boarded / totalTickets * 100).round();
+
+    return _Panel(
+      title: 'Résumé du départ',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final items = [
+                _SummaryTile('Tickets total', totalTickets.toString(),
+                    Icons.airplane_ticket),
+                _SummaryTile(
+                    'Tickets émis', issued.toString(), Icons.fact_check),
+                _SummaryTile(
+                    'Tickets validés', boarded.toString(), Icons.how_to_reg),
+                _SummaryTile('Tickets restants', remaining.toString(),
+                    Icons.pending_actions),
+                _SummaryTile(
+                    'Tickets annulés', cancelled.toString(), Icons.block),
+                _SummaryTile('Validations rejetées', rejected.toString(),
+                    Icons.report_gmailerrorred),
+                _SummaryTile('Taux embarquement', rate == null ? '—' : '$rate%',
+                    Icons.query_stats),
+              ];
+              final columns = constraints.maxWidth >= 900
+                  ? 4
+                  : constraints.maxWidth >= 620
+                      ? 2
+                      : 1;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 10) / columns;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: items
+                    .map((item) => SizedBox(width: width, child: item))
+                    .toList(),
+              );
+            },
+          ),
+          if (manifest == null) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Le détail passagers sera affiché dès que le manifeste sera disponible.',
+              style: TextStyle(color: Colors.black54),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _SummaryTile(this.label, this.value, this.icon);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _softPanel,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: _brandPurple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(label,
+                    style:
+                        const TextStyle(color: Colors.black54, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PassengerCard extends StatelessWidget {
+  final StationBoardingTicket passenger;
+
+  const _PassengerCard({required this.passenger});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _softPanel,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  passenger.displayTraveler.isEmpty
+                      ? 'Voyageur'
+                      : passenger.displayTraveler,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              _StatusChip(
+                  label: passenger.statusLabel, status: passenger.statusCode),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _InfoPill(
+                  label: 'Téléphone', value: passenger.travelerPhone ?? '—'),
+              _InfoPill(
+                  label: 'Réservation',
+                  value: passenger.reservationReference ?? '—'),
+              _InfoPill(label: 'Ticket', value: passenger.reference),
+              _InfoPill(label: 'Siège', value: passenger.displaySeat),
+              _InfoPill(label: 'Classe', value: passenger.serviceClass ?? '—'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _StatusChip(
+            label: _boardingLabel(passenger),
+            status: _boardingStatus(passenger),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: _softPanel,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Text('$label $value',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _ValidationResultBox extends StatelessWidget {
+  final bool isSuccess;
+  final String title;
+  final String message;
+  final String? details;
+
+  const _ValidationResultBox({
+    required this.isSuccess,
+    required this.title,
+    required this.message,
+    this.details,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSuccess ? _success : _danger;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(isSuccess ? Icons.check_circle : Icons.error_outline,
+              color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style:
+                        TextStyle(color: color, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(message),
+                if (details != null && details!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(details!, style: const TextStyle(color: Colors.black54)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  const _Panel({required this.title, required this.child, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: _brandPurple,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StatePanel extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _StatePanel({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: title,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _brandPurple.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: _brandPurple),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message)),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: 12),
+            OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingPanel extends StatelessWidget {
+  final String message;
+
+  const _LoadingPanel({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(title: message, child: const LinearProgressIndicator());
+  }
+}
+
+class _SoftLoading extends StatelessWidget {
+  final String message;
+
+  const _SoftLoading({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const LinearProgressIndicator(),
+          const SizedBox(height: 14),
+          Text(message, style: const TextStyle(color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccessDeniedBoarding extends StatelessWidget {
+  const _AccessDeniedBoarding();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: const [
+        _StatePanel(
+          icon: Icons.lock_outline,
+          title: 'Accès non autorisé',
+          message:
+              'Votre profil ne dispose pas des droits nécessaires pour utiliser le module embarquement.',
+        ),
+      ],
+    );
+  }
+}
+
+class _TextCell extends StatelessWidget {
+  final String value;
+
+  const _TextCell(this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 140,
+      child: Text(
+        value.isEmpty ? '—' : value,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoPill({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Text('$label : ${value.isEmpty ? '—' : value}'),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final String? status;
+
+  const _StatusChip({required this.label, this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor(status ?? label);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label.isEmpty ? '—' : label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          height: 1.15,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+String _normalize(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll('é', 'e')
+      .replaceAll('è', 'e')
+      .replaceAll('ê', 'e')
+      .replaceAll('à', 'a')
+      .replaceAll('ç', 'c');
+}
+
+String _classFilterValue(StationDeparture departure) {
+  final value = _normalize(
+    '${departure.serviceClassCode ?? ''} ${departure.serviceClassName ?? ''}',
+  );
+  if (value.contains('prestige')) return 'prestige';
+  if (value.contains('economie') || value.contains('economy')) {
+    return 'economie';
+  }
+  return 'other';
+}
+
+String _statusFilterValue(String status) {
+  final normalized = status.toLowerCase();
+  if (normalized.contains('open')) return 'open';
+  if (normalized.contains('closed')) return 'closed';
+  if (normalized.contains('departed')) return 'departed';
+  return normalized.isEmpty ? 'unknown' : normalized;
+}
+
+String _shortDepartureStatus(String status, String fallback) {
+  final normalized = status.toLowerCase();
+  if (normalized.contains('open')) return 'Ouvert';
+  if (normalized.contains('scheduled')) return 'Prévu';
+  if (normalized.contains('closed')) return 'Fermé';
+  if (normalized.contains('departed')) return 'Parti';
+  if (normalized.contains('cancel')) return 'Annulé';
+  return fallback.isEmpty ? '—' : fallback;
+}
+
+String _boardingLabel(StationBoardingTicket passenger) {
+  if (passenger.isBoarded) return 'Embarqué';
+  if (passenger.canBoard) return 'À valider';
+  return 'Non valide';
+}
+
+String _boardingStatus(StationBoardingTicket passenger) {
+  if (passenger.isBoarded) return 'accepted';
+  if (passenger.canBoard) return 'pending';
+  return 'rejected';
+}
+
+Color _statusColor(String status) {
+  final normalized = status.toLowerCase();
+  if (normalized.contains('accepted') ||
+      normalized.contains('used') ||
+      normalized.contains('open') ||
+      normalized.contains('confirm') ||
+      normalized.contains('émis')) {
+    return _success;
+  }
+  if (normalized.contains('pending') ||
+      normalized.contains('scheduled') ||
+      normalized.contains('issued') ||
+      normalized.contains('prévu')) {
+    return _warning;
+  }
+  if (normalized.contains('duplicate') ||
+      normalized.contains('wrong') ||
+      normalized.contains('invalid') ||
+      normalized.contains('rejected') ||
+      normalized.contains('cancel') ||
+      normalized.contains('expired') ||
+      normalized.contains('fermé') ||
+      normalized.contains('annul')) {
+    return _danger;
+  }
+  return _brandPurple;
+}
