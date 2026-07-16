@@ -2,9 +2,9 @@ import 'package:flutter/widgets.dart';
 
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/screens/admin/admin_dashboard_screen.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
-import 'package:catrans_app/screens/staff/staff_placeholder_screen.dart';
+import 'package:catrans_app/screens/staff/pages/staff_profile_incomplete_page.dart';
+import 'package:catrans_app/screens/staff/shell/staff_shell_screen.dart';
 
 class AuthRedirectService {
   const AuthRedirectService._();
@@ -14,11 +14,11 @@ class AuthRedirectService {
       return const AccueilScreen();
     }
 
-    final role = user.internalProfile?.role;
-    if (role == InternalRole.admin || role == InternalRole.director) {
-      return const AdminDashboardScreen();
+    if (user.internalProfile?.role == InternalRole.legacy_unknown ||
+        user.internalProfile == null) {
+      return const StaffProfileIncompletePage();
     }
 
-    return StaffPlaceholderScreen.forUser(user);
+    return const StaffShellScreen();
   }
 }
