@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:catrans_app/screens/admin/admin_login_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:catrans_app/screens/client/auth/splash_screen.dart';
+import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/screens/admin/gares/gestion_gares_screen.dart';
 import 'package:catrans_app/screens/admin/lignes/gestion_lignes_screen.dart';
 import 'package:catrans_app/screens/admin/horaires/gestion_horaires_screen.dart';
@@ -20,7 +22,7 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
-  
+
   final List<Widget> _pages = [
     const AdminDashboardContent(),
     const GestionGaresScreen(),
@@ -59,7 +61,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 // AppBar avec déconnexion
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     boxShadow: [
@@ -95,7 +98,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 context: context,
                                 builder: (context) => AlertDialog(
                                   title: const Text('Déconnexion'),
-                                  content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+                                  content: const Text(
+                                      'Voulez-vous vraiment vous déconnecter ?'),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(15),
                                   ),
@@ -105,11 +109,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       child: const Text('Annuler'),
                                     ),
                                     ElevatedButton(
-                                      onPressed: () {
+                                      onPressed: () async {
+                                        await context
+                                            .read<AuthService>()
+                                            .logout();
+                                        if (!context.mounted) return;
                                         Navigator.pushAndRemoveUntil(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => const AdminLoginScreen(),
+                                            builder: (context) =>
+                                                const SplashScreen(),
                                           ),
                                           (route) => false,
                                         );
@@ -118,7 +127,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         backgroundColor: Colors.red,
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                       ),
                                       child: const Text('Déconnecter'),

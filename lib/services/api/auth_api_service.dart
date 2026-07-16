@@ -47,6 +47,21 @@ class AuthApiService {
     return _readAuthTokens(_readObject(response.data));
   }
 
+  Future<AuthTokens> loginInternal({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _apiClient.post(
+      'auth/internal/token/',
+      data: {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+      },
+    );
+
+    return _readAuthTokens(_readObject(response.data));
+  }
+
   Future<String> refreshAccessToken({
     required String refreshToken,
   }) async {

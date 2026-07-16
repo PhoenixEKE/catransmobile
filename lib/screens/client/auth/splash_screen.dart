@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/services/auth_redirect_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
@@ -7,7 +8,6 @@ import 'package:catrans_app/services/api/payment_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/client/auth/login_screen.dart';
 import 'package:catrans_app/screens/client/auth/register_screen.dart';
 import 'package:catrans_app/screens/admin/admin_login_screen.dart';
@@ -66,7 +66,18 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    if (authService.isAuthenticated) {
+    final currentUser = authService.currentUser;
+    if (authService.isAuthenticated && currentUser != null) {
+      if (!currentUser.isCustomer) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AuthRedirectService.homeForUser(currentUser),
+          ),
+        );
+        return;
+      }
+
       final pendingReservation = await _loadPendingReservation();
       if (!mounted) return;
 
@@ -86,15 +97,19 @@ class _SplashScreenState extends State<SplashScreen>
         );
         return;
       }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AuthRedirectService.homeForUser(currentUser),
+        ),
+      );
+      return;
     }
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => authService.isAuthenticated
-            ? const AccueilScreen()
-            : const AuthChoiceScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const AuthChoiceScreen()),
     );
   }
 

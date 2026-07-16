@@ -80,6 +80,35 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<bool> loginInternal(String email, String password) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      final tokens = await _authApiService.loginInternal(
+        email: email,
+        password: password,
+      );
+
+      await _tokenStorage.saveTokens(
+        accessToken: tokens.access,
+        refreshToken: tokens.refresh,
+      );
+
+      _token = tokens.access;
+      _currentUser = await _authApiService.me();
+      _setLoading(false);
+      return true;
+    } catch (error) {
+      await _tokenStorage.clearTokens();
+      _token = null;
+      _currentUser = null;
+      _errorMessage = _readableErrorMessage(error);
+      _setLoading(false);
+      return false;
+    }
+  }
+
   Future<bool> register({
     required String lastname,
     required String firstname,

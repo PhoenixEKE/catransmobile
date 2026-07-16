@@ -1,6 +1,3 @@
-import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/models/transport/station.dart';
-
 enum InternalRole {
   station_agent,
   station_manager,
@@ -10,46 +7,112 @@ enum InternalRole {
   director,
   marketing,
   admin,
-  legacy_unknown
+  legacy_unknown,
 }
 
 class InternalProfile {
   final String id;
-  final User user;
-  final Station? station;
   final InternalRole role;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final String roleLabel;
+  final InternalStationRef? station;
+  final InternalCounterRef? counter;
 
-  InternalProfile({
+  const InternalProfile({
     required this.id,
-    required this.user,
+    required this.role,
+    required this.roleLabel,
     this.station,
-    this.role = InternalRole.station_agent,
-    required this.createdAt,
-    required this.updatedAt,
+    this.counter,
   });
 
-  bool get isAdmin => role == InternalRole.admin || role == InternalRole.director;
+  bool get isAdmin =>
+      role == InternalRole.admin || role == InternalRole.director;
+  bool get isStationRole =>
+      role == InternalRole.station_manager ||
+      role == InternalRole.cashier ||
+      role == InternalRole.station_agent;
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'user': user.toJson(),
-    'station_id': station?.id,
-    'role': role.name,
-    'created_at': createdAt.toIso8601String(),
-    'updated_at': updatedAt.toIso8601String(),
-  };
+        'id': id,
+        'role': role.name,
+        'role_label': roleLabel,
+        'station': station?.toJson(),
+        'counter': counter?.toJson(),
+      };
 
-  factory InternalProfile.fromJson(Map<String, dynamic> json) => InternalProfile(
-    id: json['id'],
-    user: User.fromJson(json['user']),
-    station: json['station_id'] != null ? Station.fromJson(json['station']) : null,
-    role: InternalRole.values.firstWhere(
-      (e) => e.name == json['role'],
-      orElse: () => InternalRole.station_agent,
-    ),
-    createdAt: DateTime.parse(json['created_at']),
-    updatedAt: DateTime.parse(json['updated_at']),
-  );
+  factory InternalProfile.fromJson(Map<String, dynamic> json) {
+    final stationJson = json['station'];
+    final counterJson = json['counter'];
+
+    return InternalProfile(
+      id: _readString(json['id']),
+      role: InternalRole.values.firstWhere(
+        (role) => role.name == _readString(json['role']),
+        orElse: () => InternalRole.legacy_unknown,
+      ),
+      roleLabel: _readString(json['role_label'] ?? json['roleLabel']),
+      station: stationJson is Map
+          ? InternalStationRef.fromJson(Map<String, dynamic>.from(stationJson))
+          : null,
+      counter: counterJson is Map
+          ? InternalCounterRef.fromJson(Map<String, dynamic>.from(counterJson))
+          : null,
+    );
+  }
+
+  static String _readString(dynamic value) => value?.toString() ?? '';
+}
+
+class InternalStationRef {
+  final String id;
+  final String name;
+
+  const InternalStationRef({
+    required this.id,
+    required this.name,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+      };
+
+  factory InternalStationRef.fromJson(Map<String, dynamic> json) {
+    return InternalStationRef(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+    );
+  }
+}
+
+class InternalCounterRef {
+  final String id;
+  final String code;
+  final String label;
+
+  const InternalCounterRef({
+    required this.id,
+    required this.code,
+    required this.label,
+  });
+
+  String get displayName {
+    if (code.isEmpty) return label;
+    if (label.isEmpty) return code;
+    return '$code / $label';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'code': code,
+        'label': label,
+      };
+
+  factory InternalCounterRef.fromJson(Map<String, dynamic> json) {
+    return InternalCounterRef(
+      id: json['id']?.toString() ?? '',
+      code: json['code']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+    );
+  }
 }

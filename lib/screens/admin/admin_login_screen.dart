@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import 'package:catrans_app/services/auth_redirect_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
-import 'package:catrans_app/screens/admin/admin_dashboard_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -25,41 +26,40 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        // Simuler la connexion admin
-        await Future.delayed(const Duration(seconds: 1));
-        
-        // Vérification simplifiée pour la démo
-        if (_emailController.text == 'admin@catrans.sn' && 
-            _passwordController.text == 'admin123') {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
-            );
-          }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email ou mot de passe incorrect'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: ${e.toString()}'),
-            backgroundColor: Colors.red,
+    setState(() => _isLoading = true);
+
+    final authService = context.read<AuthService>();
+    final success = await authService.loginInternal(
+      _emailController.text,
+      _passwordController.text,
+    );
+
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    if (!success || authService.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            authService.errorMessage ?? 'Email ou mot de passe incorrect',
           ),
-        );
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            AuthRedirectService.homeForUser(authService.currentUser!),
+      ),
+      (route) => false,
+    );
   }
 
   @override
@@ -73,7 +73,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -94,28 +93,24 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                
                 const Text(
-                  'ADMINISTRATION',
+                  'PERSONNEL CA TRANS',
                   style: TextStyle(
                     color: Color(0xFFEFD807),
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 3,
+                    letterSpacing: 2,
                   ),
                 ),
                 const SizedBox(height: 10),
-                
                 const Text(
-                  'Portail d\'administration CA TRANS',
+                  'Connexion réservée aux équipes CA TRANS',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 40),
-                
-                // Formulaire
                 Container(
                   padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(
@@ -133,45 +128,56 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        // Email
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
-                            labelText: 'Adresse email',
-                            prefixIcon: Icon(Icons.email, color: Color(0xFF0F056B)),
+                            labelText: 'Email professionnel',
+                            prefixIcon:
+                                Icon(Icons.email, color: Color(0xFF0F056B)),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(Radius.circular(12)),
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(12)),
                             ),
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
+                            final email = value?.trim() ?? '';
+                            if (email.isEmpty) {
                               return 'Veuillez entrer votre email';
                             }
-                            if (!value.contains('@')) {
+                            if (!email.contains('@')) {
                               return 'Email invalide';
                             }
                             return null;
                           },
                         ),
                         const SizedBox(height: 15),
-                        
-                        // Mot de passe
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _isLoading ? null : _login(),
                           decoration: InputDecoration(
                             labelText: 'Mot de passe',
-                            prefixIcon: const Icon(Icons.lock, color: Color(0xFF0F056B)),
+                            prefixIcon: const Icon(
+                              Icons.lock,
+                              color: Color(0xFF0F056B),
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
                                 color: Colors.grey,
                               ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                             border: const OutlineInputBorder(
-                              borderRadius: BorderRadius.all(Radius.circular(12)),
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(12)),
                             ),
                           ),
                           validator: (value) {
@@ -185,8 +191,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           },
                         ),
                         const SizedBox(height: 30),
-                        
-                        // Bouton SE CONNECTER
                         SizedBox(
                           width: double.infinity,
                           height: 55,
@@ -220,47 +224,21 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 15),
-                        
-                        // Infos de connexion
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: const Column(
-                            children: [
-                              Text(
-                                '📧 admin@catrans.sn',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '🔑 admin123',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '⚠️ Utilisez ces identifiants pour la démo',
-                                style: TextStyle(fontSize: 11, color: Colors.grey),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Utilisez votre compte personnel CA TRANS.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                       ],
                     ),
                   ),
                 ),
-                
                 const SizedBox(height: 20),
-                
-                // Lien retour
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text(
-                    '⬅ Retour à l\'application',
+                    'Retour à l’application',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
