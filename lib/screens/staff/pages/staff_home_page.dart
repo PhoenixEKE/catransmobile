@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 import 'package:catrans_app/widgets/staff/staff_metric_card.dart';
-import 'package:catrans_app/widgets/staff/staff_scope_chip.dart';
 
 class StaffHomePage extends StatelessWidget {
   final User user;
@@ -20,12 +20,14 @@ class StaffHomePage extends StatelessWidget {
     final profile = user.internalProfile;
     final station = profile?.station;
     final counter = profile?.counter;
+    final role = profile?.role;
+    final firstName = user.firstname.isEmpty ? user.fullName : user.firstname;
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         Text(
-          'Bonjour ${user.firstname.isEmpty ? user.fullName : user.firstname}',
+          'Bonjour $firstName',
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -34,7 +36,7 @@ class StaffHomePage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Bienvenue dans votre portail métier CA TRANS.',
+          _welcomeMessage(role),
           style: TextStyle(color: Colors.grey[700], fontSize: 15),
         ),
         const SizedBox(height: 24),
@@ -43,22 +45,23 @@ class StaffHomePage extends StatelessWidget {
             final isNarrow = constraints.maxWidth < 760;
             final cards = [
               StaffMetricCard(
-                title: 'Modules disponibles',
-                value: menuItems.length.toString(),
-                icon: Icons.apps,
-                color: Colors.indigo,
-              ),
-              StaffMetricCard(
-                title: 'Scopes métier',
-                value: user.scopes.length.toString(),
-                icon: Icons.verified_user,
-                color: Colors.green,
-              ),
-              StaffMetricCard(
-                title: station == null ? 'Périmètre global' : 'Gare affectée',
+                title: station == null ? 'Périmètre' : 'Gare',
                 value: station?.name ?? 'CA TRANS',
                 icon: Icons.location_city,
                 color: Colors.orange,
+              ),
+              StaffMetricCard(
+                title: 'Poste',
+                value:
+                    counter?.displayName ?? profile?.roleLabel ?? 'Personnel',
+                icon: Icons.badge,
+                color: Colors.indigo,
+              ),
+              StaffMetricCard(
+                title: 'Actions disponibles',
+                value: _businessActions.length.toString(),
+                icon: Icons.task_alt,
+                color: Colors.green,
               ),
             ];
 
@@ -87,55 +90,85 @@ class StaffHomePage extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         _Panel(
-          title: 'Identité métier',
-          children: [
-            _InfoLine(label: 'Nom', value: user.fullName),
-            _InfoLine(label: 'Email', value: user.email ?? '-'),
-            _InfoLine(
-                label: 'Rôle',
-                value: profile?.roleLabel ?? profile?.role.name ?? '-'),
-            if (station != null) _InfoLine(label: 'Gare', value: station.name),
-            if (counter != null)
-              _InfoLine(label: 'Guichet', value: counter.displayName),
-          ],
+          title: _businessTitle(role),
+          child: Text(
+            _businessMessage(role),
+            style: const TextStyle(fontSize: 15, height: 1.4),
+          ),
         ),
         const SizedBox(height: 16),
         _Panel(
-          title: 'Scopes principaux',
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: user.scopes.isEmpty
-                  ? const [StaffScopeChip(label: 'Aucun scope disponible')]
-                  : user.scopes.take(12).map((scope) {
-                      return StaffScopeChip(label: scope);
-                    }).toList(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _Panel(
-          title: 'Modules préparés',
-          children: menuItems.where((item) => item.id != 'home').map((item) {
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(item.icon, color: const Color(0xFF0F056B)),
-              title: Text(item.title),
-              subtitle: Text(item.nextStep),
-            );
-          }).toList(),
+          title: 'Actions rapides',
+          child: Column(
+            children: _businessActions
+                .map((item) => _ActionLine(item: item))
+                .toList(),
+          ),
         ),
       ],
     );
+  }
+
+  List<StaffMenuItem> get _businessActions {
+    return menuItems.where((item) => item.id != 'home').toList();
+  }
+
+  String _welcomeMessage(InternalRole? role) {
+    switch (role) {
+      case InternalRole.cashier:
+        return 'Recherchez les réservations, consultez les dossiers voyageurs et imprimez les tickets générés.';
+      case InternalRole.station_manager:
+        return 'Suivez les opérations de votre gare et accompagnez les équipes terrain.';
+      case InternalRole.station_agent:
+        return 'Préparez le contrôle embarquement et le suivi des passagers.';
+      case InternalRole.admin:
+      case InternalRole.director:
+        return 'Pilotez les activités CA TRANS depuis votre espace personnel.';
+      case InternalRole.accounting:
+        return 'Suivez les paiements et les informations financières utiles.';
+      case InternalRole.support:
+        return 'Accompagnez les voyageurs sur leurs réservations, paiements et tickets.';
+      default:
+        return 'Bienvenue dans votre portail métier CA TRANS.';
+    }
+  }
+
+  String _businessTitle(InternalRole? role) {
+    switch (role) {
+      case InternalRole.cashier:
+        return 'Espace guichet';
+      case InternalRole.station_manager:
+        return 'Supervision gare';
+      case InternalRole.station_agent:
+        return 'Espace embarquement';
+      case InternalRole.accounting:
+        return 'Espace comptabilité';
+      case InternalRole.support:
+        return 'Espace support';
+      default:
+        return 'Portail métier';
+    }
+  }
+
+  String _businessMessage(InternalRole? role) {
+    switch (role) {
+      case InternalRole.cashier:
+        return 'Utilisez “Réservations & tickets” pour retrouver une réservation, consulter le détail et accéder aux actions d’impression disponibles.';
+      case InternalRole.station_manager:
+        return 'Consultez les réservations de la gare et gardez une vue claire sur les prochaines opérations.';
+      case InternalRole.station_agent:
+        return 'Les fonctions d’embarquement seront présentées ici dès leur activation.';
+      default:
+        return 'Sélectionnez une action dans le menu pour commencer votre travail.';
+    }
   }
 }
 
 class _Panel extends StatelessWidget {
   final String title;
-  final List<Widget> children;
+  final Widget child;
 
-  const _Panel({required this.title, required this.children});
+  const _Panel({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -158,38 +191,65 @@ class _Panel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...children,
+          child,
         ],
       ),
     );
   }
 }
 
-class _InfoLine extends StatelessWidget {
-  final String label;
-  final String value;
+class _ActionLine extends StatelessWidget {
+  final StaffMenuItem item;
 
-  const _InfoLine({required this.label, required this.value});
+  const _ActionLine({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FC),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.black54,
-                fontWeight: FontWeight.w600,
-              ),
+          Icon(item.icon, color: const Color(0xFF0F056B)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(item.moduleDescription),
+              ],
             ),
           ),
-          Expanded(child: Text(value.isEmpty ? '-' : value)),
+          if (!item.isAvailable) const _SoonBadge(),
         ],
+      ),
+    );
+  }
+}
+
+class _SoonBadge extends StatelessWidget {
+  const _SoonBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3CD),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'Bientôt disponible',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }

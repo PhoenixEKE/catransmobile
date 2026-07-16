@@ -6,6 +6,7 @@ import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
+import 'package:catrans_app/screens/staff/counter/counter_search_screen.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/widgets/staff/staff_sidebar.dart';
@@ -96,6 +97,14 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
   ) {
     if (selectedItem.id == 'home') {
       return StaffHomePage(user: user, menuItems: menuItems);
+    }
+
+    if (selectedItem.id == 'reservation_search') {
+      return const CounterSearchScreen();
+    }
+
+    if (selectedItem.id == 'station_reservations') {
+      return const CounterSearchScreen(supervisionMode: true);
     }
 
     return StaffPlaceholderPage(user: user, item: selectedItem);

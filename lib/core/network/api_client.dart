@@ -63,11 +63,13 @@ class ApiClient {
   Future<Response<dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) {
     return _guard(
       () => _dio.get<dynamic>(
         _normalizePath(path),
         queryParameters: queryParameters,
+        options: options,
       ),
     );
   }

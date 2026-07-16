@@ -10,6 +10,7 @@ class StaffMenuItem {
   final String moduleDescription;
   final String nextStep;
   final List<String> usefulScopes;
+  final bool isAvailable;
 
   const StaffMenuItem({
     required this.id,
@@ -18,6 +19,7 @@ class StaffMenuItem {
     required this.moduleDescription,
     required this.nextStep,
     this.usefulScopes = const [],
+    this.isAvailable = true,
   });
 
   static List<StaffMenuItem> forUser(User user) {
@@ -36,7 +38,7 @@ class StaffMenuItem {
             icon: Icons.admin_panel_settings,
             description: 'Pilotage global du portail CA TRANS.',
             nextStep:
-                'Les référentiels et droits seront branchés progressivement.',
+                'Les outils d’administration seront disponibles progressivement.',
             scopes: ['admin.dashboard.read', 'admin.users.manage'],
           ),
           _item(
@@ -45,7 +47,7 @@ class StaffMenuItem {
             icon: Icons.route,
             description: 'Gestion des gares, lignes, horaires et tarifs.',
             nextStep:
-                'Les APIs transport admin seront raccordées dans un prochain lot.',
+                'Les référentiels transport seront disponibles dans cet espace.',
             scopes: ['admin.transport.manage'],
           ),
           _item(
@@ -54,7 +56,7 @@ class StaffMenuItem {
             icon: Icons.event_seat,
             description: 'Suivi des départs, sièges et opérations terrain.',
             nextStep:
-                'Les écrans opérations seront intégrés après le socle portail.',
+                'Les opérations terrain seront regroupées dans cet espace.',
             scopes: ['admin.operations.manage'],
           ),
           _item(
@@ -73,7 +75,7 @@ class StaffMenuItem {
               icon: Icons.account_balance_wallet,
               description: 'Lecture des revenus et paiements.',
               nextStep:
-                  'Les rapports finance seront connectés dans un lot dédié.',
+                  'Les rapports financiers seront accessibles depuis cet espace.',
               scopes: ['finance.read'],
             ),
         ];
@@ -85,7 +87,7 @@ class StaffMenuItem {
             title: 'Vue direction',
             icon: Icons.dashboard,
             description: 'Vue lecture globale pour la direction.',
-            nextStep: 'Les tableaux de bord seront branchés progressivement.',
+            nextStep: 'Les tableaux de bord seront enrichis progressivement.',
             scopes: ['admin.dashboard.read'],
           ),
           _item(
@@ -93,7 +95,7 @@ class StaffMenuItem {
             title: 'Transport',
             icon: Icons.route,
             description: 'Consultation des référentiels transport.',
-            nextStep: 'Les vues lecture transport seront raccordées plus tard.',
+            nextStep: 'Les vues transport en lecture seront disponibles ici.',
             scopes: ['admin.transport.read'],
           ),
           if (hasScope('finance.read'))
@@ -103,7 +105,7 @@ class StaffMenuItem {
               icon: Icons.payments,
               description: 'Consultation des indicateurs financiers.',
               nextStep:
-                  'Les rapports financiers seront branchés dans un prochain lot.',
+                  'Les rapports financiers seront disponibles depuis cet espace.',
               scopes: ['finance.read'],
             ),
         ];
@@ -116,7 +118,7 @@ class StaffMenuItem {
             icon: Icons.directions_bus,
             description: 'Suivi opérationnel des départs de la gare.',
             nextStep:
-                'Les départs du jour seront branchés sur les APIs station.',
+                'Le suivi des départs du jour sera disponible depuis cet espace.',
             scopes: ['station.departures.read', 'station.departures.manage'],
           ),
           _item(
@@ -125,7 +127,7 @@ class StaffMenuItem {
             icon: Icons.confirmation_number,
             description: 'Consultation des réservations liées à la gare.',
             nextStep:
-                'La recherche réservation gare sera branchée au lot guichet/station.',
+                'Recherche et consultation des réservations gare disponibles.',
             scopes: ['station.reservations.read'],
           ),
           _item(
@@ -134,7 +136,7 @@ class StaffMenuItem {
             icon: Icons.how_to_reg,
             description: 'Suivi du manifeste et validations embarquement.',
             nextStep:
-                'Manifeste et validation QR seront branchés au lot embarquement.',
+                'Le manifeste et les contrôles embarquement seront disponibles ici.',
             scopes: ['boarding.manifest.read'],
           ),
           _item(
@@ -143,7 +145,7 @@ class StaffMenuItem {
             icon: Icons.edit_calendar,
             description: 'Traitement des demandes de report et annulation.',
             nextStep:
-                'Les workflows de traitement seront raccordés progressivement.',
+                'Le traitement des demandes sera disponible progressivement.',
             scopes: ['station.reports.manage'],
           ),
         ];
@@ -152,35 +154,26 @@ class StaffMenuItem {
           _home('Guichet'),
           _item(
             id: 'reservation_search',
-            title: 'Recherche réservation',
-            icon: Icons.search,
-            description: 'Recherche des réservations client au guichet.',
+            title: 'Réservations & tickets',
+            icon: Icons.confirmation_number,
+            description: 'Recherche, consultation et impression des tickets.',
             nextStep:
-                'Recherche, détail et impression ticket seront branchés au lot 5.3.',
-            scopes: ['station.reservations.search'],
-          ),
-          _item(
-            id: 'ticket_print',
-            title: 'Impression ticket',
-            icon: Icons.print,
-            description:
-                'Préparation de l’impression ou réimpression de tickets.',
-            nextStep:
-                'L’impression ticket sera raccordée après la recherche réservation.',
-            scopes: ['station.tickets.print'],
+                'Retrouvez une réservation, consultez le détail et ouvrez les tickets disponibles.',
+            scopes: ['station.reservations.search', 'station.tickets.print'],
           ),
           _item(
             id: 'counter_reports',
             title: 'Reports / annulations',
             icon: Icons.assignment_return,
             description:
-                'Création de demandes de report et annulation au guichet.',
+                'Traitement des demandes de report et d’annulation des voyageurs.',
             nextStep:
-                'Les demandes guichet seront branchées dans un lot métier dédié.',
+                'Ce module permettra de traiter les demandes de report et d’annulation des voyageurs.',
             scopes: [
               'station.reports.request',
               'station.cancellations.request'
             ],
+            isAvailable: false,
           ),
         ];
       case InternalRole.station_agent:
@@ -191,7 +184,8 @@ class StaffMenuItem {
             title: 'Manifeste',
             icon: Icons.list_alt,
             description: 'Consultation du manifeste passagers.',
-            nextStep: 'Le manifeste sera branché sur les départs station.',
+            nextStep:
+                'Le manifeste passagers sera disponible depuis cet espace.',
             scopes: ['boarding.manifest.read'],
           ),
           _item(
@@ -199,7 +193,8 @@ class StaffMenuItem {
             title: 'Validation QR',
             icon: Icons.qr_code_scanner,
             description: 'Validation des tickets au moment de l’embarquement.',
-            nextStep: 'La validation QR sera branchée au lot 5.4.',
+            nextStep:
+                'La validation des tickets sera disponible depuis cet espace.',
             scopes: ['boarding.validate'],
           ),
         ];
@@ -211,8 +206,7 @@ class StaffMenuItem {
             title: 'Recherche réservation',
             icon: Icons.search,
             description: 'Recherche support sur les réservations client.',
-            nextStep:
-                'La recherche support sera branchée sur les APIs client/admin.',
+            nextStep: 'La recherche support sera disponible depuis cet espace.',
             scopes: ['support.reservations.read'],
           ),
           _item(
@@ -221,7 +215,7 @@ class StaffMenuItem {
             icon: Icons.payments,
             description: 'Consultation des paiements et statuts Wave.',
             nextStep:
-                'Les détails paiement seront raccordés dans un lot support.',
+                'Les détails paiement seront consultables depuis cet espace.',
             scopes: ['support.payments.read'],
           ),
           _item(
@@ -229,7 +223,7 @@ class StaffMenuItem {
             title: 'Recherche ticket',
             icon: Icons.airplane_ticket,
             description: 'Consultation des tickets générés.',
-            nextStep: 'La recherche ticket sera branchée sur TicketApiService.',
+            nextStep: 'La recherche ticket sera disponible depuis cet espace.',
             scopes: ['support.tickets.read'],
           ),
         ];
@@ -241,8 +235,7 @@ class StaffMenuItem {
             title: 'Paiements',
             icon: Icons.receipt_long,
             description: 'Suivi comptable des paiements.',
-            nextStep:
-                'Les paiements seront branchés sur les endpoints finance.',
+            nextStep: 'Les paiements seront consultables depuis cet espace.',
             scopes: ['finance.payments.read'],
           ),
           _item(
@@ -251,7 +244,7 @@ class StaffMenuItem {
             icon: Icons.bar_chart,
             description: 'Préparation des exports et rapports financiers.',
             nextStep:
-                'Les exports finance seront branchés dans un lot comptabilité.',
+                'Les exports financiers seront disponibles depuis cet espace.',
             scopes: ['finance.reports.read', 'finance.exports.read'],
           ),
         ];
@@ -264,7 +257,7 @@ class StaffMenuItem {
             icon: Icons.campaign,
             description: 'Le rôle marketing est reconnu par le portail.',
             nextStep:
-                'Les fonctionnalités marketing seront définies dans un lot ultérieur.',
+                'Les fonctionnalités marketing seront disponibles progressivement.',
             scopes: ['marketing.read'],
           ),
         ];
@@ -293,6 +286,7 @@ class StaffMenuItem {
     required String description,
     required String nextStep,
     List<String> scopes = const [],
+    bool isAvailable = true,
   }) {
     return StaffMenuItem(
       id: id,
@@ -301,6 +295,7 @@ class StaffMenuItem {
       moduleDescription: description,
       nextStep: nextStep,
       usefulScopes: scopes,
+      isAvailable: isAvailable,
     );
   }
 }
