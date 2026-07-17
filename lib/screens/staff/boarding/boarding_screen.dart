@@ -7,6 +7,7 @@ import 'package:catrans_app/models/station/station_boarding_manifest.dart';
 import 'package:catrans_app/models/station/station_boarding_summary.dart';
 import 'package:catrans_app/models/station/station_departure.dart';
 import 'package:catrans_app/models/station/station_ticket_validation.dart';
+import 'package:catrans_app/screens/staff/boarding/boarding_ticket_search.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
@@ -260,7 +261,7 @@ class _DepartureWorkspace extends StatefulWidget {
   final StationDeparture departure;
   final User user;
   final StationBoardingApiService apiService;
-  final VoidCallback onValidated;
+  final Future<void> Function() onValidated;
 
   const _DepartureWorkspace({
     required this.departure,
@@ -274,26 +275,31 @@ class _DepartureWorkspace extends StatefulWidget {
 }
 
 class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
-  final _validationController = TextEditingController();
+  final _manualReferenceController = TextEditingController();
+  final _ticketSearchController = TextEditingController();
 
+  late StationDeparture _departure;
   StationBoardingManifestResponse? _manifest;
   StationBoardingSummaryResponse? _summary;
   StationTicketValidation? _lastValidation;
   String? _loadError;
   String? _validationError;
   bool _isLoading = true;
-  bool _isValidating = false;
+  bool _isValidatingManual = false;
+  final Set<String> _validatingTicketIds = <String>{};
   int _selectedTab = 0;
 
   @override
   void initState() {
     super.initState();
+    _departure = widget.departure;
     _loadBoardingData();
   }
 
   @override
   void dispose() {
-    _validationController.dispose();
+    _manualReferenceController.dispose();
+    _ticketSearchController.dispose();
     super.dispose();
   }
 
@@ -304,76 +310,288 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
   bool get _canReadSummary =>
       widget.user.scopes.contains('boarding.summary.read');
 
-  Future<void> _loadBoardingData() async {
-    setState(() {
-      _isLoading = true;
-      _loadError = null;
-    });
+  Future<bool> _loadBoardingData({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
 
     try {
       final results = await Future.wait<dynamic>([
         if (_canReadManifest)
-          widget.apiService
-              .getBoardingManifest(departureId: widget.departure.id)
+          widget.apiService.getBoardingManifest(departureId: _departure.id)
         else
           Future<StationBoardingManifestResponse?>.value(null),
         if (_canReadSummary)
-          widget.apiService.getBoardingSummary(departureId: widget.departure.id)
+          widget.apiService.getBoardingSummary(departureId: _departure.id)
         else
           Future<StationBoardingSummaryResponse?>.value(null),
       ]);
-      if (!mounted) return;
+      if (!mounted) return false;
+
+      final manifest = results[0] as StationBoardingManifestResponse?;
       setState(() {
-        _manifest = results[0] as StationBoardingManifestResponse?;
+        _manifest = manifest;
         _summary = results[1] as StationBoardingSummaryResponse?;
+        _departure = manifest?.departure ?? _departure;
+        _loadError = null;
       });
+      return true;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
+      final message = _messageFromError(error);
       setState(() {
-        _manifest = null;
-        _summary = null;
-        _loadError = _messageFromError(error);
+        if (showLoading) {
+          _manifest = null;
+          _summary = null;
+          _loadError = message;
+        } else {
+          _validationError =
+              'Billet traité, mais les données n’ont pas pu être actualisées.';
+        }
       });
+      return false;
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && showLoading) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  Future<void> _validateTicket() async {
+  Future<void> _validatePassenger(StationBoardingTicket passenger) async {
+    if (!_canValidate ||
+        _validatingTicketIds.contains(passenger.id) ||
+        !_isTicketEligible(passenger)) {
+      return;
+    }
+
+    final confirmed = await _confirmPassengerValidation(passenger);
+    if (!confirmed || !mounted) return;
+
+    await _runReferenceValidation(
+      passenger.reference,
+      ticketId: passenger.id,
+    );
+  }
+
+  Future<void> _validateManualReference() async {
+    final reference = _manualReferenceController.text.trim();
+    if (reference.isEmpty) {
+      setState(() {
+        _validationError = 'Saisissez la référence complète du billet.';
+        _lastValidation = null;
+      });
+      return;
+    }
+
+    final confirmed = await _confirmManualValidation(reference);
+    if (!confirmed || !mounted) return;
+
+    await _runReferenceValidation(reference, isManual: true);
+  }
+
+  Future<void> _runReferenceValidation(
+    String reference, {
+    String? ticketId,
+    bool isManual = false,
+  }) async {
     FocusScope.of(context).unfocus();
     setState(() {
-      _isValidating = true;
+      if (ticketId != null) _validatingTicketIds.add(ticketId);
+      if (isManual) _isValidatingManual = true;
       _validationError = null;
       _lastValidation = null;
     });
 
     try {
-      final validation = await widget.apiService.validateTicket(
-        validationToken: _validationController.text,
-        departureId: widget.departure.id,
-        deviceIdentifier: 'staff_portal',
+      final validation = await widget.apiService.validateTicketByReference(
+        ticketReference: reference,
+        departureId: _departure.id,
       );
       if (!mounted) return;
+
       setState(() {
         _lastValidation = validation;
-        _validationController.clear();
+        if (isManual && validation.isAccepted) {
+          _manualReferenceController.clear();
+        }
       });
-      widget.onValidated();
-      await _loadBoardingData();
+
+      final message = validation.resultMessage ??
+          (validation.isAccepted
+              ? 'Billet validé avec succès.'
+              : 'Le billet n’a pas été accepté pour ce départ.');
+      _showValidationMessage(
+        validation.isAccepted ? 'Billet validé avec succès.' : message,
+        isSuccess: validation.isAccepted,
+      );
+
+      if (validation.isAccepted) {
+        await Future.wait<void>([
+          _refreshWorkspaceAfterValidation(),
+          widget.onValidated(),
+        ]);
+      }
     } catch (error) {
       if (!mounted) return;
+      final message = _messageFromError(error);
       setState(() {
-        _validationError = _messageFromError(error);
+        _validationError = message;
         _lastValidation = null;
       });
+      _showValidationMessage(message, isSuccess: false);
     } finally {
-      if (mounted) setState(() => _isValidating = false);
+      if (mounted) {
+        setState(() {
+          if (ticketId != null) _validatingTicketIds.remove(ticketId);
+          if (isManual) _isValidatingManual = false;
+        });
+      }
     }
   }
 
+  Future<void> _refreshWorkspaceAfterValidation() async {
+    await _loadBoardingData(showLoading: false);
+  }
+
+  Future<bool> _confirmPassengerValidation(
+    StationBoardingTicket passenger,
+  ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Valider ce billet ?'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ConfirmationDetail(
+                  label: 'Voyageur',
+                  value: passenger.displayTraveler.isEmpty
+                      ? 'Voyageur non renseigné'
+                      : passenger.displayTraveler,
+                ),
+                _ConfirmationDetail(
+                  label: 'Ticket',
+                  value: passenger.reference,
+                ),
+                _ConfirmationDetail(
+                  label: 'Départ',
+                  value: _departure.routeLabel,
+                ),
+                _ConfirmationDetail(
+                  label: 'Heure',
+                  value: _departure.displayTime,
+                ),
+                _ConfirmationDetail(
+                  label: 'Classe',
+                  value: passenger.serviceClass ??
+                      _departure.serviceClassName ??
+                      'Non renseignée',
+                ),
+                _ConfirmationDetail(
+                  label: 'Siège',
+                  value: passenger.displaySeat,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.verified),
+              label: const Text('Valider le billet'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  Future<bool> _confirmManualValidation(String reference) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Valider le billet $reference pour ce départ ?'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ConfirmationDetail(
+                  label: 'Départ',
+                  value: _departure.routeLabel,
+                ),
+                _ConfirmationDetail(
+                  label: 'Heure',
+                  value: _departure.displayTime,
+                ),
+                _ConfirmationDetail(
+                  label: 'Classe',
+                  value: _departure.serviceClassName ?? 'Non renseignée',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.verified),
+              label: const Text('Valider le billet'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  void _showValidationMessage(String message, {required bool isSuccess}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isSuccess ? _success : _danger,
+        ),
+      );
+  }
+
   String _messageFromError(Object error) {
-    if (error is ApiException) return error.message;
-    return 'Une erreur est survenue. Veuillez réessayer.';
+    if (error is ApiException) {
+      switch (error.statusCode) {
+        case 401:
+          return 'Votre session a expiré. Veuillez vous reconnecter.';
+        case 403:
+          return 'Vous n’avez pas la permission de valider ce billet.';
+        case 404:
+          return 'Ce départ est inaccessible ou introuvable.';
+        case 400:
+          return error.message;
+        default:
+          if (error.statusCode == null) {
+            return 'Impossible de contacter le service. Vérifiez votre connexion.';
+          }
+          return error.message;
+      }
+    }
+    return 'Impossible de valider le billet pour le moment.';
   }
 
   @override
@@ -391,9 +609,9 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
-                _WorkspaceHeader(departure: widget.departure),
+                _WorkspaceHeader(departure: _departure),
                 _WorkspaceQuickSummary(
-                  departure: widget.departure,
+                  departure: _departure,
                   summary: _summary,
                 ),
                 Padding(
@@ -404,7 +622,9 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
                     tabs: const [
                       _TabItem(icon: Icons.list_alt, label: 'Manifeste'),
                       _TabItem(
-                          icon: Icons.verified, label: 'Validation billet'),
+                        icon: Icons.verified,
+                        label: 'Validation billet',
+                      ),
                       _TabItem(icon: Icons.query_stats, label: 'Résumé'),
                     ],
                   ),
@@ -440,26 +660,40 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
 
     if (_selectedTab == 0) {
       return _WorkspaceBody(
-        child: _ManifestSection(manifest: _manifest),
+        child: _ManifestSection(
+          manifest: _manifest,
+          searchController: _ticketSearchController,
+          searchQuery: _ticketSearchController.text,
+          canValidate: _canValidate,
+          validatingTicketIds: _validatingTicketIds,
+          onSearchChanged: (_) => setState(() {}),
+          onValidate: _validatePassenger,
+        ),
       );
     }
 
     if (_selectedTab == 1) {
       return _WorkspaceBody(
         child: _ValidationSection(
-          controller: _validationController,
-          isValidating: _isValidating,
+          manifest: _manifest,
+          searchController: _ticketSearchController,
+          searchQuery: _ticketSearchController.text,
+          manualReferenceController: _manualReferenceController,
+          isValidatingManual: _isValidatingManual,
           canValidate: _canValidate,
+          validatingTicketIds: _validatingTicketIds,
           validation: _lastValidation,
           errorMessage: _validationError,
-          onValidate: _validateTicket,
+          onSearchChanged: (_) => setState(() {}),
+          onValidateTicket: _validatePassenger,
+          onValidateManualReference: _validateManualReference,
         ),
       );
     }
 
     return _WorkspaceBody(
       child: _SummarySection(
-        departure: widget.departure,
+        departure: _departure,
         summary: _summary,
         manifest: _manifest,
       ),
@@ -1146,8 +1380,22 @@ class _SegmentedTabs extends StatelessWidget {
 
 class _ManifestSection extends StatelessWidget {
   final StationBoardingManifestResponse? manifest;
+  final TextEditingController searchController;
+  final String searchQuery;
+  final bool canValidate;
+  final Set<String> validatingTicketIds;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<StationBoardingTicket> onValidate;
 
-  const _ManifestSection({required this.manifest});
+  const _ManifestSection({
+    required this.manifest,
+    required this.searchController,
+    required this.searchQuery,
+    required this.canValidate,
+    required this.validatingTicketIds,
+    required this.onSearchChanged,
+    required this.onValidate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1169,82 +1417,145 @@ class _ManifestSection extends StatelessWidget {
       );
     }
 
+    final visiblePassengers = filterBoardingTickets(passengers, searchQuery);
+
     return _Panel(
       title: 'Manifeste passagers',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 820) {
-            return Column(
-              children: passengers
-                  .map((passenger) => _PassengerCard(passenger: passenger))
-                  .toList(),
-            );
-          }
+      trailing: Text(
+        '${visiblePassengers.length}/${passengers.length}',
+        style: const TextStyle(
+          color: Colors.black54,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BoardingTicketSearchField(
+            controller: searchController,
+            hintText: 'Rechercher un voyageur, un téléphone ou un billet',
+            onChanged: onSearchChanged,
+          ),
+          const SizedBox(height: 16),
+          if (visiblePassengers.isEmpty)
+            const _SearchPrompt(
+              icon: Icons.search_off,
+              message:
+                  'Aucun voyageur ou billet ne correspond à votre recherche.',
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 820) {
+                  return Column(
+                    children: visiblePassengers
+                        .map(
+                          (passenger) => _PassengerCard(
+                            passenger: passenger,
+                            canValidate: canValidate,
+                            isValidating:
+                                validatingTicketIds.contains(passenger.id),
+                            onValidate: () => onValidate(passenger),
+                          ),
+                        )
+                        .toList(),
+                  );
+                }
 
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 20,
-              horizontalMargin: 14,
-              dataRowMinHeight: 62,
-              dataRowMaxHeight: 74,
-              headingRowColor: WidgetStateProperty.all(_softPanel),
-              columns: const [
-                DataColumn(label: Text('Voyageur')),
-                DataColumn(label: Text('Téléphone')),
-                DataColumn(label: Text('Réservation')),
-                DataColumn(label: Text('Ticket')),
-                DataColumn(label: Text('Siège')),
-                DataColumn(label: Text('Classe')),
-                DataColumn(label: Text('Ticket')),
-                DataColumn(label: Text('Validation')),
-              ],
-              rows: passengers
-                  .map(
-                    (passenger) => DataRow(
-                      cells: [
-                        DataCell(_TextCell(passenger.displayTraveler)),
-                        DataCell(_TextCell(passenger.travelerPhone ?? '—')),
-                        DataCell(
-                            _TextCell(passenger.reservationReference ?? '—')),
-                        DataCell(_TextCell(passenger.reference)),
-                        DataCell(_TextCell(passenger.displaySeat)),
-                        DataCell(_TextCell(passenger.serviceClass ?? '—')),
-                        DataCell(_StatusChip(
-                          label: passenger.statusLabel,
-                          status: passenger.statusCode,
-                        )),
-                        DataCell(_StatusChip(
-                          label: _boardingLabel(passenger),
-                          status: _boardingStatus(passenger),
-                        )),
-                      ],
-                    ),
-                  )
-                  .toList(),
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 18,
+                    horizontalMargin: 14,
+                    dataRowMinHeight: 62,
+                    dataRowMaxHeight: 78,
+                    headingRowColor: WidgetStateProperty.all(_softPanel),
+                    columns: const [
+                      DataColumn(label: Text('Voyageur')),
+                      DataColumn(label: Text('Téléphone')),
+                      DataColumn(label: Text('Ticket')),
+                      DataColumn(label: Text('Siège')),
+                      DataColumn(label: Text('Classe')),
+                      DataColumn(label: Text('Statut ticket')),
+                      DataColumn(label: Text('Validation')),
+                      DataColumn(label: Text('Action')),
+                    ],
+                    rows: visiblePassengers
+                        .map(
+                          (passenger) => DataRow(
+                            cells: [
+                              DataCell(_TextCell(passenger.displayTraveler)),
+                              DataCell(
+                                _TextCell(passenger.travelerPhone ?? '—'),
+                              ),
+                              DataCell(_TextCell(passenger.reference)),
+                              DataCell(_TextCell(passenger.displaySeat)),
+                              DataCell(
+                                _TextCell(passenger.serviceClass ?? '—'),
+                              ),
+                              DataCell(
+                                _StatusChip(
+                                  label: passenger.statusLabel,
+                                  status: passenger.statusCode,
+                                ),
+                              ),
+                              DataCell(
+                                _StatusChip(
+                                  label: _boardingLabel(passenger),
+                                  status: _boardingStatus(passenger),
+                                ),
+                              ),
+                              DataCell(
+                                _TicketAction(
+                                  passenger: passenger,
+                                  canValidate: canValidate,
+                                  isValidating: validatingTicketIds
+                                      .contains(passenger.id),
+                                  onValidate: () => onValidate(passenger),
+                                  compact: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                        .toList(),
+                  ),
+                );
+              },
             ),
-          );
-        },
+        ],
       ),
     );
   }
 }
 
 class _ValidationSection extends StatelessWidget {
-  final TextEditingController controller;
-  final bool isValidating;
+  final StationBoardingManifestResponse? manifest;
+  final TextEditingController searchController;
+  final String searchQuery;
+  final TextEditingController manualReferenceController;
+  final bool isValidatingManual;
   final bool canValidate;
+  final Set<String> validatingTicketIds;
   final StationTicketValidation? validation;
   final String? errorMessage;
-  final VoidCallback onValidate;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<StationBoardingTicket> onValidateTicket;
+  final VoidCallback onValidateManualReference;
 
   const _ValidationSection({
-    required this.controller,
-    required this.isValidating,
+    required this.manifest,
+    required this.searchController,
+    required this.searchQuery,
+    required this.manualReferenceController,
+    required this.isValidatingManual,
     required this.canValidate,
+    required this.validatingTicketIds,
     required this.validation,
     required this.errorMessage,
-    required this.onValidate,
+    required this.onSearchChanged,
+    required this.onValidateTicket,
+    required this.onValidateManualReference,
   });
 
   @override
@@ -1258,60 +1569,46 @@ class _ValidationSection extends StatelessWidget {
       );
     }
 
+    final passengers = manifest?.passengers ?? const <StationBoardingTicket>[];
+    final hasQuery = searchQuery.trim().isNotEmpty;
+    final visiblePassengers =
+        hasQuery ? filterBoardingTickets(passengers, searchQuery) : const [];
+
     return _Panel(
       title: 'Validation billet',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'La validation est liée au départ ouvert. Saisissez la référence ticket ou le contenu QR présenté par le voyageur.',
-            style: TextStyle(color: Colors.black54),
+          BoardingTicketSearchField(
+            controller: searchController,
+            hintText: 'Rechercher par nom, téléphone, billet ou siège',
+            onChanged: onSearchChanged,
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final field = TextField(
-                controller: controller,
-                enabled: !isValidating,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => isValidating ? null : onValidate(),
-                decoration: const InputDecoration(
-                  labelText: 'Référence ticket ou contenu QR',
-                  hintText: 'Ex. TCK-2026-...',
-                  prefixIcon: Icon(Icons.confirmation_number),
-                  border: OutlineInputBorder(),
-                ),
-              );
-
-              final button = FilledButton.icon(
-                onPressed: isValidating ? null : onValidate,
-                icon: isValidating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.verified),
-                label:
-                    Text(isValidating ? 'Validation...' : 'Valider le billet'),
-              );
-
-              if (constraints.maxWidth < 680) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [field, const SizedBox(height: 12), button],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(child: field),
-                  const SizedBox(width: 12),
-                  SizedBox(height: 56, child: button),
-                ],
-              );
-            },
-          ),
+          const SizedBox(height: 14),
+          if (!hasQuery)
+            const _SearchPrompt(
+              icon: Icons.manage_search,
+              message:
+                  'Recherchez un voyageur ou saisissez une référence de billet.',
+            )
+          else if (visiblePassengers.isEmpty)
+            const _SearchPrompt(
+              icon: Icons.search_off,
+              message:
+                  'Aucun voyageur ou billet ne correspond à votre recherche.',
+            )
+          else
+            Column(
+              children: visiblePassengers
+                  .map(
+                    (passenger) => _ValidationTicketRow(
+                      passenger: passenger,
+                      isValidating: validatingTicketIds.contains(passenger.id),
+                      onValidate: () => onValidateTicket(passenger),
+                    ),
+                  )
+                  .toList(),
+            ),
           if (errorMessage != null) ...[
             const SizedBox(height: 14),
             _ValidationResultBox(
@@ -1325,7 +1622,7 @@ class _ValidationSection extends StatelessWidget {
             _ValidationResultBox(
               isSuccess: validation!.isAccepted,
               title: validation!.isAccepted
-                  ? 'Billet validé'
+                  ? 'Billet validé avec succès.'
                   : validation!.statusLabel,
               message: validation!.resultMessage ??
                   (validation!.isAccepted
@@ -1340,6 +1637,280 @@ class _ValidationSection extends StatelessWidget {
                   .join(' · '),
             ),
           ],
+          const SizedBox(height: 16),
+          const Divider(),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 4),
+            leading: const Icon(Icons.keyboard_alt_outlined),
+            title: const Text(
+              'Saisir la référence complète du billet',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: const Text('Mode secondaire'),
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final field = TextField(
+                    controller: manualReferenceController,
+                    enabled: !isValidatingManual,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!isValidatingManual) onValidateManualReference();
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Numéro du ticket',
+                      hintText: 'TCK-XXXXXXXXXXXX',
+                      prefixIcon: Icon(Icons.confirmation_number_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  );
+
+                  final button = FilledButton.icon(
+                    onPressed:
+                        isValidatingManual ? null : onValidateManualReference,
+                    icon: isValidatingManual
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified),
+                    label: Text(
+                      isValidatingManual
+                          ? 'Validation...'
+                          : 'Valider cette référence',
+                    ),
+                  );
+
+                  if (constraints.maxWidth < 680) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        field,
+                        const SizedBox(height: 12),
+                        button,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: field),
+                      const SizedBox(width: 12),
+                      SizedBox(height: 56, child: button),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ValidationTicketRow extends StatelessWidget {
+  final StationBoardingTicket passenger;
+  final bool isValidating;
+  final VoidCallback onValidate;
+
+  const _ValidationTicketRow({
+    required this.passenger,
+    required this.isValidating,
+    required this.onValidate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7F0))),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final identity = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                passenger.displayTraveler.isEmpty
+                    ? 'Voyageur'
+                    : passenger.displayTraveler,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _InfoPill(
+                    label: 'Téléphone',
+                    value: passenger.travelerPhone ?? '—',
+                  ),
+                  _InfoPill(label: 'Ticket', value: passenger.reference),
+                  _InfoPill(label: 'Siège', value: passenger.displaySeat),
+                  _InfoPill(
+                    label: 'Classe',
+                    value: passenger.serviceClass ?? '—',
+                  ),
+                ],
+              ),
+            ],
+          );
+          final action = _TicketAction(
+            passenger: passenger,
+            canValidate: true,
+            isValidating: isValidating,
+            onValidate: onValidate,
+          );
+
+          if (constraints.maxWidth < 680) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerRight, child: action),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 16),
+              action,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TicketAction extends StatelessWidget {
+  final StationBoardingTicket passenger;
+  final bool canValidate;
+  final bool isValidating;
+  final VoidCallback onValidate;
+  final bool compact;
+
+  const _TicketAction({
+    required this.passenger,
+    required this.canValidate,
+    required this.isValidating,
+    required this.onValidate,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (passenger.isBoarded) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle, size: 18, color: _success),
+          SizedBox(width: 6),
+          Text('Validé', style: TextStyle(color: _success)),
+        ],
+      );
+    }
+
+    if (!canValidate) {
+      return const Text('Consultation',
+          style: TextStyle(color: Colors.black54));
+    }
+
+    if (!_isTicketEligible(passenger)) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 150),
+        child: Text(
+          passenger.boardingMessage ?? passenger.statusLabel,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.black54, fontSize: 12),
+        ),
+      );
+    }
+
+    return FilledButton.icon(
+      onPressed: isValidating ? null : onValidate,
+      icon: isValidating
+          ? const SizedBox(
+              width: 15,
+              height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.verified, size: 18),
+      label: Text(isValidating ? 'Validation...' : 'Valider'),
+      style: compact
+          ? FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            )
+          : null,
+    );
+  }
+}
+
+class _SearchPrompt extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _SearchPrompt({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.black45),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black54),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfirmationDetail extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ConfirmationDetail({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.black54),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value.isEmpty ? 'Non renseigné' : value,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
@@ -1463,19 +2034,24 @@ class _SummaryTile extends StatelessWidget {
 
 class _PassengerCard extends StatelessWidget {
   final StationBoardingTicket passenger;
+  final bool canValidate;
+  final bool isValidating;
+  final VoidCallback onValidate;
 
-  const _PassengerCard({required this.passenger});
+  const _PassengerCard({
+    required this.passenger,
+    required this.canValidate,
+    required this.isValidating,
+    required this.onValidate,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _softPanel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7F0)),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7F0))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1501,18 +2077,26 @@ class _PassengerCard extends StatelessWidget {
             children: [
               _InfoPill(
                   label: 'Téléphone', value: passenger.travelerPhone ?? '—'),
-              _InfoPill(
-                  label: 'Réservation',
-                  value: passenger.reservationReference ?? '—'),
               _InfoPill(label: 'Ticket', value: passenger.reference),
               _InfoPill(label: 'Siège', value: passenger.displaySeat),
               _InfoPill(label: 'Classe', value: passenger.serviceClass ?? '—'),
             ],
           ),
           const SizedBox(height: 10),
-          _StatusChip(
-            label: _boardingLabel(passenger),
-            status: _boardingStatus(passenger),
+          Row(
+            children: [
+              _StatusChip(
+                label: _boardingLabel(passenger),
+                status: _boardingStatus(passenger),
+              ),
+              const Spacer(),
+              _TicketAction(
+                passenger: passenger,
+                canValidate: canValidate,
+                isValidating: isValidating,
+                onValidate: onValidate,
+              ),
+            ],
           ),
         ],
       ),
@@ -1845,6 +2429,12 @@ String _boardingLabel(StationBoardingTicket passenger) {
   if (passenger.isBoarded) return 'Embarqué';
   if (passenger.canBoard) return 'À valider';
   return 'Non valide';
+}
+
+bool _isTicketEligible(StationBoardingTicket passenger) {
+  return passenger.canBoard &&
+      !passenger.isBoarded &&
+      passenger.statusCode.toLowerCase() == 'issued';
 }
 
 String _boardingStatus(StationBoardingTicket passenger) {

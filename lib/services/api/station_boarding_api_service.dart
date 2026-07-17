@@ -127,21 +127,54 @@ class StationBoardingApiService {
 
   Future<StationTicketValidation> validateTicket({
     required String validationToken,
-    String? departureId,
-    String? deviceIdentifier,
+    required String departureId,
+    String deviceIdentifier = 'staff_portal',
   }) async {
     final normalizedToken = validationToken.trim();
     if (normalizedToken.isEmpty) {
-      throw ApiException(message: 'Saisissez une référence ou un code ticket.');
+      throw ApiException(message: 'Le code du billet est obligatoire.');
+    }
+
+    return _validateTicket(
+      identifier: {'validation_token': normalizedToken},
+      departureId: departureId,
+      deviceIdentifier: deviceIdentifier,
+    );
+  }
+
+  Future<StationTicketValidation> validateTicketByReference({
+    required String ticketReference,
+    required String departureId,
+    String deviceIdentifier = 'staff_portal',
+  }) async {
+    final normalizedReference = ticketReference.trim();
+    if (normalizedReference.isEmpty) {
+      throw ApiException(message: 'La référence du billet est obligatoire.');
+    }
+
+    return _validateTicket(
+      identifier: {'ticket_reference': normalizedReference},
+      departureId: departureId,
+      deviceIdentifier: deviceIdentifier,
+    );
+  }
+
+  Future<StationTicketValidation> _validateTicket({
+    required Map<String, String> identifier,
+    required String departureId,
+    required String deviceIdentifier,
+  }) async {
+    final normalizedDepartureId = departureId.trim();
+    if (normalizedDepartureId.isEmpty) {
+      throw ApiException(message: 'Le départ sélectionné est obligatoire.');
     }
 
     final response = await _apiClient.post(
       'tickets/validate/',
       data: {
-        'validation_token': normalizedToken,
-        if (departureId != null && departureId.trim().isNotEmpty)
-          'departure_id': departureId.trim(),
-        if (deviceIdentifier != null && deviceIdentifier.trim().isNotEmpty)
+        ...identifier,
+        'departure_id': normalizedDepartureId,
+        if (deviceIdentifier.trim().isNotEmpty)
           'device_identifier': deviceIdentifier.trim(),
       },
     );
