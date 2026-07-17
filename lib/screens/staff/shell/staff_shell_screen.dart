@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_screen.dart';
+import 'package:catrans_app/screens/staff/dashboard/station_dashboard_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
@@ -97,6 +99,13 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     List<StaffMenuItem> menuItems,
   ) {
     if (selectedItem.id == 'home') {
+      if (user.internalProfile?.role == InternalRole.station_manager) {
+        return StationDashboardScreen(
+          user: user,
+          onNavigate: (id) => setState(() => _selectedId = id),
+        );
+      }
+
       return StaffHomePage(user: user, menuItems: menuItems);
     }
 
