@@ -21,7 +21,14 @@ const _warning = Color(0xFFB8860B);
 const _danger = Color(0xFFB42318);
 
 class BoardingScreen extends StatefulWidget {
-  const BoardingScreen({super.key});
+  final String? initialDepartureId;
+  final VoidCallback? onInitialDepartureConsumed;
+
+  const BoardingScreen({
+    super.key,
+    this.initialDepartureId,
+    this.onInitialDepartureConsumed,
+  });
 
   @override
   State<BoardingScreen> createState() => _BoardingScreenState();
@@ -37,17 +44,36 @@ class _BoardingScreenState extends State<BoardingScreen> {
   String _selectedStatus = 'all';
   bool _withTicketsOnly = false;
   String? _departuresError;
+  String? _pendingInitialDepartureId;
+  bool _didAttemptInitialDeparture = false;
   bool _isLoadingDepartures = false;
 
   @override
   void initState() {
     super.initState();
+    _pendingInitialDepartureId =
+        _normalizeDepartureId(widget.initialDepartureId);
     _searchController.addListener(() {
       setState(() => _searchText = _searchController.text.trim());
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadDepartures();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant BoardingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialDepartureId != widget.initialDepartureId) {
+      _pendingInitialDepartureId =
+          _normalizeDepartureId(widget.initialDepartureId);
+      _didAttemptInitialDeparture = false;
+      if (_departures.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _tryOpenInitialDeparture();
+        });
+      }
+    }
   }
 
   @override
@@ -71,8 +97,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
         final padding = constraints.maxWidth >= 900
             ? 24.0
             : constraints.maxWidth >= 560
-            ? 18.0
-            : 12.0;
+                ? 18.0
+                : 12.0;
         final sectionGap = constraints.maxWidth < 560 ? 14.0 : 18.0;
 
         return ListView(
@@ -120,6 +146,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
       final departures = await _apiService.getTodayDepartures();
       if (!mounted) return;
       setState(() => _departures = departures);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _tryOpenInitialDeparture();
+      });
     } catch (error) {
       debugPrint('Erreur chargement départs embarquement: $error');
       if (!mounted) return;
@@ -212,8 +241,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
           final columns = width >= 1180
               ? 3
               : width >= 760
-              ? 2
-              : 1;
+                  ? 2
+                  : 1;
           final cardWidth = (width - (columns - 1) * 14) / columns;
 
           return Wrap(
@@ -234,6 +263,38 @@ class _BoardingScreenState extends State<BoardingScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _tryOpenInitialDeparture() async {
+    final departureId = _pendingInitialDepartureId;
+    if (_didAttemptInitialDeparture || departureId == null) return;
+    if (_isLoadingDepartures || _departures.isEmpty) return;
+
+    _didAttemptInitialDeparture = true;
+    _pendingInitialDepartureId = null;
+    widget.onInitialDepartureConsumed?.call();
+
+    final matchingDepartures = _departures.where(
+      (departure) => departure.id == departureId,
+    );
+
+    if (matchingDepartures.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Le départ demandé n’est pas disponible dans cette journée.'),
+        ),
+      );
+      return;
+    }
+
+    await _openDeparturePanel(matchingDepartures.first);
+  }
+
+  String? _normalizeDepartureId(String? value) {
+    final normalized = value?.trim();
+    return normalized == null || normalized.isEmpty ? null : normalized;
   }
 
   Future<void> _openDeparturePanel(StationDeparture departure) async {
@@ -439,8 +500,7 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
         }
       });
 
-      final message =
-          validation.resultMessage ??
+      final message = validation.resultMessage ??
           (validation.isAccepted
               ? 'Billet validé avec succès.'
               : 'Le billet n’a pas été accepté pour ce départ.');
@@ -532,8 +592,7 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
                 ),
                 _ConfirmationDetail(
                   label: 'Classe',
-                  value:
-                      passenger.serviceClass ??
+                  value: passenger.serviceClass ??
                       _departure.serviceClassName ??
                       'Non renseignée',
                 ),
@@ -642,12 +701,10 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth > 1180
-            ? 1180.0
-            : constraints.maxWidth;
-        final height = constraints.maxHeight > 820
-            ? 820.0
-            : constraints.maxHeight;
+        final width =
+            constraints.maxWidth > 1180 ? 1180.0 : constraints.maxWidth;
+        final height =
+            constraints.maxHeight > 820 ? 820.0 : constraints.maxHeight;
         final isFullscreen = constraints.maxWidth < 600;
 
         return ConstrainedBox(
@@ -849,9 +906,8 @@ class _BoardingOverview {
       0,
       (sum, departure) => sum + departure.tickets.remaining,
     );
-    final departuresWithTickets = departures
-        .where((departure) => departure.tickets.total > 0)
-        .length;
+    final departuresWithTickets =
+        departures.where((departure) => departure.tickets.total > 0).length;
 
     return _BoardingOverview(
       departuresCount: departures.length,
@@ -903,18 +959,17 @@ class _OverviewBand extends StatelessWidget {
         final columns = constraints.maxWidth >= 1100
             ? 5
             : constraints.maxWidth >= 760
-            ? 3
-            : constraints.maxWidth >= 420
-            ? 2
-            : 1;
+                ? 3
+                : constraints.maxWidth >= 420
+                    ? 2
+                    : 1;
         final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
 
         return Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: items
-              .map((item) => SizedBox(width: width, child: item))
-              .toList(),
+          children:
+              items.map((item) => SizedBox(width: width, child: item)).toList(),
         );
       },
     );
@@ -1661,9 +1716,8 @@ class _ValidationSection extends StatelessWidget {
 
     final passengers = manifest?.passengers ?? const <StationBoardingTicket>[];
     final hasQuery = searchQuery.trim().isNotEmpty;
-    final visiblePassengers = hasQuery
-        ? filterBoardingTickets(passengers, searchQuery)
-        : const [];
+    final visiblePassengers =
+        hasQuery ? filterBoardingTickets(passengers, searchQuery) : const [];
 
     return _Panel(
       title: 'Validation billet',
@@ -1716,13 +1770,11 @@ class _ValidationSection extends StatelessWidget {
               title: validation!.isAccepted
                   ? 'Billet validé avec succès.'
                   : validation!.statusLabel,
-              message:
-                  validation!.resultMessage ??
+              message: validation!.resultMessage ??
                   (validation!.isAccepted
                       ? 'Le voyageur peut embarquer sur ce départ.'
                       : 'Le billet n’a pas été accepté pour ce départ.'),
-              onOpenDetail:
-                  validation!.ticketReference != null ||
+              onOpenDetail: validation!.ticketReference != null ||
                       validation!.travelerFullName.isNotEmpty
                   ? onOpenValidationDetail
                   : null,
@@ -1758,9 +1810,8 @@ class _ValidationSection extends StatelessWidget {
                   );
 
                   final button = FilledButton.icon(
-                    onPressed: isValidatingManual
-                        ? null
-                        : onValidateManualReference,
+                    onPressed:
+                        isValidatingManual ? null : onValidateManualReference,
                     icon: isValidatingManual
                         ? const SizedBox(
                             width: 16,
@@ -2077,9 +2128,8 @@ class _SummarySection extends StatelessWidget {
     final cancelled = counts?.cancelled ?? departure.tickets.cancelled;
     final remaining = counts?.remainingToBoard ?? departure.tickets.remaining;
     final rejected = departure.validationsRejected;
-    final rate = totalTickets == 0
-        ? null
-        : (boarded / totalTickets * 100).round();
+    final rate =
+        totalTickets == 0 ? null : (boarded / totalTickets * 100).round();
 
     return _Panel(
       title: 'Résumé du départ',
@@ -2128,8 +2178,8 @@ class _SummarySection extends StatelessWidget {
               final columns = constraints.maxWidth >= 900
                   ? 4
                   : constraints.maxWidth >= 620
-                  ? 2
-                  : 1;
+                      ? 2
+                      : 1;
               final width =
                   (constraints.maxWidth - (columns - 1) * 10) / columns;
               return Wrap(

@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/dashboard/station_dashboard_overview.dart';
+import 'package:catrans_app/screens/staff/dashboard/station_dashboard_alerts_dialog.dart';
+import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 import 'package:catrans_app/services/api/station_dashboard_api_service.dart';
 import 'package:catrans_app/widgets/staff/staff_metric_card.dart';
 
 class StationDashboardScreen extends StatefulWidget {
   final User user;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const StationDashboardScreen({
     super.key,
@@ -363,7 +365,7 @@ class _BoardingRateCard extends StatelessWidget {
 
 class _MainColumns extends StatelessWidget {
   final StationDashboardOverview overview;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _MainColumns({
     required this.overview,
@@ -382,6 +384,7 @@ class _MainColumns extends StatelessWidget {
         );
         final alerts = _AlertsSection(
           alerts: overview.alerts,
+          alertsTotal: overview.summary.alertsTotal,
           capabilities: overview.capabilities,
           onNavigate: onNavigate,
         );
@@ -412,7 +415,7 @@ class _MainColumns extends StatelessWidget {
 class _DeparturesSection extends StatelessWidget {
   final List<StationDashboardDeparture> departures;
   final StationDashboardCapabilities capabilities;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _DeparturesSection({
     required this.departures,
@@ -450,7 +453,7 @@ class _DeparturesSection extends StatelessWidget {
 class _DepartureCard extends StatelessWidget {
   final StationDashboardDeparture departure;
   final StationDashboardCapabilities capabilities;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _DepartureCard({
     required this.departure,
@@ -589,14 +592,24 @@ class _DepartureCard extends StatelessWidget {
       return _CompactActionButton(
         label: 'Ouvrir l’embarquement',
         icon: Icons.how_to_reg,
-        onPressed: () => onNavigate('boarding'),
+        onPressed: () => onNavigate(
+          StaffNavigationRequest(
+            menuId: 'boarding',
+            departureId: departure.id,
+          ),
+        ),
       );
     }
     if (capabilities.canReadDepartures) {
       return _CompactActionButton(
         label: 'Voir les départs',
         icon: Icons.directions_bus,
-        onPressed: () => onNavigate('departures'),
+        onPressed: () => onNavigate(
+          StaffNavigationRequest(
+            menuId: 'departures',
+            departureId: departure.id,
+          ),
+        ),
       );
     }
     return null;
@@ -605,37 +618,59 @@ class _DepartureCard extends StatelessWidget {
 
 class _AlertsSection extends StatelessWidget {
   final List<StationDashboardAlert> alerts;
+  final int alertsTotal;
   final StationDashboardCapabilities capabilities;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _AlertsSection({
     required this.alerts,
+    required this.alertsTotal,
     required this.capabilities,
     required this.onNavigate,
   });
 
+  static const int _visibleAlertsCount = 5;
+
   @override
   Widget build(BuildContext context) {
+    final visibleAlerts = alerts.take(_visibleAlertsCount).toList();
+
     return _SectionPanel(
-      title: 'Alertes opérationnelles',
+      title: 'Alertes opérationnelles — $alertsTotal',
       child: alerts.isEmpty
           ? const _EmptyState(
               icon: Icons.verified,
               message: 'Aucune alerte opérationnelle pour le moment.',
             )
           : Column(
-              children: alerts
-                  .map(
-                    (alert) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _AlertCard(
-                        alert: alert,
-                        actionId: _actionIdFor(alert),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...visibleAlerts.map(
+                  (alert) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _AlertCard(
+                      alert: alert,
+                      actionId: _actionIdFor(alert),
+                      onNavigate: onNavigate,
+                    ),
+                  ),
+                ),
+                if (alerts.length > _visibleAlertsCount)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => showStationDashboardAlertsDialog(
+                        context: context,
+                        alerts: alerts,
+                        alertsTotal: alertsTotal,
+                        capabilities: capabilities,
                         onNavigate: onNavigate,
                       ),
+                      icon: const Icon(Icons.open_in_new),
+                      label: Text('Voir les ${alerts.length} alertes reçues'),
                     ),
-                  )
-                  .toList(),
+                  ),
+              ],
             ),
     );
   }
@@ -656,13 +691,19 @@ class _AlertsSection extends StatelessWidget {
 class _AlertCard extends StatelessWidget {
   final StationDashboardAlert alert;
   final String? actionId;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _AlertCard({
     required this.alert,
     required this.actionId,
     required this.onNavigate,
   });
+
+  String? _departureContextFor(String menuId) {
+    if (menuId != 'boarding' && menuId != 'departures') return null;
+    final value = alert.departureId.trim();
+    return value.isEmpty ? null : value;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -706,7 +747,12 @@ class _AlertCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => onNavigate(actionId!),
+                onPressed: () => onNavigate(
+                  StaffNavigationRequest(
+                    menuId: actionId!,
+                    departureId: _departureContextFor(actionId!),
+                  ),
+                ),
                 icon: const Icon(Icons.arrow_forward),
                 label: const Text('Ouvrir'),
               ),
@@ -791,7 +837,7 @@ class _SecondaryMetrics extends StatelessWidget {
 
 class _QuickAccess extends StatelessWidget {
   final StationDashboardCapabilities capabilities;
-  final ValueChanged<String> onNavigate;
+  final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const _QuickAccess({
     required this.capabilities,
@@ -840,7 +886,9 @@ class _QuickAccess extends StatelessWidget {
               children: actions
                   .map(
                     (action) => OutlinedButton.icon(
-                      onPressed: () => onNavigate(action.id),
+                      onPressed: () => onNavigate(
+                        StaffNavigationRequest(menuId: action.id),
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor:
                             _StationDashboardScreenState._brandPurple,

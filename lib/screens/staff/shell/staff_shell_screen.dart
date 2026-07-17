@@ -11,6 +11,7 @@ import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
 import 'package:catrans_app/screens/staff/counter/counter_search_screen.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
+import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/widgets/staff/staff_sidebar.dart';
 import 'package:catrans_app/widgets/staff/staff_topbar.dart';
@@ -24,7 +25,9 @@ class StaffShellScreen extends StatefulWidget {
 
 class _StaffShellScreenState extends State<StaffShellScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  String _selectedId = 'home';
+  String? _selectedId;
+  String? _initializedUserId;
+  StaffNavigationRequest? _navigationRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +39,11 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     }
 
     final menuItems = StaffMenuItem.forUser(user);
+    _ensureInitialSelection(user, menuItems);
+
+    final selectedId = _selectedId ?? menuItems.first.id;
     final selectedItem = menuItems.firstWhere(
-      (item) => item.id == _selectedId,
+      (item) => item.id == selectedId,
       orElse: () => menuItems.first,
     );
     final content = _contentFor(user, selectedItem, menuItems);
@@ -58,7 +64,7 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
                     selectedId: selectedItem.id,
                     onSelected: (id) {
                       Navigator.pop(context);
-                      setState(() => _selectedId = id);
+                      _selectMenu(id);
                     },
                   ),
                 ),
@@ -69,7 +75,7 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
                   user: user,
                   items: menuItems,
                   selectedId: selectedItem.id,
-                  onSelected: (id) => setState(() => _selectedId = id),
+                  onSelected: _selectMenu,
                 ),
               Expanded(
                 child: Column(
@@ -102,7 +108,7 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
       if (user.internalProfile?.role == InternalRole.station_manager) {
         return StationDashboardScreen(
           user: user,
-          onNavigate: (id) => setState(() => _selectedId = id),
+          onNavigate: _navigate,
         );
       }
 
@@ -118,10 +124,65 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     }
 
     if (selectedItem.id == 'boarding') {
-      return const BoardingScreen();
+      final request = _navigationRequestFor('boarding');
+      return BoardingScreen(
+        initialDepartureId: request?.departureId,
+        onInitialDepartureConsumed: _clearNavigationRequest,
+      );
     }
 
     return StaffPlaceholderPage(user: user, item: selectedItem);
+  }
+
+  void _ensureInitialSelection(User user, List<StaffMenuItem> menuItems) {
+    if (_initializedUserId == user.id && _selectedId != null) {
+      if (menuItems.any((item) => item.id == _selectedId)) return;
+    }
+
+    _initializedUserId = user.id;
+    _navigationRequest = null;
+    _selectedId = _resolveInitialStaffMenuId(user, menuItems);
+  }
+
+  String _resolveInitialStaffMenuId(User user, List<StaffMenuItem> menuItems) {
+    final role = user.internalProfile?.role;
+    final preferredId = switch (role) {
+      InternalRole.station_manager => 'home',
+      InternalRole.cashier => 'reservation_search',
+      InternalRole.station_agent => 'boarding',
+      _ => menuItems.first.id,
+    };
+
+    if (menuItems.any((item) => item.id == preferredId)) {
+      return preferredId;
+    }
+
+    return menuItems.first.id;
+  }
+
+  StaffNavigationRequest? _navigationRequestFor(String menuId) {
+    final request = _navigationRequest;
+    if (request == null || request.menuId != menuId) return null;
+    return request;
+  }
+
+  void _selectMenu(String id) {
+    setState(() {
+      _selectedId = id;
+      _navigationRequest = null;
+    });
+  }
+
+  void _navigate(StaffNavigationRequest request) {
+    setState(() {
+      _selectedId = request.menuId;
+      _navigationRequest = request.hasDepartureContext ? request : null;
+    });
+  }
+
+  void _clearNavigationRequest() {
+    if (_navigationRequest == null) return;
+    setState(() => _navigationRequest = null);
   }
 
   Future<void> _logout(BuildContext context) async {

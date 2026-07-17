@@ -28,9 +28,8 @@ class StaffMenuItem {
 
     bool hasScope(String scope) => scopes.contains(scope);
 
-    switch (role) {
-      case InternalRole.admin:
-        return [
+    final items = switch (role) {
+      InternalRole.admin => [
           _home('Tableau de bord'),
           _item(
             id: 'administration',
@@ -78,9 +77,8 @@ class StaffMenuItem {
                   'Les rapports financiers seront accessibles depuis cet espace.',
               scopes: ['finance.read'],
             ),
-        ];
-      case InternalRole.director:
-        return [
+        ],
+      InternalRole.director => [
           _home('Pilotage'),
           _item(
             id: 'overview',
@@ -108,9 +106,8 @@ class StaffMenuItem {
                   'Les rapports financiers seront disponibles depuis cet espace.',
               scopes: ['finance.read'],
             ),
-        ];
-      case InternalRole.station_manager:
-        return [
+        ],
+      InternalRole.station_manager => [
           _home('Tableau de bord gare'),
           _item(
             id: 'departures',
@@ -152,9 +149,8 @@ class StaffMenuItem {
                 'Le traitement des demandes sera disponible progressivement.',
             scopes: ['station.reports.manage'],
           ),
-        ];
-      case InternalRole.cashier:
-        return [
+        ],
+      InternalRole.cashier => [
           _home('Guichet'),
           _item(
             id: 'reservation_search',
@@ -179,9 +175,8 @@ class StaffMenuItem {
             ],
             isAvailable: false,
           ),
-        ];
-      case InternalRole.station_agent:
-        return [
+        ],
+      InternalRole.station_agent => [
           _home('Embarquement'),
           _item(
             id: 'boarding',
@@ -197,9 +192,8 @@ class StaffMenuItem {
               'boarding.summary.read',
             ],
           ),
-        ];
-      case InternalRole.support:
-        return [
+        ],
+      InternalRole.support => [
           _home('Support'),
           _item(
             id: 'support_reservations',
@@ -226,9 +220,8 @@ class StaffMenuItem {
             nextStep: 'La recherche ticket sera disponible depuis cet espace.',
             scopes: ['support.tickets.read'],
           ),
-        ];
-      case InternalRole.accounting:
-        return [
+        ],
+      InternalRole.accounting => [
           _home('Comptabilité'),
           _item(
             id: 'payments',
@@ -247,9 +240,8 @@ class StaffMenuItem {
                 'Les exports financiers seront disponibles depuis cet espace.',
             scopes: ['finance.reports.read', 'finance.exports.read'],
           ),
-        ];
-      case InternalRole.marketing:
-        return [
+        ],
+      InternalRole.marketing => [
           _home('Marketing'),
           _item(
             id: 'marketing_pending',
@@ -260,13 +252,37 @@ class StaffMenuItem {
                 'Les fonctionnalités marketing seront disponibles progressivement.',
             scopes: ['marketing.read'],
           ),
-        ];
-      case InternalRole.legacy_unknown:
-      case null:
-        return [
+        ],
+      InternalRole.legacy_unknown || null => [
           _home('Profil incomplet'),
-        ];
-    }
+        ],
+    };
+
+    return _filterForScopes(
+      role: role,
+      items: items,
+      scopes: scopes,
+    );
+  }
+
+  static List<StaffMenuItem> _filterForScopes({
+    required InternalRole? role,
+    required List<StaffMenuItem> items,
+    required Set<String> scopes,
+  }) {
+    final keepHome =
+        role != InternalRole.cashier && role != InternalRole.station_agent;
+
+    final filtered = items.where((item) {
+      if (item.id == 'home') return keepHome;
+      if (item.usefulScopes.isEmpty) return true;
+      return item.usefulScopes.any(scopes.contains);
+    }).toList();
+
+    if (filtered.isNotEmpty) return filtered;
+
+    final fallbackHome = items.where((item) => item.id == 'home');
+    return fallbackHome.isEmpty ? items : [fallbackHome.first];
   }
 
   static StaffMenuItem _home(String title) {
