@@ -7,6 +7,7 @@ import 'package:catrans_app/models/station/station_boarding_manifest.dart';
 import 'package:catrans_app/models/station/station_boarding_summary.dart';
 import 'package:catrans_app/models/station/station_departure.dart';
 import 'package:catrans_app/models/station/station_ticket_validation.dart';
+import 'package:catrans_app/screens/staff/boarding/boarding_ticket_detail_dialog.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_ticket_search.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
@@ -65,27 +66,39 @@ class _BoardingScreenState extends State<BoardingScreen> {
     final filteredDepartures = _filteredDepartures;
     final overview = _BoardingOverview.fromDepartures(_departures);
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        _Header(user: user),
-        const SizedBox(height: 18),
-        _OverviewBand(overview: overview),
-        const SizedBox(height: 18),
-        _FiltersPanel(
-          controller: _searchController,
-          selectedClass: _selectedClass,
-          selectedStatus: _selectedStatus,
-          withTicketsOnly: _withTicketsOnly,
-          onClassChanged: (value) => setState(() => _selectedClass = value),
-          onStatusChanged: (value) => setState(() => _selectedStatus = value),
-          onWithTicketsChanged: (value) {
-            setState(() => _withTicketsOnly = value);
-          },
-        ),
-        const SizedBox(height: 18),
-        _buildDepartures(filteredDepartures),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final padding = constraints.maxWidth >= 900
+            ? 24.0
+            : constraints.maxWidth >= 560
+            ? 18.0
+            : 12.0;
+        final sectionGap = constraints.maxWidth < 560 ? 14.0 : 18.0;
+
+        return ListView(
+          padding: EdgeInsets.all(padding),
+          children: [
+            _Header(user: user),
+            SizedBox(height: sectionGap),
+            _OverviewBand(overview: overview),
+            SizedBox(height: sectionGap),
+            _FiltersPanel(
+              controller: _searchController,
+              selectedClass: _selectedClass,
+              selectedStatus: _selectedStatus,
+              withTicketsOnly: _withTicketsOnly,
+              onClassChanged: (value) => setState(() => _selectedClass = value),
+              onStatusChanged: (value) =>
+                  setState(() => _selectedStatus = value),
+              onWithTicketsChanged: (value) {
+                setState(() => _withTicketsOnly = value);
+              },
+            ),
+            SizedBox(height: sectionGap),
+            _buildDepartures(filteredDepartures),
+          ],
+        );
+      },
     );
   }
 
@@ -199,8 +212,8 @@ class _BoardingScreenState extends State<BoardingScreen> {
           final columns = width >= 1180
               ? 3
               : width >= 760
-                  ? 2
-                  : 1;
+              ? 2
+              : 1;
           final cardWidth = (width - (columns - 1) * 14) / columns;
 
           return Wrap(
@@ -230,17 +243,27 @@ class _BoardingScreenState extends State<BoardingScreen> {
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (_) {
+      builder: (dialogContext) {
+        final workspace = _DepartureWorkspace(
+          departure: departure,
+          user: user,
+          apiService: _apiService,
+          onValidated: _loadDepartures,
+        );
+        if (MediaQuery.sizeOf(dialogContext).width < 600) {
+          return Dialog.fullscreen(
+            backgroundColor: _staffBg,
+            child: SafeArea(child: workspace),
+          );
+        }
+
         return Dialog(
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-          backgroundColor: Colors.transparent,
-          child: _DepartureWorkspace(
-            departure: departure,
-            user: user,
-            apiService: _apiService,
-            onValidated: _loadDepartures,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 22,
           ),
+          backgroundColor: Colors.transparent,
+          child: workspace,
         );
       },
     );
@@ -370,10 +393,7 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
     final confirmed = await _confirmPassengerValidation(passenger);
     if (!confirmed || !mounted) return;
 
-    await _runReferenceValidation(
-      passenger.reference,
-      ticketId: passenger.id,
-    );
+    await _runReferenceValidation(passenger.reference, ticketId: passenger.id);
   }
 
   Future<void> _validateManualReference() async {
@@ -419,7 +439,8 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
         }
       });
 
-      final message = validation.resultMessage ??
+      final message =
+          validation.resultMessage ??
           (validation.isAccepted
               ? 'Billet validé avec succès.'
               : 'Le billet n’a pas été accepté pour ce départ.');
@@ -456,6 +477,28 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
     await _loadBoardingData(showLoading: false);
   }
 
+  Future<void> _openTicketDetail(StationBoardingTicket passenger) {
+    return showBoardingTicketDetailDialog(
+      context: context,
+      departure: _departure,
+      ticket: passenger,
+      canValidate: _canValidate,
+      isValidating: _validatingTicketIds.contains(passenger.id),
+      onValidate: () => _validatePassenger(passenger),
+    );
+  }
+
+  Future<void> _openValidationDetail() async {
+    final validation = _lastValidation;
+    if (validation == null) return;
+
+    await showBoardingTicketDetailDialog(
+      context: context,
+      departure: _departure,
+      validation: validation,
+    );
+  }
+
   Future<bool> _confirmPassengerValidation(
     StationBoardingTicket passenger,
   ) async {
@@ -489,7 +532,8 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
                 ),
                 _ConfirmationDetail(
                   label: 'Classe',
-                  value: passenger.serviceClass ??
+                  value:
+                      passenger.serviceClass ??
                       _departure.serviceClassName ??
                       'Non renseignée',
                 ),
@@ -598,14 +642,19 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth.clamp(320.0, 1180.0);
-        final height = constraints.maxHeight.clamp(420.0, 820.0);
+        final width = constraints.maxWidth > 1180
+            ? 1180.0
+            : constraints.maxWidth;
+        final height = constraints.maxHeight > 820
+            ? 820.0
+            : constraints.maxHeight;
+        final isFullscreen = constraints.maxWidth < 600;
 
         return ConstrainedBox(
           constraints: BoxConstraints(maxWidth: width, maxHeight: height),
           child: Material(
             color: _staffBg,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isFullscreen ? 0 : 12),
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
@@ -615,7 +664,7 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
                   summary: _summary,
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
                   child: _SegmentedTabs(
                     selectedIndex: _selectedTab,
                     onChanged: (index) => setState(() => _selectedTab = index),
@@ -641,8 +690,9 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
   Widget _buildTabContent() {
     if (_isLoading) {
       return const _WorkspaceBody(
-        child:
-            _SoftLoading(message: 'Chargement des informations du départ...'),
+        child: _SoftLoading(
+          message: 'Chargement des informations du départ...',
+        ),
       );
     }
 
@@ -667,6 +717,7 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
           canValidate: _canValidate,
           validatingTicketIds: _validatingTicketIds,
           onSearchChanged: (_) => setState(() {}),
+          onOpenDetail: _openTicketDetail,
           onValidate: _validatePassenger,
         ),
       );
@@ -685,6 +736,8 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
           validation: _lastValidation,
           errorMessage: _validationError,
           onSearchChanged: (_) => setState(() {}),
+          onOpenTicketDetail: _openTicketDetail,
+          onOpenValidationDetail: _openValidationDetail,
           onValidateTicket: _validatePassenger,
           onValidateManualReference: _validateManualReference,
         ),
@@ -709,49 +762,61 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final station = user.internalProfile?.station?.name;
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7F0)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: _brandPurple,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.how_to_reg, color: Colors.white, size: 28),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        return Container(
+          padding: EdgeInsets.all(compact ? 16 : 22),
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7F0)),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Embarquement',
-                  style: TextStyle(
-                    color: _brandPurple,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: compact ? 44 : 52,
+                height: compact ? 44 : 52,
+                decoration: BoxDecoration(
+                  color: _brandPurple,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  station == null
-                      ? 'Départs du jour de votre gare.'
-                      : 'Départs du jour de $station.',
-                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                child: Icon(
+                  Icons.how_to_reg,
+                  color: Colors.white,
+                  size: compact ? 24 : 28,
                 ),
-              ],
-            ),
+              ),
+              SizedBox(width: compact ? 12 : 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Embarquement',
+                      style: TextStyle(
+                        color: _brandPurple,
+                        fontSize: compact ? 24 : 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      station == null
+                          ? 'Départs du jour de votre gare.'
+                          : 'Départs du jour de $station.',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -784,8 +849,9 @@ class _BoardingOverview {
       0,
       (sum, departure) => sum + departure.tickets.remaining,
     );
-    final departuresWithTickets =
-        departures.where((departure) => departure.tickets.total > 0).length;
+    final departuresWithTickets = departures
+        .where((departure) => departure.tickets.total > 0)
+        .length;
 
     return _BoardingOverview(
       departuresCount: departures.length,
@@ -837,15 +903,18 @@ class _OverviewBand extends StatelessWidget {
         final columns = constraints.maxWidth >= 1100
             ? 5
             : constraints.maxWidth >= 760
-                ? 3
-                : 1;
+            ? 3
+            : constraints.maxWidth >= 420
+            ? 2
+            : 1;
         final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
 
         return Wrap(
           spacing: 12,
           runSpacing: 12,
-          children:
-              items.map((item) => SizedBox(width: width, child: item)).toList(),
+          children: items
+              .map((item) => SizedBox(width: width, child: item))
+              .toList(),
         );
       },
     );
@@ -1049,8 +1118,10 @@ class _DepartureCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = departure.tickets.total == 0
         ? 0.0
-        : (departure.validationsAccepted / departure.tickets.total)
-            .clamp(0.0, 1.0);
+        : (departure.validationsAccepted / departure.tickets.total).clamp(
+            0.0,
+            1.0,
+          );
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1172,52 +1243,67 @@ class _WorkspaceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 20, 14, 18),
-      color: _brandPurple,
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.directions_bus, color: Colors.white),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 22,
+            compact ? 14 : 20,
+            8,
+            compact ? 14 : 18,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  departure.routeLabel.isEmpty
-                      ? 'Départ sélectionné'
-                      : departure.routeLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
+          color: _brandPurple,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!compact) ...[
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  child: const Icon(Icons.directions_bus, color: Colors.white),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${departure.displayTime} · ${departure.serviceClassName ?? 'Classe non renseignée'}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
+                const SizedBox(width: 14),
               ],
-            ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      departure.routeLabel.isEmpty
+                          ? 'Départ sélectionné'
+                          : departure.routeLabel,
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: compact ? 17 : 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${departure.displayTime} · ${departure.serviceClassName ?? 'Classe non renseignée'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Fermer',
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Fermer',
-            icon: const Icon(Icons.close, color: Colors.white),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1226,8 +1312,10 @@ class _WorkspaceQuickSummary extends StatelessWidget {
   final StationDeparture departure;
   final StationBoardingSummaryResponse? summary;
 
-  const _WorkspaceQuickSummary(
-      {required this.departure, required this.summary});
+  const _WorkspaceQuickSummary({
+    required this.departure,
+    required this.summary,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1252,10 +1340,24 @@ class _WorkspaceQuickSummary extends StatelessWidget {
           ];
 
           if (constraints.maxWidth < 640) {
-            return Wrap(spacing: 8, runSpacing: 8, children: cards);
+            final columns = constraints.maxWidth < 360 ? 1 : 2;
+            final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: cards
+                  .map((card) => SizedBox(width: width, child: card))
+                  .toList(),
+            );
           }
           return Row(
-              children: cards.map((card) => Expanded(child: card)).toList());
+            children: [
+              for (var index = 0; index < cards.length; index++) ...[
+                Expanded(child: cards[index]),
+                if (index < cards.length - 1) const SizedBox(width: 8),
+              ],
+            ],
+          );
         },
       ),
     );
@@ -1271,7 +1373,6 @@ class _CompactMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: _softPanel,
@@ -1284,8 +1385,10 @@ class _CompactMetric extends StatelessWidget {
         children: [
           Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
         ],
       ),
     );
@@ -1299,9 +1402,14 @@ class _WorkspaceBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      child: child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = constraints.maxWidth < 600 ? 12.0 : 20.0;
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 20),
+          child: child,
+        );
+      },
     );
   }
 }
@@ -1326,54 +1434,80 @@ class _SegmentedTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7F0)),
-      ),
-      child: Row(
-        children: List.generate(tabs.length, (index) {
-          final tab = tabs[index];
-          final selected = index == selectedIndex;
-          return Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onChanged(index),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: selected ? _brandPurple : Colors.transparent,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7F0)),
+          ),
+          child: Row(
+            children: List.generate(tabs.length, (index) {
+              final tab = tabs[index];
+              final selected = index == selectedIndex;
+              final color = selected ? Colors.white : _brandPurple;
+              return Expanded(
+                child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(tab.icon,
-                        size: 18,
-                        color: selected ? Colors.white : _brandPurple),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        tab.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: selected ? Colors.white : _brandPurple,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                  onTap: () => onChanged(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    constraints: BoxConstraints(minHeight: compact ? 58 : 42),
+                    padding: EdgeInsets.symmetric(
+                      vertical: compact ? 7 : 10,
+                      horizontal: compact ? 4 : 8,
                     ),
-                  ],
+                    decoration: BoxDecoration(
+                      color: selected ? _brandPurple : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: compact
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(tab.icon, size: 18, color: color),
+                              const SizedBox(height: 4),
+                              Text(
+                                tab.label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: color,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(tab.icon, size: 18, color: color),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  tab.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
-              ),
-            ),
-          );
-        }),
-      ),
+              );
+            }),
+          ),
+        );
+      },
     );
   }
 }
@@ -1385,6 +1519,7 @@ class _ManifestSection extends StatelessWidget {
   final bool canValidate;
   final Set<String> validatingTicketIds;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<StationBoardingTicket> onOpenDetail;
   final ValueChanged<StationBoardingTicket> onValidate;
 
   const _ManifestSection({
@@ -1394,6 +1529,7 @@ class _ManifestSection extends StatelessWidget {
     required this.canValidate,
     required this.validatingTicketIds,
     required this.onSearchChanged,
+    required this.onOpenDetail,
     required this.onValidate,
   });
 
@@ -1446,15 +1582,17 @@ class _ManifestSection extends StatelessWidget {
           else
             LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth < 820) {
+                if (constraints.maxWidth < 1040) {
                   return Column(
                     children: visiblePassengers
                         .map(
                           (passenger) => _PassengerCard(
                             passenger: passenger,
                             canValidate: canValidate,
-                            isValidating:
-                                validatingTicketIds.contains(passenger.id),
+                            isValidating: validatingTicketIds.contains(
+                              passenger.id,
+                            ),
+                            onOpenDetail: () => onOpenDetail(passenger),
                             onValidate: () => onValidate(passenger),
                           ),
                         )
@@ -1462,64 +1600,12 @@ class _ManifestSection extends StatelessWidget {
                   );
                 }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columnSpacing: 18,
-                    horizontalMargin: 14,
-                    dataRowMinHeight: 62,
-                    dataRowMaxHeight: 78,
-                    headingRowColor: WidgetStateProperty.all(_softPanel),
-                    columns: const [
-                      DataColumn(label: Text('Voyageur')),
-                      DataColumn(label: Text('Téléphone')),
-                      DataColumn(label: Text('Ticket')),
-                      DataColumn(label: Text('Siège')),
-                      DataColumn(label: Text('Classe')),
-                      DataColumn(label: Text('Statut ticket')),
-                      DataColumn(label: Text('Validation')),
-                      DataColumn(label: Text('Action')),
-                    ],
-                    rows: visiblePassengers
-                        .map(
-                          (passenger) => DataRow(
-                            cells: [
-                              DataCell(_TextCell(passenger.displayTraveler)),
-                              DataCell(
-                                _TextCell(passenger.travelerPhone ?? '—'),
-                              ),
-                              DataCell(_TextCell(passenger.reference)),
-                              DataCell(_TextCell(passenger.displaySeat)),
-                              DataCell(
-                                _TextCell(passenger.serviceClass ?? '—'),
-                              ),
-                              DataCell(
-                                _StatusChip(
-                                  label: passenger.statusLabel,
-                                  status: passenger.statusCode,
-                                ),
-                              ),
-                              DataCell(
-                                _StatusChip(
-                                  label: _boardingLabel(passenger),
-                                  status: _boardingStatus(passenger),
-                                ),
-                              ),
-                              DataCell(
-                                _TicketAction(
-                                  passenger: passenger,
-                                  canValidate: canValidate,
-                                  isValidating: validatingTicketIds
-                                      .contains(passenger.id),
-                                  onValidate: () => onValidate(passenger),
-                                  compact: true,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                        .toList(),
-                  ),
+                return _ManifestDesktopList(
+                  passengers: visiblePassengers,
+                  canValidate: canValidate,
+                  validatingTicketIds: validatingTicketIds,
+                  onOpenDetail: onOpenDetail,
+                  onValidate: onValidate,
                 );
               },
             ),
@@ -1540,6 +1626,8 @@ class _ValidationSection extends StatelessWidget {
   final StationTicketValidation? validation;
   final String? errorMessage;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<StationBoardingTicket> onOpenTicketDetail;
+  final VoidCallback onOpenValidationDetail;
   final ValueChanged<StationBoardingTicket> onValidateTicket;
   final VoidCallback onValidateManualReference;
 
@@ -1554,6 +1642,8 @@ class _ValidationSection extends StatelessWidget {
     required this.validation,
     required this.errorMessage,
     required this.onSearchChanged,
+    required this.onOpenTicketDetail,
+    required this.onOpenValidationDetail,
     required this.onValidateTicket,
     required this.onValidateManualReference,
   });
@@ -1571,8 +1661,9 @@ class _ValidationSection extends StatelessWidget {
 
     final passengers = manifest?.passengers ?? const <StationBoardingTicket>[];
     final hasQuery = searchQuery.trim().isNotEmpty;
-    final visiblePassengers =
-        hasQuery ? filterBoardingTickets(passengers, searchQuery) : const [];
+    final visiblePassengers = hasQuery
+        ? filterBoardingTickets(passengers, searchQuery)
+        : const [];
 
     return _Panel(
       title: 'Validation billet',
@@ -1604,6 +1695,7 @@ class _ValidationSection extends StatelessWidget {
                     (passenger) => _ValidationTicketRow(
                       passenger: passenger,
                       isValidating: validatingTicketIds.contains(passenger.id),
+                      onOpenDetail: () => onOpenTicketDetail(passenger),
                       onValidate: () => onValidateTicket(passenger),
                     ),
                   )
@@ -1624,17 +1716,16 @@ class _ValidationSection extends StatelessWidget {
               title: validation!.isAccepted
                   ? 'Billet validé avec succès.'
                   : validation!.statusLabel,
-              message: validation!.resultMessage ??
+              message:
+                  validation!.resultMessage ??
                   (validation!.isAccepted
                       ? 'Le voyageur peut embarquer sur ce départ.'
                       : 'Le billet n’a pas été accepté pour ce départ.'),
-              details: [
-                validation!.ticketReference,
-                validation!.travelerFullName,
-                validation!.displaySeat,
-              ]
-                  .where((part) => part != null && part.trim().isNotEmpty)
-                  .join(' · '),
+              onOpenDetail:
+                  validation!.ticketReference != null ||
+                      validation!.travelerFullName.isNotEmpty
+                  ? onOpenValidationDetail
+                  : null,
             ),
           ],
           const SizedBox(height: 16),
@@ -1667,8 +1758,9 @@ class _ValidationSection extends StatelessWidget {
                   );
 
                   final button = FilledButton.icon(
-                    onPressed:
-                        isValidatingManual ? null : onValidateManualReference,
+                    onPressed: isValidatingManual
+                        ? null
+                        : onValidateManualReference,
                     icon: isValidatingManual
                         ? const SizedBox(
                             width: 16,
@@ -1686,11 +1778,7 @@ class _ValidationSection extends StatelessWidget {
                   if (constraints.maxWidth < 680) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        field,
-                        const SizedBox(height: 12),
-                        button,
-                      ],
+                      children: [field, const SizedBox(height: 12), button],
                     );
                   }
 
@@ -1714,11 +1802,13 @@ class _ValidationSection extends StatelessWidget {
 class _ValidationTicketRow extends StatelessWidget {
   final StationBoardingTicket passenger;
   final bool isValidating;
+  final VoidCallback onOpenDetail;
   final VoidCallback onValidate;
 
   const _ValidationTicketRow({
     required this.passenger,
     required this.isValidating,
+    required this.onOpenDetail,
     required this.onValidate,
   });
 
@@ -1760,10 +1850,11 @@ class _ValidationTicketRow extends StatelessWidget {
               ),
             ],
           );
-          final action = _TicketAction(
+          final action = _TicketActions(
             passenger: passenger,
             canValidate: true,
             isValidating: isValidating,
+            onOpenDetail: onOpenDetail,
             onValidate: onValidate,
           );
 
@@ -1788,6 +1879,56 @@ class _ValidationTicketRow extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _TicketActions extends StatelessWidget {
+  final StationBoardingTicket passenger;
+  final bool canValidate;
+  final bool isValidating;
+  final VoidCallback onOpenDetail;
+  final VoidCallback onValidate;
+  final bool compact;
+
+  const _TicketActions({
+    required this.passenger,
+    required this.canValidate,
+    required this.isValidating,
+    required this.onOpenDetail,
+    required this.onValidate,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          onPressed: onOpenDetail,
+          icon: const Icon(Icons.visibility_outlined, size: 18),
+          label: const Text('Détail'),
+          style: compact
+              ? OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                )
+              : null,
+        ),
+        _TicketAction(
+          passenger: passenger,
+          canValidate: canValidate,
+          isValidating: isValidating,
+          onValidate: onValidate,
+          compact: compact,
+        ),
+      ],
     );
   }
 }
@@ -1821,8 +1962,10 @@ class _TicketAction extends StatelessWidget {
     }
 
     if (!canValidate) {
-      return const Text('Consultation',
-          style: TextStyle(color: Colors.black54));
+      return const Text(
+        'Consultation',
+        style: TextStyle(color: Colors.black54),
+      );
     }
 
     if (!_isTicketEligible(passenger)) {
@@ -1899,10 +2042,7 @@ class _ConfirmationDetail extends StatelessWidget {
         children: [
           SizedBox(
             width: 90,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.black54),
-            ),
+            child: Text(label, style: const TextStyle(color: Colors.black54)),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1937,8 +2077,9 @@ class _SummarySection extends StatelessWidget {
     final cancelled = counts?.cancelled ?? departure.tickets.cancelled;
     final remaining = counts?.remainingToBoard ?? departure.tickets.remaining;
     final rejected = departure.validationsRejected;
-    final rate =
-        totalTickets == 0 ? null : (boarded / totalTickets * 100).round();
+    final rate = totalTickets == 0
+        ? null
+        : (boarded / totalTickets * 100).round();
 
     return _Panel(
       title: 'Résumé du départ',
@@ -1948,26 +2089,47 @@ class _SummarySection extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final items = [
-                _SummaryTile('Tickets total', totalTickets.toString(),
-                    Icons.airplane_ticket),
                 _SummaryTile(
-                    'Tickets émis', issued.toString(), Icons.fact_check),
+                  'Tickets total',
+                  totalTickets.toString(),
+                  Icons.airplane_ticket,
+                ),
                 _SummaryTile(
-                    'Tickets validés', boarded.toString(), Icons.how_to_reg),
-                _SummaryTile('Tickets restants', remaining.toString(),
-                    Icons.pending_actions),
+                  'Tickets émis',
+                  issued.toString(),
+                  Icons.fact_check,
+                ),
                 _SummaryTile(
-                    'Tickets annulés', cancelled.toString(), Icons.block),
-                _SummaryTile('Validations rejetées', rejected.toString(),
-                    Icons.report_gmailerrorred),
-                _SummaryTile('Taux embarquement', rate == null ? '—' : '$rate%',
-                    Icons.query_stats),
+                  'Tickets validés',
+                  boarded.toString(),
+                  Icons.how_to_reg,
+                ),
+                _SummaryTile(
+                  'Tickets restants',
+                  remaining.toString(),
+                  Icons.pending_actions,
+                ),
+                _SummaryTile(
+                  'Tickets annulés',
+                  cancelled.toString(),
+                  Icons.block,
+                ),
+                _SummaryTile(
+                  'Validations rejetées',
+                  rejected.toString(),
+                  Icons.report_gmailerrorred,
+                ),
+                _SummaryTile(
+                  'Taux embarquement',
+                  rate == null ? '—' : '$rate%',
+                  Icons.query_stats,
+                ),
               ];
               final columns = constraints.maxWidth >= 900
                   ? 4
                   : constraints.maxWidth >= 620
-                      ? 2
-                      : 1;
+                  ? 2
+                  : 1;
               final width =
                   (constraints.maxWidth - (columns - 1) * 10) / columns;
               return Wrap(
@@ -2016,13 +2178,18 @@ class _SummaryTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w800)),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(label,
-                    style:
-                        const TextStyle(color: Colors.black54, fontSize: 12)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -2032,16 +2199,231 @@ class _SummaryTile extends StatelessWidget {
   }
 }
 
+class _ManifestDesktopList extends StatelessWidget {
+  final List<StationBoardingTicket> passengers;
+  final bool canValidate;
+  final Set<String> validatingTicketIds;
+  final ValueChanged<StationBoardingTicket> onOpenDetail;
+  final ValueChanged<StationBoardingTicket> onValidate;
+
+  const _ManifestDesktopList({
+    required this.passengers,
+    required this.canValidate,
+    required this.validatingTicketIds,
+    required this.onOpenDetail,
+    required this.onValidate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7F0)),
+      ),
+      child: Column(
+        children: [
+          const _ManifestDesktopHeader(),
+          for (var index = 0; index < passengers.length; index++)
+            _ManifestDesktopRow(
+              passenger: passengers[index],
+              canValidate: canValidate,
+              isValidating: validatingTicketIds.contains(passengers[index].id),
+              showDivider: index < passengers.length - 1,
+              onOpenDetail: () => onOpenDetail(passengers[index]),
+              onValidate: () => onValidate(passengers[index]),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManifestDesktopHeader extends StatelessWidget {
+  const _ManifestDesktopHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: _softPanel,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            _ManifestColumnLabel('Voyageur', flex: 3),
+            _ManifestColumnLabel('Ticket', flex: 2),
+            _ManifestColumnLabel('Siège', flex: 1),
+            _ManifestColumnLabel('Classe', flex: 2),
+            _ManifestColumnLabel('Statut', flex: 2),
+            SizedBox(width: 230, child: Text('Actions')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ManifestColumnLabel extends StatelessWidget {
+  final String label;
+  final int flex;
+
+  const _ManifestColumnLabel(this.label, {required this.flex});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.black54,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ManifestDesktopRow extends StatelessWidget {
+  final StationBoardingTicket passenger;
+  final bool canValidate;
+  final bool isValidating;
+  final bool showDivider;
+  final VoidCallback onOpenDetail;
+  final VoidCallback onValidate;
+
+  const _ManifestDesktopRow({
+    required this.passenger,
+    required this.canValidate,
+    required this.isValidating,
+    required this.showDivider,
+    required this.onOpenDetail,
+    required this.onValidate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: showDivider
+            ? const Border(bottom: BorderSide(color: Color(0xFFE5E7F0)))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 3,
+            child: _ManifestTextGroup(
+              primary: passenger.displayTraveler.isEmpty
+                  ? 'Voyageur non renseigné'
+                  : passenger.displayTraveler,
+              secondary: passenger.travelerPhone ?? 'Téléphone non renseigné',
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              passenger.reference,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              passenger.displaySeat,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              passenger.serviceClass ?? 'Non renseignée',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: [
+                _StatusChip(
+                  label: passenger.statusLabel,
+                  status: passenger.statusCode,
+                ),
+                _StatusChip(
+                  label: _boardingLabel(passenger),
+                  status: _boardingStatus(passenger),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 230,
+            child: _TicketActions(
+              passenger: passenger,
+              canValidate: canValidate,
+              isValidating: isValidating,
+              onOpenDetail: onOpenDetail,
+              onValidate: onValidate,
+              compact: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ManifestTextGroup extends StatelessWidget {
+  final String primary;
+  final String secondary;
+
+  const _ManifestTextGroup({required this.primary, required this.secondary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          primary,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          secondary,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.black54, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
 class _PassengerCard extends StatelessWidget {
   final StationBoardingTicket passenger;
   final bool canValidate;
   final bool isValidating;
+  final VoidCallback onOpenDetail;
   final VoidCallback onValidate;
 
   const _PassengerCard({
     required this.passenger,
     required this.canValidate,
     required this.isValidating,
+    required this.onOpenDetail,
     required this.onValidate,
   });
 
@@ -2067,7 +2449,9 @@ class _PassengerCard extends StatelessWidget {
                 ),
               ),
               _StatusChip(
-                  label: passenger.statusLabel, status: passenger.statusCode),
+                label: passenger.statusLabel,
+                status: passenger.statusCode,
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -2076,27 +2460,42 @@ class _PassengerCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _InfoPill(
-                  label: 'Téléphone', value: passenger.travelerPhone ?? '—'),
+                label: 'Téléphone',
+                value: passenger.travelerPhone ?? '—',
+              ),
               _InfoPill(label: 'Ticket', value: passenger.reference),
               _InfoPill(label: 'Siège', value: passenger.displaySeat),
               _InfoPill(label: 'Classe', value: passenger.serviceClass ?? '—'),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              _StatusChip(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final status = _StatusChip(
                 label: _boardingLabel(passenger),
                 status: _boardingStatus(passenger),
-              ),
-              const Spacer(),
-              _TicketAction(
+              );
+              final actions = _TicketActions(
                 passenger: passenger,
                 canValidate: canValidate,
                 isValidating: isValidating,
+                onOpenDetail: onOpenDetail,
                 onValidate: onValidate,
-              ),
-            ],
+              );
+
+              if (constraints.maxWidth < 520) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    status,
+                    const SizedBox(height: 10),
+                    Align(alignment: Alignment.centerRight, child: actions),
+                  ],
+                );
+              }
+
+              return Row(children: [status, const Spacer(), actions]);
+            },
           ),
         ],
       ),
@@ -2119,8 +2518,10 @@ class _MiniMetric extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE5E7F0)),
       ),
-      child: Text('$label $value',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      child: Text(
+        '$label $value',
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }
@@ -2129,13 +2530,13 @@ class _ValidationResultBox extends StatelessWidget {
   final bool isSuccess;
   final String title;
   final String message;
-  final String? details;
+  final VoidCallback? onOpenDetail;
 
   const _ValidationResultBox({
     required this.isSuccess,
     required this.title,
     required this.message,
-    this.details,
+    this.onOpenDetail,
   });
 
   @override
@@ -2152,21 +2553,31 @@ class _ValidationResultBox extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(isSuccess ? Icons.check_circle : Icons.error_outline,
-              color: color),
+          Icon(
+            isSuccess ? Icons.check_circle : Icons.error_outline,
+            color: color,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style:
-                        TextStyle(color: color, fontWeight: FontWeight.w800)),
+                Text(
+                  title,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 4),
                 Text(message),
-                if (details != null && details!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(details!, style: const TextStyle(color: Colors.black54)),
+                if (onOpenDetail != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onOpenDetail,
+                      icon: const Icon(Icons.visibility_outlined, size: 18),
+                      label: const Text('Voir le détail'),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -2186,36 +2597,42 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(compact ? 14 : 18),
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: _brandPurple,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: _brandPurple,
+                        fontSize: compact ? 16 : 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
+                  if (trailing != null) trailing!,
+                ],
               ),
-              if (trailing != null) trailing!,
+              SizedBox(height: compact ? 12 : 14),
+              child,
             ],
           ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -2239,23 +2656,50 @@ class _StatePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Panel(
       title: title,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _brandPurple.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: _brandPurple),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(message)),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(width: 12),
-            OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final content = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _brandPurple.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: _brandPurple),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          );
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                content,
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: onAction,
+                    child: Text(actionLabel!),
+                  ),
+                ],
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: content),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(width: 12),
+                OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -2313,24 +2757,6 @@ class _AccessDeniedBoarding extends StatelessWidget {
               'Votre profil ne dispose pas des droits nécessaires pour utiliser le module embarquement.',
         ),
       ],
-    );
-  }
-}
-
-class _TextCell extends StatelessWidget {
-  final String value;
-
-  const _TextCell(this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 140,
-      child: Text(
-        value.isEmpty ? '—' : value,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
     );
   }
 }

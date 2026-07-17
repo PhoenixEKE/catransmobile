@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/models/station/station_reservation_detail.dart';
 import 'package:catrans_app/models/station/station_reservation_list.dart';
 import 'package:catrans_app/models/station/station_ticket_summary.dart';
+import 'package:catrans_app/screens/staff/counter/station_reservation_detail_dialog.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
@@ -26,9 +26,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   final _apiService = StationCounterApiService();
 
   StationReservationListResponse? _listResponse;
-  StationReservationDetail? _reservationDetail;
   String? _listError;
-  String? _detailError;
   String? _reservationStatus;
   String? _paymentStatus;
   String? _ticketStatus;
@@ -36,7 +34,6 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   DateTime? _departureDate;
   int _page = 1;
   bool _isLoadingList = false;
-  bool _isLoadingDetail = false;
   bool _isLoadingPrint = false;
   bool _isOpeningPdf = false;
 
@@ -94,8 +91,6 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
         ),
         const SizedBox(height: 18),
         _buildReservations(user),
-        const SizedBox(height: 18),
-        _buildDetail(user),
       ],
     );
   }
@@ -148,35 +143,28 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
     }
   }
 
-  Future<void> _loadReservationDetail(String reservationId) async {
-    setState(() {
-      _isLoadingDetail = true;
-      _detailError = null;
-    });
-
-    try {
-      final detail = await _apiService.getReservationDetail(
-        reservationId: reservationId,
-      );
-      if (!mounted) return;
-      setState(() => _reservationDetail = detail);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _reservationDetail = null;
-        _detailError = _messageFromError(error);
-      });
-    } finally {
-      if (mounted) setState(() => _isLoadingDetail = false);
-    }
+  Future<void> _openReservationDetail(
+    StationReservationListItem reservation,
+    User user,
+  ) {
+    return showStationReservationDetailDialog(
+      context: context,
+      reservation: reservation,
+      loadDetail: (reservationId) =>
+          _apiService.getReservationDetail(reservationId: reservationId),
+      canPrint: _canPrint(user),
+      onPrint: _showPrintInfo,
+      onPdf: _openPdf,
+    );
   }
 
   Future<void> _showPrintInfo(String ticketId) async {
     setState(() => _isLoadingPrint = true);
 
     try {
-      final printInfo =
-          await _apiService.getTicketPrintInfo(ticketId: ticketId);
+      final printInfo = await _apiService.getTicketPrintInfo(
+        ticketId: ticketId,
+      );
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -194,8 +182,9 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
     setState(() => _isOpeningPdf = true);
 
     try {
-      final bytes =
-          await _apiService.downloadTicketPdfBytes(ticketId: ticketId);
+      final bytes = await _apiService.downloadTicketPdfBytes(
+        ticketId: ticketId,
+      );
       await Printing.layoutPdf(
         name: 'ticket-$ticketId.pdf',
         onLayout: (_) async => bytes,
@@ -230,23 +219,14 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       _ticketStatus = null;
       _serviceClass = null;
       _departureDate = null;
-      _reservationDetail = null;
-      _detailError = null;
     });
     _loadReservations(page: 1);
   }
 
-  void _closeDetail() {
-    setState(() {
-      _reservationDetail = null;
-      _detailError = null;
-    });
-  }
-
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _messageFromError(Object error) {
@@ -295,43 +275,15 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       canPrint: _canPrint(user),
       isLoadingPrint: _isLoadingPrint,
       isOpeningPdf: _isOpeningPdf,
-      onOpenDetail: _loadReservationDetail,
+      onOpenDetail: (reservation) => _openReservationDetail(reservation, user),
       onPrint: _showPrintInfo,
       onPdf: _openPdf,
       onPrevious: response.hasPrevious
           ? () => _loadReservations(page: _page > 1 ? _page - 1 : 1)
           : null,
-      onNext:
-          response.hasNext ? () => _loadReservations(page: _page + 1) : null,
-    );
-  }
-
-  Widget _buildDetail(User user) {
-    if (_isLoadingDetail) {
-      return const _LoadingPanel(message: 'Chargement du détail...');
-    }
-
-    if (_detailError != null) {
-      return _StatePanel(
-        icon: Icons.error_outline,
-        title: 'Détail indisponible',
-        message: _detailError!,
-        actionLabel: 'Fermer',
-        onAction: _closeDetail,
-      );
-    }
-
-    final detail = _reservationDetail;
-    if (detail == null) return const SizedBox.shrink();
-
-    return _ReservationDetailPanel(
-      detail: detail,
-      canPrint: _canPrint(user),
-      isLoadingPrint: _isLoadingPrint,
-      isOpeningPdf: _isOpeningPdf,
-      onPrint: _showPrintInfo,
-      onPdf: _openPdf,
-      onClose: _closeDetail,
+      onNext: response.hasNext
+          ? () => _loadReservations(page: _page + 1)
+          : null,
     );
   }
 }
@@ -345,8 +297,9 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final station = user.internalProfile?.station?.name;
-    final title =
-        supervisionMode ? 'Réservations gare' : 'Réservations & tickets';
+    final title = supervisionMode
+        ? 'Réservations gare'
+        : 'Réservations & tickets';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,18 +427,17 @@ class _FilterPanel extends StatelessWidget {
                 width: 150,
                 label: 'Classe',
                 value: serviceClass,
-                items: const {
-                  'ECONOMIE': 'Économie',
-                  'PRESTIGE': 'Prestige',
-                },
+                items: const {'ECONOMIE': 'Économie', 'PRESTIGE': 'Prestige'},
                 onChanged: isLoading ? null : onServiceClassChanged,
               ),
               OutlinedButton.icon(
                 onPressed: isLoading ? null : onPickDate,
                 icon: const Icon(Icons.event),
-                label: Text(departureDate == null
-                    ? 'Date départ'
-                    : _formatDate(departureDate)),
+                label: Text(
+                  departureDate == null
+                      ? 'Date départ'
+                      : _formatDate(departureDate),
+                ),
               ),
               if (departureDate != null)
                 IconButton(
@@ -570,7 +522,7 @@ class _ReservationTablePanel extends StatelessWidget {
   final bool canPrint;
   final bool isLoadingPrint;
   final bool isOpeningPdf;
-  final void Function(String reservationId) onOpenDetail;
+  final ValueChanged<StationReservationListItem> onOpenDetail;
   final void Function(String ticketId) onPrint;
   final void Function(String ticketId) onPdf;
   final VoidCallback? onPrevious;
@@ -656,9 +608,7 @@ class _ReservationTablePanel extends StatelessWidget {
                       DataColumn(label: Text('Actions')),
                     ],
                     rows: response.results
-                        .map(
-                          (reservation) => _reservationRow(reservation),
-                        )
+                        .map((reservation) => _reservationRow(reservation))
                         .toList(),
                   ),
                 ),
@@ -717,7 +667,7 @@ class _ReservationMobileCard extends StatelessWidget {
   final bool canPrint;
   final bool isLoadingPrint;
   final bool isOpeningPdf;
-  final void Function(String reservationId) onOpenDetail;
+  final ValueChanged<StationReservationListItem> onOpenDetail;
   final void Function(String ticketId) onPrint;
   final void Function(String ticketId) onPdf;
 
@@ -767,16 +717,22 @@ class _ReservationMobileCard extends StatelessWidget {
             runSpacing: 12,
             children: [
               SizedBox(
-                  width: 220, child: _ClientCell(reservation: reservation)),
+                width: 220,
+                child: _ClientCell(reservation: reservation),
+              ),
               SizedBox(width: 250, child: _TripCell(reservation: reservation)),
               SizedBox(
-                  width: 190, child: _ServiceCell(reservation: reservation)),
+                width: 190,
+                child: _ServiceCell(reservation: reservation),
+              ),
               SizedBox(
-                  width: 160,
-                  child: _PaymentCell(payment: reservation.payment)),
+                width: 160,
+                child: _PaymentCell(payment: reservation.payment),
+              ),
               SizedBox(
-                  width: 180,
-                  child: _TicketsCell(tickets: reservation.tickets)),
+                width: 180,
+                child: _TicketsCell(tickets: reservation.tickets),
+              ),
             ],
           ),
         ],
@@ -796,8 +752,10 @@ class _ReservationCell extends StatelessWidget {
       primary: reservation.reference,
       secondary: '${reservation.itemsCount} passager(s)',
       chip: _StatusChip(
-        label:
-            _shortReservationLabel(reservation.status, reservation.statusLabel),
+        label: _shortReservationLabel(
+          reservation.status,
+          reservation.statusLabel,
+        ),
         status: reservation.status,
       ),
       width: 150,
@@ -943,10 +901,7 @@ class _StackedCell extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
-          if (chip != null) ...[
-            const SizedBox(height: 5),
-            chip!,
-          ],
+          if (chip != null) ...[const SizedBox(height: 5), chip!],
         ],
       ),
     );
@@ -958,7 +913,7 @@ class _ReservationActions extends StatelessWidget {
   final bool canPrint;
   final bool isLoadingPrint;
   final bool isOpeningPdf;
-  final void Function(String reservationId) onOpenDetail;
+  final ValueChanged<StationReservationListItem> onOpenDetail;
   final void Function(String ticketId) onPrint;
   final void Function(String ticketId) onPdf;
   final bool compact;
@@ -984,12 +939,13 @@ class _ReservationActions extends StatelessWidget {
       width: compact ? 132 : 150,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment:
-            compact ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: compact
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           TextButton(
             onPressed: reservation.actions.canViewDetail
-                ? () => onOpenDetail(reservation.id)
+                ? () => onOpenDetail(reservation)
                 : null,
             style: TextButton.styleFrom(
               minimumSize: const Size(54, 36),
@@ -1037,192 +993,6 @@ class _ActionIconButton extends StatelessWidget {
       constraints: const BoxConstraints.tightFor(width: 34, height: 36),
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-    );
-  }
-}
-
-class _ReservationDetailPanel extends StatelessWidget {
-  final StationReservationDetail detail;
-  final bool canPrint;
-  final bool isLoadingPrint;
-  final bool isOpeningPdf;
-  final void Function(String ticketId) onPrint;
-  final void Function(String ticketId) onPdf;
-  final VoidCallback onClose;
-
-  const _ReservationDetailPanel({
-    required this.detail,
-    required this.canPrint,
-    required this.isLoadingPrint,
-    required this.isOpeningPdf,
-    required this.onPrint,
-    required this.onPdf,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Détail réservation',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(child: _SectionTitle('Résumé réservation')),
-              TextButton.icon(
-                onPressed: onClose,
-                icon: const Icon(Icons.close),
-                label: const Text('Fermer détail'),
-              ),
-            ],
-          ),
-          Wrap(
-            spacing: 16,
-            runSpacing: 10,
-            children: [
-              _InfoPill(label: 'Référence', value: detail.reference),
-              _InfoPill(label: 'Statut', value: detail.status),
-              _InfoPill(label: 'Canal', value: detail.channel),
-              _InfoPill(label: 'Montant', value: detail.displayAmount),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const _SectionTitle('Client'),
-          _InfoLine(label: 'Client', value: detail.displayCustomerName),
-          _InfoLine(label: 'Téléphone', value: detail.customerPhone ?? '-'),
-          _InfoLine(
-            label: 'Créée le',
-            value: _formatDateTime(detail.createdAt),
-          ),
-          if (detail.expiresAt != null)
-            _InfoLine(
-              label: 'Expire le',
-              value: _formatDateTime(detail.expiresAt),
-            ),
-          const SizedBox(height: 16),
-          const _SectionTitle('Voyage'),
-          const Text(
-            'Les passagers, sièges et tickets associés sont listés ci-dessous.',
-          ),
-          const SizedBox(height: 16),
-          const _SectionTitle('Tickets'),
-          ...detail.items.map(
-            (item) => _ReservationItemCard(
-              item: item,
-              canPrint: canPrint,
-              isLoadingPrint: isLoadingPrint,
-              isOpeningPdf: isOpeningPdf,
-              onPrint: onPrint,
-              onPdf: onPdf,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const _SectionTitle('Paiement'),
-          if (detail.payments.isEmpty)
-            const Text('Aucun paiement associé à cette réservation.'),
-          ...detail.payments.map(
-            (payment) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.payments, color: Color(0xFF0F056B)),
-              title: Text(payment.reference),
-              subtitle:
-                  Text('${payment.methodLabel} - ${payment.providerLabel}'),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(payment.displayAmount),
-                  Text(payment.statusLabel),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReservationItemCard extends StatelessWidget {
-  final StationReservationItemDetail item;
-  final bool canPrint;
-  final bool isLoadingPrint;
-  final bool isOpeningPdf;
-  final void Function(String ticketId) onPrint;
-  final void Function(String ticketId) onPdf;
-
-  const _ReservationItemCard({
-    required this.item,
-    required this.canPrint,
-    required this.isLoadingPrint,
-    required this.isOpeningPdf,
-    required this.onPrint,
-    required this.onPdf,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ticketId = item.ticketId;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.travelerFullName.isEmpty
-                      ? 'Voyageur'
-                      : item.travelerFullName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Text(item.status),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              Text(item.seatLabel),
-              Text(item.displayAmount),
-              if (item.travelerPhone != null) Text(item.travelerPhone!),
-              if (item.ticketReference != null)
-                Text('Ticket ${item.ticketReference}'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (ticketId == null || ticketId.isEmpty)
-            const Text('Ticket indisponible pour ce passager.'),
-          if (ticketId != null && ticketId.isNotEmpty && canPrint)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: isLoadingPrint ? null : () => onPrint(ticketId),
-                  icon: const Icon(Icons.receipt_long),
-                  label: const Text('Voir données ticket'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: isOpeningPdf ? null : () => onPdf(ticketId),
-                  icon: const Icon(Icons.picture_as_pdf),
-                  label: const Text('Ouvrir PDF'),
-                ),
-              ],
-            ),
-        ],
-      ),
     );
   }
 }
@@ -1418,10 +1188,7 @@ class _LoadingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: message,
-      child: const LinearProgressIndicator(),
-    );
+    return _Panel(title: message, child: const LinearProgressIndicator());
   }
 }
 
@@ -1442,23 +1209,6 @@ class _AccessDeniedContent extends StatelessWidget {
               'Votre profil ne dispose pas des droits nécessaires pour utiliser le module guichet.',
         ),
       ],
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-      ),
     );
   }
 }
@@ -1493,25 +1243,6 @@ class _InfoLine extends StatelessWidget {
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoPill({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FC),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text('$label : ${value.isEmpty ? '-' : value}'),
-    );
-  }
-}
-
 String? _formatApiDate(DateTime? value) {
   if (value == null) return null;
   return '${value.year.toString().padLeft(4, '0')}-'
@@ -1530,10 +1261,12 @@ String _formatDate(DateTime? value) {
 String _formatDateTime(DateTime? value) {
   if (value == null) return '-';
   final local = value.toLocal();
-  final date = '${local.day.toString().padLeft(2, '0')}/'
+  final date =
+      '${local.day.toString().padLeft(2, '0')}/'
       '${local.month.toString().padLeft(2, '0')}/'
       '${local.year}';
-  final time = '${local.hour.toString().padLeft(2, '0')}:'
+  final time =
+      '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
   return '$date à $time';
 }
