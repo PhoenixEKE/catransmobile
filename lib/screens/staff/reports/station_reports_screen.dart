@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/reports/station_cancellation.dart';
+import 'package:catrans_app/models/station/reports/station_report_common.dart';
 import 'package:catrans_app/models/station/reports/station_reports_page.dart';
 import 'package:catrans_app/models/station/reports/station_reservation_change.dart';
 import 'package:catrans_app/screens/staff/reports/station_cancellation_detail_dialog.dart';
+import 'package:catrans_app/screens/staff/reports/station_report_action_dialog.dart';
+import 'package:catrans_app/screens/staff/reports/station_report_actions.dart';
 import 'package:catrans_app/screens/staff/reports/station_reports_ui_helpers.dart';
 import 'package:catrans_app/screens/staff/reports/station_reservation_change_detail_dialog.dart';
 import 'package:catrans_app/services/api/station_reports_api_service.dart';
@@ -53,6 +56,9 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
   int _cancellationsPageNumber = 1;
   bool _changesLoading = false;
   bool _cancellationsLoading = false;
+  String? _mutatingRequestId;
+  _ReportsTab? _mutatingTab;
+  StationReportActionKind? _mutatingAction;
   bool _cancellationsLoadedOnce = false;
   Timer? _changesSearchDebounce;
   Timer? _cancellationsSearchDebounce;
@@ -418,20 +424,191 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
     }
   }
 
-  Future<void> _openChangeDetail(StationReservationChange change) {
-    return showStationReservationChangeDetailDialog(
+  Future<void> _openChangeDetail(StationReservationChange change) async {
+    final requestedAction = await showStationReservationChangeDetailDialog(
       context: context,
       change: change,
       loadDetail: _apiService.getReservationChangeDetail,
+      mutatingRequestId: _mutatingRequestId,
+      mutatingAction: _mutatingAction,
+    );
+    if (!mounted || requestedAction == null) return;
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    await _requestChangeAction(
+      requestedAction.change,
+      requestedAction.action,
     );
   }
 
-  Future<void> _openCancellationDetail(StationCancellation cancellation) {
-    return showStationCancellationDetailDialog(
+  Future<void> _openCancellationDetail(StationCancellation cancellation) async {
+    final requestedAction = await showStationCancellationDetailDialog(
       context: context,
       cancellation: cancellation,
       loadDetail: _apiService.getCancellationDetail,
+      mutatingRequestId: _mutatingRequestId,
+      mutatingAction: _mutatingAction,
     );
+    if (!mounted || requestedAction == null) return;
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    await _requestCancellationAction(
+      requestedAction.cancellation,
+      requestedAction.action,
+    );
+  }
+
+  Future<void> _requestChangeAction(
+    StationReservationChange change,
+    StationReportActionKind action,
+  ) async {
+    if (_mutatingRequestId != null) return;
+    if (!canShowStationReportAction(
+      availableActions: change.availableActions,
+      eligibility: change.eligibility,
+      action: action,
+    )) {
+      _showMessage(stationReportEligibilityMessage(change.eligibility));
+      return;
+    }
+
+    final result = await showStationReportActionDialog(
+      context: context,
+      data: StationReportActionDialogData.fromChange(change, action),
+    );
+    if (!mounted || result == null) return;
+
+    setState(() {
+      _mutatingRequestId = change.id;
+      _mutatingTab = _ReportsTab.changes;
+      _mutatingAction = action;
+    });
+
+    try {
+      switch (action) {
+        case StationReportActionKind.approve:
+          await _apiService.approveReservationChange(change.id);
+          break;
+        case StationReportActionKind.reject:
+          await _apiService.rejectReservationChange(change.id, result.reason!);
+          break;
+        case StationReportActionKind.apply:
+          await _apiService.applyReservationChange(change.id);
+          break;
+      }
+      if (!mounted) return;
+      await _reloadChangesAfterMutation();
+      if (!mounted) return;
+      _showMessage(
+        stationReportSuccessMessage(StationReportRequestKind.report, action),
+      );
+    } catch (error) {
+      final message = stationReportMutationErrorMessage(error);
+      if (shouldRefreshAfterStationReportMutationError(error)) {
+        await _loadChanges(keepData: true);
+      }
+      if (mounted) _showMessage(message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _mutatingRequestId = null;
+          _mutatingTab = null;
+          _mutatingAction = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _requestCancellationAction(
+    StationCancellation cancellation,
+    StationReportActionKind action,
+  ) async {
+    if (_mutatingRequestId != null) return;
+    if (!canShowStationReportAction(
+      availableActions: cancellation.availableActions,
+      eligibility: cancellation.eligibility,
+      action: action,
+    )) {
+      _showMessage(stationReportEligibilityMessage(cancellation.eligibility));
+      return;
+    }
+
+    final result = await showStationReportActionDialog(
+      context: context,
+      data:
+          StationReportActionDialogData.fromCancellation(cancellation, action),
+    );
+    if (!mounted || result == null) return;
+
+    setState(() {
+      _mutatingRequestId = cancellation.id;
+      _mutatingTab = _ReportsTab.cancellations;
+      _mutatingAction = action;
+    });
+
+    try {
+      switch (action) {
+        case StationReportActionKind.approve:
+          await _apiService.approveCancellation(cancellation.id);
+          break;
+        case StationReportActionKind.reject:
+          await _apiService.rejectCancellation(cancellation.id, result.reason!);
+          break;
+        case StationReportActionKind.apply:
+          await _apiService.applyCancellation(cancellation.id);
+          break;
+      }
+      if (!mounted) return;
+      await _reloadCancellationsAfterMutation();
+      if (!mounted) return;
+      _showMessage(
+        stationReportSuccessMessage(
+          StationReportRequestKind.cancellation,
+          action,
+        ),
+      );
+    } catch (error) {
+      final message = stationReportMutationErrorMessage(error);
+      if (shouldRefreshAfterStationReportMutationError(error)) {
+        await _loadCancellations(keepData: true);
+      }
+      if (mounted) _showMessage(message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _mutatingRequestId = null;
+          _mutatingTab = null;
+          _mutatingAction = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _reloadChangesAfterMutation() async {
+    final nextPage = pageAfterStationReportMutation(
+      currentPage: _changesPageNumber,
+      currentResultCount: _changesPage?.results.length ?? 0,
+    );
+    if (nextPage != _changesPageNumber) {
+      setState(() => _changesPageNumber = nextPage);
+    }
+    await _loadChanges(keepData: true);
+  }
+
+  Future<void> _reloadCancellationsAfterMutation() async {
+    final nextPage = pageAfterStationReportMutation(
+      currentPage: _cancellationsPageNumber,
+      currentResultCount: _cancellationsPage?.results.length ?? 0,
+    );
+    if (nextPage != _cancellationsPageNumber) {
+      setState(() => _cancellationsPageNumber = nextPage);
+    }
+    await _loadCancellations(keepData: true);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _messageFromError(Object error, String moduleLabel) {
@@ -498,6 +675,10 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
             pageNumber: _changesPageNumber,
             isRefreshing: _changesLoading,
             onOpenDetail: _openChangeDetail,
+            onAction: _requestChangeAction,
+            mutatingRequestId: _mutatingRequestId,
+            mutatingTab: _mutatingTab,
+            mutatingAction: _mutatingAction,
           ),
           const SizedBox(height: 14),
           _PaginationBar(
@@ -559,6 +740,10 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
           pageNumber: _cancellationsPageNumber,
           isRefreshing: _cancellationsLoading,
           onOpenDetail: _openCancellationDetail,
+          onAction: _requestCancellationAction,
+          mutatingRequestId: _mutatingRequestId,
+          mutatingTab: _mutatingTab,
+          mutatingAction: _mutatingAction,
         ),
         const SizedBox(height: 14),
         _PaginationBar(
@@ -920,12 +1105,21 @@ class _ChangesPanel extends StatelessWidget {
   final int pageNumber;
   final bool isRefreshing;
   final ValueChanged<StationReservationChange> onOpenDetail;
+  final void Function(StationReservationChange, StationReportActionKind)
+      onAction;
+  final String? mutatingRequestId;
+  final _ReportsTab? mutatingTab;
+  final StationReportActionKind? mutatingAction;
 
   const _ChangesPanel({
     required this.page,
     required this.pageNumber,
     required this.isRefreshing,
     required this.onOpenDetail,
+    required this.onAction,
+    required this.mutatingRequestId,
+    required this.mutatingTab,
+    required this.mutatingAction,
   });
 
   @override
@@ -939,7 +1133,12 @@ class _ChangesPanel extends StatelessWidget {
             return Column(
               children: page.results
                   .map((change) => _ChangeMobileCard(
-                      change: change, onOpenDetail: onOpenDetail))
+                      change: change,
+                      onOpenDetail: onOpenDetail,
+                      onAction: onAction,
+                      isMutating: mutatingTab == _ReportsTab.changes &&
+                          mutatingRequestId == change.id,
+                      mutatingAction: mutatingAction))
                   .toList(),
             );
           }
@@ -961,7 +1160,7 @@ class _ChangesPanel extends StatelessWidget {
                   DataColumn(label: Text('Report')),
                   DataColumn(label: Text('Trajets')),
                   DataColumn(label: Text('Statut')),
-                  DataColumn(label: Text('Détail')),
+                  DataColumn(label: Text('Actions')),
                 ],
                 rows: page.results.map((change) => _changeRow(change)).toList(),
               ),
@@ -993,7 +1192,16 @@ class _ChangesPanel extends StatelessWidget {
             status: change.status,
             statusLabel: change.statusLabel,
             eligibility: change.eligibility)),
-        DataCell(_DetailButton(onPressed: () => onOpenDetail(change))),
+        DataCell(_RequestActions(
+          kind: StationReportRequestKind.report,
+          availableActions: change.availableActions,
+          eligibility: change.eligibility,
+          isMutating: mutatingTab == _ReportsTab.changes &&
+              mutatingRequestId == change.id,
+          mutatingAction: mutatingAction,
+          onOpenDetail: () => onOpenDetail(change),
+          onAction: (action) => onAction(change, action),
+        )),
       ],
     );
   }
@@ -1004,12 +1212,20 @@ class _CancellationsPanel extends StatelessWidget {
   final int pageNumber;
   final bool isRefreshing;
   final ValueChanged<StationCancellation> onOpenDetail;
+  final void Function(StationCancellation, StationReportActionKind) onAction;
+  final String? mutatingRequestId;
+  final _ReportsTab? mutatingTab;
+  final StationReportActionKind? mutatingAction;
 
   const _CancellationsPanel({
     required this.page,
     required this.pageNumber,
     required this.isRefreshing,
     required this.onOpenDetail,
+    required this.onAction,
+    required this.mutatingRequestId,
+    required this.mutatingTab,
+    required this.mutatingAction,
   });
 
   @override
@@ -1023,7 +1239,12 @@ class _CancellationsPanel extends StatelessWidget {
             return Column(
               children: page.results
                   .map((cancellation) => _CancellationMobileCard(
-                      cancellation: cancellation, onOpenDetail: onOpenDetail))
+                      cancellation: cancellation,
+                      onOpenDetail: onOpenDetail,
+                      onAction: onAction,
+                      isMutating: mutatingTab == _ReportsTab.cancellations &&
+                          mutatingRequestId == cancellation.id,
+                      mutatingAction: mutatingAction))
                   .toList(),
             );
           }
@@ -1045,7 +1266,7 @@ class _CancellationsPanel extends StatelessWidget {
                   DataColumn(label: Text('Volume')),
                   DataColumn(label: Text('Montant')),
                   DataColumn(label: Text('Statut')),
-                  DataColumn(label: Text('Détail')),
+                  DataColumn(label: Text('Actions')),
                 ],
                 rows: page.results
                     .map((cancellation) => _cancellationRow(cancellation))
@@ -1080,7 +1301,16 @@ class _CancellationsPanel extends StatelessWidget {
             status: cancellation.status,
             statusLabel: cancellation.statusLabel,
             eligibility: cancellation.eligibility)),
-        DataCell(_DetailButton(onPressed: () => onOpenDetail(cancellation))),
+        DataCell(_RequestActions(
+          kind: StationReportRequestKind.cancellation,
+          availableActions: cancellation.availableActions,
+          eligibility: cancellation.eligibility,
+          isMutating: mutatingTab == _ReportsTab.cancellations &&
+              mutatingRequestId == cancellation.id,
+          mutatingAction: mutatingAction,
+          onOpenDetail: () => onOpenDetail(cancellation),
+          onAction: (action) => onAction(cancellation, action),
+        )),
       ],
     );
   }
@@ -1089,8 +1319,18 @@ class _CancellationsPanel extends StatelessWidget {
 class _ChangeMobileCard extends StatelessWidget {
   final StationReservationChange change;
   final ValueChanged<StationReservationChange> onOpenDetail;
+  final void Function(StationReservationChange, StationReportActionKind)
+      onAction;
+  final bool isMutating;
+  final StationReportActionKind? mutatingAction;
 
-  const _ChangeMobileCard({required this.change, required this.onOpenDetail});
+  const _ChangeMobileCard({
+    required this.change,
+    required this.onOpenDetail,
+    required this.onAction,
+    required this.isMutating,
+    required this.mutatingAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1111,6 +1351,14 @@ class _ChangeMobileCard extends StatelessWidget {
         _InfoLine('Voyageurs', change.itemsCount.toString()),
       ],
       onOpenDetail: () => onOpenDetail(change),
+      mutationActions: _MutationActions(
+        kind: StationReportRequestKind.report,
+        availableActions: change.availableActions,
+        eligibility: change.eligibility,
+        isMutating: isMutating,
+        mutatingAction: mutatingAction,
+        onAction: (action) => onAction(change, action),
+      ),
     );
   }
 }
@@ -1118,9 +1366,17 @@ class _ChangeMobileCard extends StatelessWidget {
 class _CancellationMobileCard extends StatelessWidget {
   final StationCancellation cancellation;
   final ValueChanged<StationCancellation> onOpenDetail;
+  final void Function(StationCancellation, StationReportActionKind) onAction;
+  final bool isMutating;
+  final StationReportActionKind? mutatingAction;
 
-  const _CancellationMobileCard(
-      {required this.cancellation, required this.onOpenDetail});
+  const _CancellationMobileCard({
+    required this.cancellation,
+    required this.onOpenDetail,
+    required this.onAction,
+    required this.isMutating,
+    required this.mutatingAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1140,6 +1396,14 @@ class _CancellationMobileCard extends StatelessWidget {
         _InfoLine('Montant', cancellation.displayAmount),
       ],
       onOpenDetail: () => onOpenDetail(cancellation),
+      mutationActions: _MutationActions(
+        kind: StationReportRequestKind.cancellation,
+        availableActions: cancellation.availableActions,
+        eligibility: cancellation.eligibility,
+        isMutating: isMutating,
+        mutatingAction: mutatingAction,
+        onAction: (action) => onAction(cancellation, action),
+      ),
     );
   }
 }
@@ -1155,6 +1419,7 @@ class _RequestCard extends StatelessWidget {
   final dynamic eligibility;
   final List<_InfoLine> rows;
   final VoidCallback onOpenDetail;
+  final Widget mutationActions;
 
   const _RequestCard({
     required this.reference,
@@ -1167,6 +1432,7 @@ class _RequestCard extends StatelessWidget {
     required this.eligibility,
     required this.rows,
     required this.onOpenDetail,
+    required this.mutationActions,
   });
 
   @override
@@ -1212,6 +1478,8 @@ class _RequestCard extends StatelessWidget {
               status: status,
               statusLabel: statusLabel,
               eligibility: eligibility),
+          const SizedBox(height: 10),
+          mutationActions,
         ],
       ),
     );
@@ -1353,8 +1621,143 @@ class _StatusEligibilityCell extends StatelessWidget {
   }
 }
 
-class _DetailButton extends StatelessWidget {
+class _RequestActions extends StatelessWidget {
+  final StationReportRequestKind kind;
+  final StationReportAvailableActions availableActions;
+  final StationReportEligibility eligibility;
+  final bool isMutating;
+  final StationReportActionKind? mutatingAction;
+  final VoidCallback onOpenDetail;
+  final ValueChanged<StationReportActionKind> onAction;
+
+  const _RequestActions({
+    required this.kind,
+    required this.availableActions,
+    required this.eligibility,
+    required this.isMutating,
+    required this.mutatingAction,
+    required this.onOpenDetail,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _DetailButton(onPressed: isMutating ? null : onOpenDetail),
+        _MutationActions(
+          kind: kind,
+          availableActions: availableActions,
+          eligibility: eligibility,
+          isMutating: isMutating,
+          mutatingAction: mutatingAction,
+          onAction: onAction,
+        ),
+      ],
+    );
+  }
+}
+
+class _MutationActions extends StatelessWidget {
+  final StationReportRequestKind kind;
+  final StationReportAvailableActions availableActions;
+  final StationReportEligibility eligibility;
+  final bool isMutating;
+  final StationReportActionKind? mutatingAction;
+  final ValueChanged<StationReportActionKind> onAction;
+
+  const _MutationActions({
+    required this.kind,
+    required this.availableActions,
+    required this.eligibility,
+    required this.isMutating,
+    required this.mutatingAction,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = visibleStationReportActions(
+      availableActions: availableActions,
+      eligibility: eligibility,
+      isMutating: false,
+    );
+    if (actions.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final action in actions)
+          _MutationActionButton(
+            kind: kind,
+            action: action,
+            isLoading: isMutating && mutatingAction == action,
+            isDisabled: isMutating,
+            onPressed: () => onAction(action),
+          ),
+      ],
+    );
+  }
+}
+
+class _MutationActionButton extends StatelessWidget {
+  final StationReportRequestKind kind;
+  final StationReportActionKind action;
+  final bool isLoading;
+  final bool isDisabled;
   final VoidCallback onPressed;
+
+  const _MutationActionButton({
+    required this.kind,
+    required this.action,
+    required this.isLoading,
+    required this.isDisabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = action.labelFor(kind);
+    final child = isLoading
+        ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(action.icon, size: 18);
+
+    if (action == StationReportActionKind.approve) {
+      return FilledButton.icon(
+        onPressed: isDisabled ? null : onPressed,
+        icon: child,
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: action.color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: isDisabled ? null : onPressed,
+      icon: child,
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: action.color,
+        side: BorderSide(color: action.color.withValues(alpha: 0.45)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+}
+
+class _DetailButton extends StatelessWidget {
+  final VoidCallback? onPressed;
   final bool compact;
 
   const _DetailButton({required this.onPressed, this.compact = false});

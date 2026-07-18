@@ -4,6 +4,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/station/reports/station_report_common.dart';
 import 'package:catrans_app/models/station/reports/station_reservation_change.dart';
 import 'package:catrans_app/models/station/reports/station_reservation_change_detail.dart';
+import 'package:catrans_app/screens/staff/reports/station_report_actions.dart';
 import 'package:catrans_app/screens/staff/reports/station_reports_ui_helpers.dart';
 
 const _brandPurple = Color(0xFF0F056B);
@@ -13,13 +14,26 @@ const _success = Color(0xFF157347);
 const _warning = Color(0xFFB8860B);
 const _danger = Color(0xFFB42318);
 
-Future<void> showStationReservationChangeDetailDialog({
+class StationReservationChangeDetailAction {
+  final StationReportActionKind action;
+  final StationReservationChange change;
+
+  const StationReservationChangeDetailAction({
+    required this.action,
+    required this.change,
+  });
+}
+
+Future<StationReservationChangeDetailAction?>
+    showStationReservationChangeDetailDialog({
   required BuildContext context,
   required StationReservationChange change,
   required Future<StationReservationChangeDetail> Function(String changeId)
       loadDetail,
+  String? mutatingRequestId,
+  StationReportActionKind? mutatingAction,
 }) {
-  return showDialog<void>(
+  return showDialog<StationReservationChangeDetailAction>(
     context: context,
     useSafeArea: true,
     barrierColor: Colors.black.withValues(alpha: 0.48),
@@ -28,6 +42,8 @@ Future<void> showStationReservationChangeDetailDialog({
       final content = StationReservationChangeDetailDialog(
         change: change,
         loadDetail: loadDetail,
+        mutatingRequestId: mutatingRequestId,
+        mutatingAction: mutatingAction,
       );
 
       if (size.width < 640) {
@@ -55,11 +71,15 @@ class StationReservationChangeDetailDialog extends StatefulWidget {
   final StationReservationChange change;
   final Future<StationReservationChangeDetail> Function(String changeId)
       loadDetail;
+  final String? mutatingRequestId;
+  final StationReportActionKind? mutatingAction;
 
   const StationReservationChangeDetailDialog({
     super.key,
     required this.change,
     required this.loadDetail,
+    this.mutatingRequestId,
+    this.mutatingAction,
   });
 
   @override
@@ -139,7 +159,11 @@ class _StationReservationChangeDetailDialogState
             eligibility: detail?.eligibility ?? widget.change.eligibility,
           ),
           Expanded(child: _buildBody(detail)),
-          const _DialogFooter(),
+          _DialogFooter(
+            change: detail ?? widget.change,
+            mutatingRequestId: widget.mutatingRequestId,
+            mutatingAction: widget.mutatingAction,
+          ),
         ],
       ),
     );
@@ -791,23 +815,117 @@ class _EmptyDetailMessage extends StatelessWidget {
 }
 
 class _DialogFooter extends StatelessWidget {
-  const _DialogFooter();
+  final StationReservationChange change;
+  final String? mutatingRequestId;
+  final StationReportActionKind? mutatingAction;
+
+  const _DialogFooter({
+    required this.change,
+    required this.mutatingRequestId,
+    required this.mutatingAction,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isMutating = mutatingRequestId == change.id;
+    final actions = visibleStationReportActions(
+      availableActions: change.availableActions,
+      eligibility: change.eligibility,
+      isMutating: false,
+    );
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: _borderColor)),
       ),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final buttons = <Widget>[
+            TextButton(
+              onPressed: isMutating ? null : () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+            for (final action in actions)
+              _FooterActionButton(
+                action: action,
+                isLoading: isMutating && mutatingAction == action,
+                isDisabled: isMutating,
+                onPressed: () => Navigator.pop(
+                  context,
+                  StationReservationChangeDetailAction(
+                    action: action,
+                    change: change,
+                  ),
+                ),
+              ),
+          ];
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: buttons.reversed.toList(),
+            );
+          }
+          return Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: buttons,
+          );
+        },
       ),
+    );
+  }
+}
+
+class _FooterActionButton extends StatelessWidget {
+  final StationReportActionKind action;
+  final bool isLoading;
+  final bool isDisabled;
+  final VoidCallback onPressed;
+
+  const _FooterActionButton({
+    required this.action,
+    required this.isLoading,
+    required this.isDisabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = isLoading
+        ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(action.icon, size: 18);
+    final label = action.buttonLabelFor(StationReportRequestKind.report);
+
+    if (action == StationReportActionKind.approve) {
+      return FilledButton.icon(
+        onPressed: isDisabled ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: action.color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: icon,
+        label: Text(label),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: isDisabled ? null : onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: action.color,
+        side: BorderSide(color: action.color.withValues(alpha: 0.45)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: icon,
+      label: Text(label),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/station/reports/station_cancellation.dart';
 import 'package:catrans_app/models/station/reports/station_cancellation_detail.dart';
 import 'package:catrans_app/models/station/reports/station_report_common.dart';
+import 'package:catrans_app/screens/staff/reports/station_report_actions.dart';
 import 'package:catrans_app/screens/staff/reports/station_reports_ui_helpers.dart';
 
 const _brandPurple = Color(0xFF0F056B);
@@ -13,13 +14,25 @@ const _success = Color(0xFF157347);
 const _warning = Color(0xFFB8860B);
 const _danger = Color(0xFFB42318);
 
-Future<void> showStationCancellationDetailDialog({
+class StationCancellationDetailAction {
+  final StationReportActionKind action;
+  final StationCancellation cancellation;
+
+  const StationCancellationDetailAction({
+    required this.action,
+    required this.cancellation,
+  });
+}
+
+Future<StationCancellationDetailAction?> showStationCancellationDetailDialog({
   required BuildContext context,
   required StationCancellation cancellation,
   required Future<StationCancellationDetail> Function(String cancellationId)
       loadDetail,
+  String? mutatingRequestId,
+  StationReportActionKind? mutatingAction,
 }) {
-  return showDialog<void>(
+  return showDialog<StationCancellationDetailAction>(
     context: context,
     useSafeArea: true,
     barrierColor: Colors.black.withValues(alpha: 0.48),
@@ -28,6 +41,8 @@ Future<void> showStationCancellationDetailDialog({
       final content = StationCancellationDetailDialog(
         cancellation: cancellation,
         loadDetail: loadDetail,
+        mutatingRequestId: mutatingRequestId,
+        mutatingAction: mutatingAction,
       );
 
       if (size.width < 640) {
@@ -55,11 +70,15 @@ class StationCancellationDetailDialog extends StatefulWidget {
   final StationCancellation cancellation;
   final Future<StationCancellationDetail> Function(String cancellationId)
       loadDetail;
+  final String? mutatingRequestId;
+  final StationReportActionKind? mutatingAction;
 
   const StationCancellationDetailDialog({
     super.key,
     required this.cancellation,
     required this.loadDetail,
+    this.mutatingRequestId,
+    this.mutatingAction,
   });
 
   @override
@@ -141,7 +160,11 @@ class _StationCancellationDetailDialogState
             eligibility: detail?.eligibility ?? widget.cancellation.eligibility,
           ),
           Expanded(child: _buildBody(detail)),
-          const _DialogFooter(),
+          _DialogFooter(
+            cancellation: detail ?? widget.cancellation,
+            mutatingRequestId: widget.mutatingRequestId,
+            mutatingAction: widget.mutatingAction,
+          ),
         ],
       ),
     );
@@ -754,21 +777,117 @@ class _ModalState extends StatelessWidget {
 }
 
 class _DialogFooter extends StatelessWidget {
-  const _DialogFooter();
+  final StationCancellation cancellation;
+  final String? mutatingRequestId;
+  final StationReportActionKind? mutatingAction;
+
+  const _DialogFooter({
+    required this.cancellation,
+    required this.mutatingRequestId,
+    required this.mutatingAction,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isMutating = mutatingRequestId == cancellation.id;
+    final actions = visibleStationReportActions(
+      availableActions: cancellation.availableActions,
+      eligibility: cancellation.eligibility,
+      isMutating: false,
+    );
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: _borderColor))),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer')),
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _borderColor)),
       ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final buttons = <Widget>[
+            TextButton(
+              onPressed: isMutating ? null : () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
+            for (final action in actions)
+              _FooterActionButton(
+                action: action,
+                isLoading: isMutating && mutatingAction == action,
+                isDisabled: isMutating,
+                onPressed: () => Navigator.pop(
+                  context,
+                  StationCancellationDetailAction(
+                    action: action,
+                    cancellation: cancellation,
+                  ),
+                ),
+              ),
+          ];
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: buttons.reversed.toList(),
+            );
+          }
+          return Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: buttons,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FooterActionButton extends StatelessWidget {
+  final StationReportActionKind action;
+  final bool isLoading;
+  final bool isDisabled;
+  final VoidCallback onPressed;
+
+  const _FooterActionButton({
+    required this.action,
+    required this.isLoading,
+    required this.isDisabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = isLoading
+        ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(action.icon, size: 18);
+    final label = action.buttonLabelFor(StationReportRequestKind.cancellation);
+
+    if (action == StationReportActionKind.approve) {
+      return FilledButton.icon(
+        onPressed: isDisabled ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: action.color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: icon,
+        label: Text(label),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: isDisabled ? null : onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: action.color,
+        side: BorderSide(color: action.color.withValues(alpha: 0.45)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: icon,
+      label: Text(label),
     );
   }
 }
