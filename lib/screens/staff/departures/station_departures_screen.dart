@@ -735,6 +735,14 @@ class _FiltersPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusValue = selectedStatus;
+    final serviceClassValue = selectedServiceClassId != null &&
+            serviceClassOptions.any(
+              (option) => option.id == selectedServiceClassId,
+            )
+        ? selectedServiceClassId!
+        : 'all';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -770,7 +778,8 @@ class _FiltersPanel extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: DropdownButtonFormField<String>(
-                  value: selectedStatus,
+                  key: ValueKey('departure-status-$statusValue'),
+                  initialValue: statusValue,
                   decoration: InputDecoration(
                     labelText: 'Statut',
                     border: OutlineInputBorder(
@@ -792,7 +801,8 @@ class _FiltersPanel extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: DropdownButtonFormField<String>(
-                  value: selectedServiceClassId ?? 'all',
+                  key: ValueKey('departure-service-class-$serviceClassValue'),
+                  initialValue: serviceClassValue,
                   decoration: InputDecoration(
                     labelText: 'Classe',
                     border: OutlineInputBorder(
@@ -974,7 +984,7 @@ class _DepartureCard extends StatelessWidget {
                   height: 54,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: _brandPurple.withOpacity(0.08),
+                    color: _brandPurple.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -1232,7 +1242,7 @@ class _CompactAlert extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -1401,9 +1411,9 @@ class _InlineError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _danger.withOpacity(0.08),
+        color: _danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _danger.withOpacity(0.22)),
+        border: Border.all(color: _danger.withValues(alpha: 0.22)),
       ),
       child: Row(
         children: [
@@ -1477,7 +1487,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1502,7 +1512,7 @@ BoxDecoration _cardDecoration() {
     border: Border.all(color: const Color(0xFFE6E8EF)),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.04),
+        color: Colors.black.withValues(alpha: 0.04),
         blurRadius: 14,
         offset: const Offset(0, 6),
       ),
