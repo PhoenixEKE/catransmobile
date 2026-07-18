@@ -51,6 +51,18 @@ class StationOperationalDeparturesApiService {
     );
   }
 
+  Future<void> openDeparture(String departureId) async {
+    await _apiClient.post('station/departures/$departureId/open/');
+  }
+
+  Future<void> closeDeparture(String departureId) async {
+    await _apiClient.post('station/departures/$departureId/close/');
+  }
+
+  Future<void> markDepartureAsDeparted(String departureId) async {
+    await _apiClient.post('station/departures/$departureId/depart/');
+  }
+
   String _formatDate(DateTime date) {
     final year = date.year.toString().padLeft(4, '0');
     final month = date.month.toString().padLeft(2, '0');

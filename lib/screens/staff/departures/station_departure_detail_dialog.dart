@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
+import 'package:catrans_app/screens/staff/departures/station_departure_transition_dialog.dart';
 
 const _brandPurple = Color(0xFF0F056B);
 const _staffBg = Color(0xFFF5F6FA);
@@ -13,6 +14,8 @@ Future<void> showStationDepartureDetailDialog({
   required BuildContext context,
   required StationOperationalDeparture departure,
   VoidCallback? onOpenBoarding,
+  ValueChanged<StationDepartureTransitionRequest>? onTransitionRequested,
+  bool isMutating = false,
 }) {
   final width = MediaQuery.sizeOf(context).width;
   final fullscreen = width < 640;
@@ -23,6 +26,8 @@ Future<void> showStationDepartureDetailDialog({
       final content = _StationDepartureDetailContent(
         departure: departure,
         onOpenBoarding: onOpenBoarding,
+        onTransitionRequested: onTransitionRequested,
+        isMutating: isMutating,
       );
 
       if (fullscreen) {
@@ -47,16 +52,23 @@ Future<void> showStationDepartureDetailDialog({
 class _StationDepartureDetailContent extends StatelessWidget {
   final StationOperationalDeparture departure;
   final VoidCallback? onOpenBoarding;
+  final ValueChanged<StationDepartureTransitionRequest>? onTransitionRequested;
+  final bool isMutating;
 
   const _StationDepartureDetailContent({
     required this.departure,
     required this.onOpenBoarding,
+    required this.onTransitionRequested,
+    required this.isMutating,
   });
 
   @override
   Widget build(BuildContext context) {
     final canOpenBoarding =
         departure.availableActions.canOpenBoarding && onOpenBoarding != null;
+    final transitionAction = _resolveTransitionAction(departure);
+    final canRunTransition =
+        transitionAction != null && onTransitionRequested != null;
 
     return Column(
       children: [
@@ -81,31 +93,58 @@ class _StationDepartureDetailContent extends StatelessWidget {
             color: Colors.white,
             border: Border(top: BorderSide(color: Color(0xFFE6E8EF))),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.end,
             children: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: isMutating ? null : () => Navigator.pop(context),
                 child: const Text('Fermer'),
               ),
-              if (canOpenBoarding) ...[
-                const SizedBox(width: 10),
+              if (canOpenBoarding)
+                OutlinedButton.icon(
+                  onPressed: isMutating
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          onOpenBoarding?.call();
+                        },
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: const Text('Ouvrir l’embarquement'),
+                ),
+              if (canRunTransition)
                 FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onOpenBoarding?.call();
-                  },
+                  onPressed: isMutating
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          onTransitionRequested?.call(
+                            StationDepartureTransitionRequest(
+                              departure: departure,
+                              action: transitionAction,
+                            ),
+                          );
+                        },
                   style: FilledButton.styleFrom(
-                    backgroundColor: _brandPurple,
+                    backgroundColor: transitionAction.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  icon: const Icon(Icons.fact_check_outlined, size: 18),
-                  label: const Text('Ouvrir l’embarquement'),
+                  icon: isMutating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(transitionAction.icon, size: 18),
+                  label: Text(transitionAction.shortLabel),
                 ),
-              ],
             ],
           ),
         ),
@@ -544,6 +583,38 @@ class _Badge extends StatelessWidget {
       ),
     );
   }
+}
+
+StationDepartureTransitionAction? _resolveTransitionAction(
+  StationOperationalDeparture departure,
+) {
+  final nextAction = departure.nextAction;
+  if (nextAction == StationDepartureTransitionAction.open.code &&
+      departure.availableActions.canOpen) {
+    return StationDepartureTransitionAction.open;
+  }
+  if (nextAction == StationDepartureTransitionAction.close.code &&
+      departure.availableActions.canClose) {
+    return StationDepartureTransitionAction.close;
+  }
+  if (nextAction == StationDepartureTransitionAction.depart.code &&
+      departure.availableActions.canMarkDeparted) {
+    return StationDepartureTransitionAction.depart;
+  }
+
+  if (nextAction == null || nextAction.isEmpty) {
+    if (departure.availableActions.canOpen) {
+      return StationDepartureTransitionAction.open;
+    }
+    if (departure.availableActions.canClose) {
+      return StationDepartureTransitionAction.close;
+    }
+    if (departure.availableActions.canMarkDeparted) {
+      return StationDepartureTransitionAction.depart;
+    }
+  }
+
+  return null;
 }
 
 String _actorLine(String? name, DateTime? date) {

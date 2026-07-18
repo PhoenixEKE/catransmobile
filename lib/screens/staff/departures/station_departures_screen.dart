@@ -6,6 +6,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
 import 'package:catrans_app/screens/staff/departures/station_departure_detail_dialog.dart';
+import 'package:catrans_app/screens/staff/departures/station_departure_transition_dialog.dart';
 import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 import 'package:catrans_app/services/api/station_operational_departures_api_service.dart';
 import 'package:catrans_app/widgets/staff/staff_metric_card.dart';
@@ -49,6 +50,8 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _didAttemptInitialDeparture = false;
+  String? _mutatingDepartureId;
+  StationDepartureTransitionAction? _mutatingAction;
   int _page = 1;
   final int _pageSize = 20;
 
@@ -325,8 +328,12 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
         _DeparturesPanel(
           response: response,
           isRefreshing: _isRefreshing,
+          mutatingDepartureId: _mutatingDepartureId,
+          mutatingAction: _mutatingAction,
           onRefresh: _isRefreshing ? null : _refreshDepartures,
           onOpenDeparture: _openDepartureDetail,
+          onOpenBoarding: _openBoarding,
+          onTransitionRequested: _requestTransition,
         ),
         const SizedBox(height: 14),
         _PaginationBar(
@@ -449,15 +456,125 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
     showStationDepartureDetailDialog(
       context: context,
       departure: departure,
+      isMutating: _mutatingDepartureId == departure.id,
       onOpenBoarding: departure.availableActions.canOpenBoarding
-          ? () => widget.onNavigate(
-                StaffNavigationRequest(
-                  menuId: 'boarding',
-                  departureId: departure.id,
-                ),
-              )
+          ? () => _openBoarding(departure)
           : null,
+      onTransitionRequested: (request) => _requestTransition(
+        request.departure,
+        request.action,
+      ),
     );
+  }
+
+  void _openBoarding(StationOperationalDeparture departure) {
+    widget.onNavigate(
+      StaffNavigationRequest(
+        menuId: 'boarding',
+        departureId: departure.id,
+      ),
+    );
+  }
+
+  Future<void> _requestTransition(
+    StationOperationalDeparture departure,
+    StationDepartureTransitionAction action,
+  ) async {
+    if (_mutatingDepartureId != null) return;
+
+    final confirmed = await showStationDepartureTransitionDialog(
+      context: context,
+      departure: departure,
+      action: action,
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _mutatingDepartureId = departure.id;
+      _mutatingAction = action;
+      _errorMessage = null;
+    });
+
+    try {
+      switch (action) {
+        case StationDepartureTransitionAction.open:
+          await _apiService.openDeparture(departure.id);
+          break;
+        case StationDepartureTransitionAction.close:
+          await _apiService.closeDeparture(departure.id);
+          break;
+        case StationDepartureTransitionAction.depart:
+          await _apiService.markDepartureAsDeparted(departure.id);
+          break;
+      }
+
+      await _reloadAfterMutation();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(action.successMessage)),
+      );
+    } catch (error) {
+      final message = _messageFromTransitionError(error);
+      if (_shouldReloadAfterTransitionError(error)) {
+        await _loadDepartures(keepData: true);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _mutatingDepartureId = null;
+          _mutatingAction = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _reloadAfterMutation() async {
+    await _loadDepartures(keepData: true);
+    if (!mounted) return;
+
+    final response = _response;
+    if (_page > 1 && response != null && response.results.isEmpty) {
+      setState(() => _page -= 1);
+      await _loadDepartures(keepData: true);
+    }
+  }
+
+  bool _shouldReloadAfterTransitionError(Object error) {
+    if (error is! ApiException) return false;
+    final code = _transitionErrorCode(error.details);
+    return code == 'DEPARTURE_INVALID_TRANSITION' ||
+        code == 'DEPARTURE_NOT_OPERATIONAL_TODAY' ||
+        error.statusCode == 403 ||
+        error.statusCode == 404;
+  }
+
+  String _messageFromTransitionError(Object error) {
+    if (error is ApiException) {
+      final code = _transitionErrorCode(error.details);
+      if (code == 'DEPARTURE_INVALID_TRANSITION') {
+        return 'Le statut de ce départ a changé. Les informations vont être actualisées.';
+      }
+      if (code == 'DEPARTURE_NOT_OPERATIONAL_TODAY') {
+        return 'Cette action est uniquement disponible pour un départ prévu aujourd’hui.';
+      }
+
+      switch (error.statusCode) {
+        case 401:
+          return 'Votre session a expiré. Veuillez vous reconnecter.';
+        case 403:
+          return 'Vous n’êtes pas autorisé à modifier ce départ.';
+        case 404:
+          return 'Ce départ n’est plus accessible.';
+      }
+
+      if (error.message.trim().isNotEmpty) return error.message;
+    }
+
+    return 'La modification n’a pas pu être enregistrée. Vérifiez votre connexion puis réessayez.';
   }
 
   String _messageFromError(Object error) {
@@ -714,14 +831,25 @@ class _FiltersPanel extends StatelessWidget {
 class _DeparturesPanel extends StatelessWidget {
   final StationOperationalDeparturesResponse response;
   final bool isRefreshing;
+  final String? mutatingDepartureId;
+  final StationDepartureTransitionAction? mutatingAction;
   final Future<void> Function()? onRefresh;
   final ValueChanged<StationOperationalDeparture> onOpenDeparture;
+  final ValueChanged<StationOperationalDeparture> onOpenBoarding;
+  final void Function(
+    StationOperationalDeparture departure,
+    StationDepartureTransitionAction action,
+  ) onTransitionRequested;
 
   const _DeparturesPanel({
     required this.response,
     required this.isRefreshing,
+    required this.mutatingDepartureId,
+    required this.mutatingAction,
     required this.onRefresh,
     required this.onOpenDeparture,
+    required this.onOpenBoarding,
+    required this.onTransitionRequested,
   });
 
   @override
@@ -779,7 +907,13 @@ class _DeparturesPanel extends StatelessWidget {
                         width: cardWidth,
                         child: _DepartureCard(
                           departure: departure,
+                          isMutating: mutatingDepartureId == departure.id,
+                          mutatingAction: mutatingDepartureId == departure.id
+                              ? mutatingAction
+                              : null,
                           onOpen: () => onOpenDeparture(departure),
+                          onOpenBoarding: () => onOpenBoarding(departure),
+                          onTransitionRequested: onTransitionRequested,
                         ),
                       ),
                     )
@@ -795,16 +929,32 @@ class _DeparturesPanel extends StatelessWidget {
 
 class _DepartureCard extends StatelessWidget {
   final StationOperationalDeparture departure;
+  final bool isMutating;
+  final StationDepartureTransitionAction? mutatingAction;
   final VoidCallback onOpen;
+  final VoidCallback onOpenBoarding;
+  final void Function(
+    StationOperationalDeparture departure,
+    StationDepartureTransitionAction action,
+  ) onTransitionRequested;
 
-  const _DepartureCard({required this.departure, required this.onOpen});
+  const _DepartureCard({
+    required this.departure,
+    required this.isMutating,
+    required this.mutatingAction,
+    required this.onOpen,
+    required this.onOpenBoarding,
+    required this.onTransitionRequested,
+  });
 
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor(departure.status);
+    final transitionAction = _resolveTransitionAction(departure);
+    final canOpenBoarding = departure.availableActions.canOpenBoarding;
 
     return InkWell(
-      onTap: onOpen,
+      onTap: isMutating ? null : onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -891,25 +1041,59 @@ class _DepartureCard extends StatelessWidget {
                   .map((alert) => _CompactAlert(alert: alert)),
             ],
             const SizedBox(height: 12),
-            Row(
+            Text(
+              departure.capacityLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
               children: [
-                Expanded(
-                  child: Text(
-                    departure.capacityLabel,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                TextButton.icon(
-                  onPressed: onOpen,
+                OutlinedButton.icon(
+                  onPressed: isMutating ? null : onOpen,
                   icon: const Icon(Icons.open_in_new, size: 17),
                   label: const Text('Détail'),
                 ),
+                if (canOpenBoarding)
+                  OutlinedButton.icon(
+                    onPressed: isMutating ? null : onOpenBoarding,
+                    icon: const Icon(Icons.fact_check_outlined, size: 17),
+                    label: const Text('Embarquement'),
+                  ),
+                if (transitionAction != null)
+                  FilledButton.icon(
+                    onPressed: isMutating
+                        ? null
+                        : () => onTransitionRequested(
+                              departure,
+                              transitionAction,
+                            ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: transitionAction.color,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: isMutating && mutatingAction == transitionAction
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(transitionAction.icon, size: 17),
+                    label: Text(transitionAction.shortLabel),
+                  ),
               ],
             ),
           ],
@@ -1324,6 +1508,58 @@ BoxDecoration _cardDecoration() {
       ),
     ],
   );
+}
+
+StationDepartureTransitionAction? _resolveTransitionAction(
+  StationOperationalDeparture departure,
+) {
+  final nextAction = departure.nextAction;
+  if (nextAction == StationDepartureTransitionAction.open.code &&
+      departure.availableActions.canOpen) {
+    return StationDepartureTransitionAction.open;
+  }
+  if (nextAction == StationDepartureTransitionAction.close.code &&
+      departure.availableActions.canClose) {
+    return StationDepartureTransitionAction.close;
+  }
+  if (nextAction == StationDepartureTransitionAction.depart.code &&
+      departure.availableActions.canMarkDeparted) {
+    return StationDepartureTransitionAction.depart;
+  }
+
+  if (nextAction == null || nextAction.isEmpty) {
+    if (departure.availableActions.canOpen) {
+      return StationDepartureTransitionAction.open;
+    }
+    if (departure.availableActions.canClose) {
+      return StationDepartureTransitionAction.close;
+    }
+    if (departure.availableActions.canMarkDeparted) {
+      return StationDepartureTransitionAction.depart;
+    }
+  }
+
+  return null;
+}
+
+String? _transitionErrorCode(dynamic details) {
+  if (details is Map) {
+    final directCode = _firstString(details['code']);
+    if (directCode != null) return directCode;
+
+    final detail = details['detail'];
+    if (detail is Map) return _transitionErrorCode(detail);
+
+    final nestedCode = _firstString(details['error_code']);
+    if (nestedCode != null) return nestedCode;
+  }
+  return null;
+}
+
+String? _firstString(dynamic value) {
+  if (value is String && value.trim().isNotEmpty) return value;
+  if (value is List && value.isNotEmpty) return _firstString(value.first);
+  return null;
 }
 
 String? _normalizeDepartureId(String? value) {
