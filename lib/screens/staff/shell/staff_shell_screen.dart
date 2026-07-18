@@ -6,6 +6,7 @@ import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_screen.dart';
 import 'package:catrans_app/screens/staff/dashboard/station_dashboard_screen.dart';
+import 'package:catrans_app/screens/staff/departures/station_departures_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
@@ -128,6 +129,16 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
       return BoardingScreen(
         initialDepartureId: request?.departureId,
         onInitialDepartureConsumed: _clearNavigationRequest,
+      );
+    }
+
+    if (selectedItem.id == 'departures') {
+      final request = _navigationRequestFor('departures');
+      return StationDeparturesScreen(
+        user: user,
+        initialDepartureId: request?.departureId,
+        onInitialDepartureConsumed: _clearNavigationRequest,
+        onNavigate: _navigate,
       );
     }
 
