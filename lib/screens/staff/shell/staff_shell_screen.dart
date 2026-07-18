@@ -10,6 +10,7 @@ import 'package:catrans_app/screens/staff/departures/station_departures_screen.d
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
+import 'package:catrans_app/screens/staff/reports/station_reports_screen.dart';
 import 'package:catrans_app/screens/staff/counter/counter_search_screen.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
@@ -140,6 +141,10 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
         onInitialDepartureConsumed: _clearNavigationRequest,
         onNavigate: _navigate,
       );
+    }
+
+    if (selectedItem.id == 'reports') {
+      return StationReportsScreen(user: user);
     }
 
     return StaffPlaceholderPage(user: user, item: selectedItem);
