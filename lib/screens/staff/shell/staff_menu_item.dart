@@ -28,7 +28,7 @@ class StaffMenuItem {
 
     bool hasScope(String scope) => scopes.contains(scope);
 
-    final items = switch (role) {
+    final roleItems = switch (role) {
       InternalRole.admin => [
           _home('Tableau de bord'),
           _item(
@@ -253,45 +253,139 @@ class StaffMenuItem {
             scopes: ['marketing.read'],
           ),
         ],
-      InternalRole.legacy_unknown || null => [
-          _home('Profil incomplet'),
-        ],
+      InternalRole.legacy_unknown || null => const <StaffMenuItem>[],
     };
 
-    return _filterForScopes(
-      role: role,
-      items: items,
-      scopes: scopes,
-    );
+    final scopeItems = _scopeFirstItems(scopes);
+    if (scopeItems.isNotEmpty) return scopeItems;
+
+    return roleItems;
   }
 
-  static List<StaffMenuItem> _filterForScopes({
-    required InternalRole? role,
-    required List<StaffMenuItem> items,
-    required Set<String> scopes,
-  }) {
-    final keepHome =
-        role != InternalRole.cashier && role != InternalRole.station_agent;
+  static List<StaffMenuItem> _scopeFirstItems(Set<String> scopes) {
+    final items = <StaffMenuItem>[];
 
-    final filtered = items.where((item) {
-      if (item.id == 'home') return keepHome;
-      if (item.usefulScopes.isEmpty) return true;
-      return item.usefulScopes.any(scopes.contains);
-    }).toList();
+    if (_hasAnyScope(scopes, const [
+      'station.dashboard.read',
+      'admin.dashboard.read',
+    ])) {
+      items.add(
+        _home(
+          scopes.contains('station.dashboard.read')
+              ? 'Tableau de bord gare'
+              : 'Tableau de bord',
+          scopes: const ['station.dashboard.read', 'admin.dashboard.read'],
+        ),
+      );
+    }
 
-    if (filtered.isNotEmpty) return filtered;
+    if (_hasAnyScope(scopes, const [
+      'station.departures.read',
+      'station.departures.manage',
+    ])) {
+      items.add(
+        _item(
+          id: 'departures',
+          title: 'Départs du jour',
+          icon: Icons.directions_bus,
+          description: 'Suivi opérationnel des départs de la gare.',
+          nextStep:
+              'Le suivi des départs du jour sera disponible depuis cet espace.',
+          scopes: const [
+            'station.departures.read',
+            'station.departures.manage'
+          ],
+        ),
+      );
+    }
 
-    final fallbackHome = items.where((item) => item.id == 'home');
-    return fallbackHome.isEmpty ? items : [fallbackHome.first];
+    if (_hasAnyScope(scopes, const [
+      'station.reservations.search',
+      'station.tickets.print',
+      'station.tickets.read',
+    ])) {
+      items.add(
+        _item(
+          id: 'reservation_search',
+          title: 'Réservations & tickets',
+          icon: Icons.confirmation_number,
+          description: 'Recherche, consultation et impression des tickets.',
+          nextStep:
+              'Retrouvez une réservation, consultez le détail et ouvrez les tickets disponibles.',
+          scopes: const [
+            'station.reservations.search',
+            'station.tickets.print',
+            'station.tickets.read',
+          ],
+        ),
+      );
+    }
+
+    if (_hasAnyScope(scopes, const ['station.reservations.read'])) {
+      items.add(
+        _item(
+          id: 'station_reservations',
+          title: 'Réservations gare',
+          icon: Icons.confirmation_number,
+          description: 'Consultation des réservations liées à la gare.',
+          nextStep:
+              'Recherche et consultation des réservations gare disponibles.',
+          scopes: const ['station.reservations.read'],
+        ),
+      );
+    }
+
+    if (_hasAnyScope(scopes, const [
+      'boarding.manifest.read',
+      'boarding.validate',
+      'boarding.summary.read',
+    ])) {
+      items.add(
+        _item(
+          id: 'boarding',
+          title: 'Embarquement',
+          icon: Icons.how_to_reg,
+          description: 'Départs du jour, manifeste et validation billet.',
+          nextStep:
+              'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
+          scopes: const [
+            'boarding.manifest.read',
+            'boarding.validate',
+            'boarding.summary.read',
+          ],
+        ),
+      );
+    }
+
+    if (_hasAnyScope(scopes, const ['station.reports.manage'])) {
+      items.add(
+        _item(
+          id: 'reports',
+          title: 'Reports / annulations',
+          icon: Icons.edit_calendar,
+          description: 'Traitement des demandes de report et annulation.',
+          nextStep:
+              'Le traitement des demandes sera disponible progressivement.',
+          scopes: const ['station.reports.manage'],
+        ),
+      );
+    }
+
+    return items;
   }
 
-  static StaffMenuItem _home(String title) {
+  static bool _hasAnyScope(Set<String> scopes, List<String> expectedScopes) {
+    return expectedScopes.any(scopes.contains);
+  }
+
+  static StaffMenuItem _home(String title, {List<String> scopes = const []}) {
     return _item(
       id: 'home',
       title: title,
       icon: Icons.dashboard_outlined,
       description: 'Accueil du portail personnel CA TRANS.',
       nextStep: 'Les indicateurs métier seront ajoutés progressivement.',
+      scopes: scopes,
     );
   }
 
@@ -314,4 +408,46 @@ class StaffMenuItem {
       isAvailable: isAvailable,
     );
   }
+}
+
+String? resolveInitialStaffMenuId({
+  required List<StaffMenuItem> menuItems,
+  required Set<String> scopes,
+  InternalRole? role,
+}) {
+  if (menuItems.isEmpty) return null;
+
+  if (scopes.isNotEmpty) {
+    const priorityIds = [
+      'home',
+      'departures',
+      'reservation_search',
+      'station_reservations',
+      'boarding',
+      'reports',
+    ];
+
+    for (final id in priorityIds) {
+      final matches = menuItems.where((item) {
+        if (item.id != id) return false;
+        if (item.usefulScopes.isEmpty) return false;
+        return item.usefulScopes.any(scopes.contains);
+      });
+      if (matches.isNotEmpty) return matches.first.id;
+    }
+  }
+
+  final rolePreferredId = switch (role) {
+    InternalRole.station_manager => 'home',
+    InternalRole.cashier => 'reservation_search',
+    InternalRole.station_agent => 'boarding',
+    _ => null,
+  };
+
+  if (rolePreferredId != null &&
+      menuItems.any((item) => item.id == rolePreferredId)) {
+    return rolePreferredId;
+  }
+
+  return menuItems.first.id;
 }

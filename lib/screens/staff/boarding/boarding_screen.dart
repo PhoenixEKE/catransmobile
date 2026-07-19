@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -151,8 +152,10 @@ class _BoardingScreenState extends State<BoardingScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _tryOpenInitialDeparture();
       });
-    } catch (error) {
-      debugPrint('Erreur chargement départs embarquement: $error');
+    } catch (_) {
+      if (kDebugMode) {
+        debugPrint('Boarding departures loading failed');
+      }
       if (!mounted) return;
       setState(() {
         _departures = const [];
@@ -305,7 +308,7 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
     await showDialog<void>(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       builder: (dialogContext) {
         final workspace = _DepartureWorkspace(
           departure: departure,
@@ -395,6 +398,8 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
       widget.user.scopes.contains('station.departures.read');
   bool get _canReadSummary =>
       widget.user.scopes.contains('boarding.summary.read');
+  bool get _hasActiveValidation =>
+      _isValidatingManual || _validatingTicketIds.isNotEmpty;
 
   Future<bool> _loadBoardingData({bool showLoading = true}) async {
     if (showLoading) {
@@ -737,36 +742,55 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
             constraints.maxHeight > 820 ? 820.0 : constraints.maxHeight;
         final isFullscreen = constraints.maxWidth < 600;
 
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: width, maxHeight: height),
-          child: Material(
-            color: _staffBg,
-            borderRadius: BorderRadius.circular(isFullscreen ? 0 : 12),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                _WorkspaceHeader(departure: _departure),
-                _WorkspaceQuickSummary(
-                  departure: _departure,
-                  summary: _summary,
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                  child: _SegmentedTabs(
-                    selectedIndex: _selectedTab,
-                    onChanged: (index) => setState(() => _selectedTab = index),
-                    tabs: const [
-                      _TabItem(icon: Icons.list_alt, label: 'Manifeste'),
-                      _TabItem(
-                        icon: Icons.verified,
-                        label: 'Validation billet',
-                      ),
-                      _TabItem(icon: Icons.query_stats, label: 'Résumé'),
-                    ],
+        return PopScope(
+          canPop: !_hasActiveValidation,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && _hasActiveValidation) {
+              _showValidationMessage(
+                'Validation en cours. Patientez avant de fermer cet espace.',
+                isSuccess: false,
+              );
+            }
+          },
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: width, maxHeight: height),
+            child: Material(
+              color: _staffBg,
+              borderRadius: BorderRadius.circular(isFullscreen ? 0 : 12),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _WorkspaceHeader(
+                    departure: _departure,
+                    canClose: !_hasActiveValidation,
+                    onBlockedClose: () => _showValidationMessage(
+                      'Validation en cours. Patientez avant de fermer cet espace.',
+                      isSuccess: false,
+                    ),
                   ),
-                ),
-                Expanded(child: _buildTabContent()),
-              ],
+                  _WorkspaceQuickSummary(
+                    departure: _departure,
+                    summary: _summary,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                    child: _SegmentedTabs(
+                      selectedIndex: _selectedTab,
+                      onChanged: (index) =>
+                          setState(() => _selectedTab = index),
+                      tabs: const [
+                        _TabItem(icon: Icons.list_alt, label: 'Manifeste'),
+                        _TabItem(
+                          icon: Icons.verified,
+                          label: 'Validation billet',
+                        ),
+                        _TabItem(icon: Icons.query_stats, label: 'Résumé'),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _buildTabContent()),
+                ],
+              ),
             ),
           ),
         );
@@ -1325,8 +1349,14 @@ class _DepartureCard extends StatelessWidget {
 
 class _WorkspaceHeader extends StatelessWidget {
   final StationDeparture departure;
+  final bool canClose;
+  final VoidCallback onBlockedClose;
 
-  const _WorkspaceHeader({required this.departure});
+  const _WorkspaceHeader({
+    required this.departure,
+    required this.canClose,
+    required this.onBlockedClose,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1383,7 +1413,9 @@ class _WorkspaceHeader extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: canClose
+                    ? () => Navigator.of(context).pop()
+                    : onBlockedClose,
                 tooltip: 'Fermer',
                 icon: const Icon(Icons.close, color: Colors.white),
               ),

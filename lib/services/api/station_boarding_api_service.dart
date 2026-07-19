@@ -20,9 +20,9 @@ class StationBoardingApiService {
       if (date != null) 'date': _formatDate(date),
     };
 
-    debugPrint(
-      '[Boarding] getTodayDepartures start path=$path query=$queryParameters',
-    );
+    if (kDebugMode) {
+      debugPrint('[Boarding] getTodayDepartures start');
+    }
 
     try {
       final response = await _apiClient.get(
@@ -34,26 +34,34 @@ class StationBoardingApiService {
         ),
       );
 
-      debugPrint(
-        '[Boarding] getTodayDepartures response status=${response.statusCode} dataType=${response.data.runtimeType}',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[Boarding] getTodayDepartures response status=${response.statusCode}',
+        );
+      }
 
       final data = response.data;
       final departures = _readDepartureList(data);
-      debugPrint(
-        '[Boarding] getTodayDepartures parsed count=${departures.length}',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[Boarding] getTodayDepartures parsed count=${departures.length}',
+        );
+      }
 
       return departures.map((item) => StationDeparture.fromJson(item)).toList();
     } on ApiException catch (error) {
-      debugPrint(
-        '[Boarding] getTodayDepartures ApiException status=${error.statusCode} message=${error.message} details=${_safeDiagnostics(error.details)}',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[Boarding] getTodayDepartures ApiException status=${error.statusCode}',
+        );
+      }
       rethrow;
     } catch (error) {
-      debugPrint(
-        '[Boarding] getTodayDepartures errorType=${error.runtimeType} message=$error',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[Boarding] getTodayDepartures errorType=${error.runtimeType}',
+        );
+      }
       rethrow;
     }
   }
@@ -180,25 +188,6 @@ class StationBoardingApiService {
     );
 
     return StationTicketValidation.fromJson(_readObject(response.data));
-  }
-
-  String _safeDiagnostics(dynamic details) {
-    if (details is Map) {
-      final safe = <String, dynamic>{};
-      for (final entry in details.entries) {
-        final key = entry.key.toString().toLowerCase();
-        if (key.contains('authorization') ||
-            key.contains('token') ||
-            key.contains('password') ||
-            key.contains('secret')) {
-          continue;
-        }
-        safe[entry.key.toString()] = entry.value;
-      }
-      return safe.toString();
-    }
-
-    return details?.runtimeType.toString() ?? 'null';
   }
 
   List<Map<String, dynamic>> _readDepartureList(dynamic data) {

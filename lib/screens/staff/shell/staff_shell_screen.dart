@@ -41,6 +41,10 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     }
 
     final menuItems = StaffMenuItem.forUser(user);
+    if (menuItems.isEmpty) {
+      return const StaffAccessDeniedPage();
+    }
+
     _ensureInitialSelection(user, menuItems);
 
     final selectedId = _selectedId ?? menuItems.first.id;
@@ -161,19 +165,12 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
   }
 
   String _resolveInitialStaffMenuId(User user, List<StaffMenuItem> menuItems) {
-    final role = user.internalProfile?.role;
-    final preferredId = switch (role) {
-      InternalRole.station_manager => 'home',
-      InternalRole.cashier => 'reservation_search',
-      InternalRole.station_agent => 'boarding',
-      _ => menuItems.first.id,
-    };
-
-    if (menuItems.any((item) => item.id == preferredId)) {
-      return preferredId;
-    }
-
-    return menuItems.first.id;
+    return resolveInitialStaffMenuId(
+          menuItems: menuItems,
+          scopes: user.scopes.toSet(),
+          role: user.internalProfile?.role,
+        ) ??
+        menuItems.first.id;
   }
 
   StaffNavigationRequest? _navigationRequestFor(String menuId) {
