@@ -208,9 +208,9 @@ class _BilletScreenState extends State<BilletScreen> {
     return 'Placement effectué à la gare';
   }
 
-  String _qrData(TicketDigital? ticket) {
+  String? _qrData(TicketDigital? ticket) {
     if (ticket != null && ticket.hasQrValue) return ticket.qr.value;
-    return '${widget.reference}|${widget.depart}|${widget.arrivee}|${widget.date.toIso8601String()}';
+    return null;
   }
 
   String _qrInstruction(TicketDigital? ticket) {
@@ -247,8 +247,8 @@ class _BilletScreenState extends State<BilletScreen> {
 │   Passagers: ${passagers.length}│
 │   Prix: $priceDisplay│
 │                              │
-│   Présentez ce QR code à    │
-│   l'embarquement            │
+│   Présentez le billet       │
+│   officiel à l'embarquement │
 └─────────────────────────────┘
 ''';
     Share.share(message);
@@ -579,6 +579,8 @@ class _BilletScreenState extends State<BilletScreen> {
   }
 
   Widget _buildQrBlock(TicketDigital? ticket) {
+    final qrData = _qrData(ticket);
+
     return Center(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -589,22 +591,40 @@ class _BilletScreenState extends State<BilletScreen> {
         ),
         child: Column(
           children: [
-            QrImageView(
-              data: _qrData(ticket),
-              size: 150,
-              backgroundColor: Colors.white,
-              version: QrVersions.auto,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _qrInstruction(ticket),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+            if (qrData != null) ...[
+              QrImageView(
+                data: qrData,
+                size: 150,
+                backgroundColor: Colors.white,
+                version: QrVersions.auto,
               ),
-            ),
+              const SizedBox(height: 10),
+              Text(
+                _qrInstruction(ticket),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ] else ...[
+              const Icon(
+                Icons.qr_code_2,
+                size: 46,
+                color: Color(0xFF0F056B),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'QR temporairement indisponible. Actualisez le billet ou téléchargez le PDF officiel.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -7,6 +7,8 @@ import 'package:catrans_app/models/station/station_boarding_manifest.dart';
 import 'package:catrans_app/models/station/station_boarding_summary.dart';
 import 'package:catrans_app/models/station/station_departure.dart';
 import 'package:catrans_app/models/station/station_ticket_validation.dart';
+import 'package:catrans_app/screens/staff/boarding/boarding_qr_scanner_helpers.dart';
+import 'package:catrans_app/screens/staff/boarding/boarding_qr_scanner_screen.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_ticket_detail_dialog.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_ticket_search.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
@@ -537,6 +539,34 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
     await _loadBoardingData(showLoading: false);
   }
 
+  Future<void> _openQrScanner() async {
+    if (!_canValidate || !isBoardingQrScannerSupportedOnCurrentPlatform) {
+      return;
+    }
+
+    final shouldRefresh = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => BoardingQrScannerScreen(
+          departureId: _departure.id,
+          departureLabel: _departure.routeLabel,
+          departureTime: _departure.displayTime,
+          serviceClassName: _departure.serviceClassName,
+          apiService: widget.apiService,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() => _selectedTab = 1);
+    if (shouldRefresh == true) {
+      await Future.wait<void>([
+        _refreshWorkspaceAfterValidation(),
+        widget.onValidated(),
+      ]);
+    }
+  }
+
   Future<void> _openTicketDetail(StationBoardingTicket passenger) {
     return showBoardingTicketDetailDialog(
       context: context,
@@ -789,6 +819,8 @@ class _DepartureWorkspaceState extends State<_DepartureWorkspace> {
           manualReferenceController: _manualReferenceController,
           isValidatingManual: _isValidatingManual,
           canValidate: _canValidate,
+          isScannerSupported: isBoardingQrScannerSupportedOnCurrentPlatform,
+          onOpenScanner: _openQrScanner,
           validatingTicketIds: _validatingTicketIds,
           validation: _lastValidation,
           errorMessage: _validationError,
@@ -1677,6 +1709,8 @@ class _ValidationSection extends StatelessWidget {
   final TextEditingController manualReferenceController;
   final bool isValidatingManual;
   final bool canValidate;
+  final bool isScannerSupported;
+  final VoidCallback onOpenScanner;
   final Set<String> validatingTicketIds;
   final StationTicketValidation? validation;
   final String? errorMessage;
@@ -1693,6 +1727,8 @@ class _ValidationSection extends StatelessWidget {
     required this.manualReferenceController,
     required this.isValidatingManual,
     required this.canValidate,
+    required this.isScannerSupported,
+    required this.onOpenScanner,
     required this.validatingTicketIds,
     required this.validation,
     required this.errorMessage,
@@ -1724,6 +1760,11 @@ class _ValidationSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _ScannerEntryPanel(
+            isSupported: isScannerSupported,
+            onOpenScanner: onOpenScanner,
+          ),
+          const SizedBox(height: 14),
           BoardingTicketSearchField(
             controller: searchController,
             hintText: 'Rechercher par nom, téléphone, billet ou siège',
@@ -1845,6 +1886,96 @@ class _ValidationSection extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerEntryPanel extends StatelessWidget {
+  final bool isSupported;
+  final VoidCallback onOpenScanner;
+
+  const _ScannerEntryPanel({
+    required this.isSupported,
+    required this.onOpenScanner,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isSupported) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _softPanel,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE5E7F0)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.qr_code_scanner, color: Colors.black45),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Scanner QR disponible sur Android et iOS. Utilisez la recherche ou la saisie manuelle sur cette plateforme.',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _brandPurple.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _brandPurple.withValues(alpha: 0.18)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const text = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Scanner QR officiel',
+                style: TextStyle(
+                  color: _brandPurple,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Validez un billet avec la caméra du téléphone. La saisie manuelle reste disponible en secours.',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ],
+          );
+          final button = FilledButton.icon(
+            onPressed: onOpenScanner,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('Scanner un billet'),
+          );
+
+          if (constraints.maxWidth < 620) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [text, const SizedBox(height: 12), button],
+            );
+          }
+
+          return Row(
+            children: [
+              const Expanded(child: text),
+              const SizedBox(width: 12),
+              button,
+            ],
+          );
+        },
       ),
     );
   }
