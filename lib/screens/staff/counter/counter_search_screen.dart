@@ -6,6 +6,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/station_reservation_list.dart';
 import 'package:catrans_app/models/station/station_ticket_summary.dart';
+import 'package:catrans_app/screens/staff/counter/counter_permissions.dart';
 import 'package:catrans_app/screens/staff/counter/station_reservation_detail_dialog.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
@@ -104,9 +105,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   }
 
   bool _canPrint(User user) {
-    final scopes = user.scopes.toSet();
-    return scopes.contains('station.tickets.print') ||
-        scopes.contains('station.tickets.read');
+    return hasCounterTicketPrintScope(user.scopes);
   }
 
   Future<void> _loadReservations({int? page}) async {
@@ -152,7 +151,10 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       reservation: reservation,
       loadDetail: (reservationId) =>
           _apiService.getReservationDetail(reservationId: reservationId),
-      canPrint: _canPrint(user),
+      canPrint: canPrintCounterTicket(
+        hasPrintScope: _canPrint(user),
+        backendAllowsPrint: reservation.actions.canPrintTicket,
+      ),
       onPrint: _showPrintInfo,
       onPdf: _openPdf,
     );
@@ -932,8 +934,11 @@ class _ReservationActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ticket = reservation.firstTicket;
-    final canUseTicketActions =
-        canPrint && reservation.actions.canPrintTicket && ticket != null;
+    final canUseTicketActions = canPrintCounterTicket(
+          hasPrintScope: canPrint,
+          backendAllowsPrint: reservation.actions.canPrintTicket,
+        ) &&
+        ticket != null;
 
     return SizedBox(
       width: compact ? 132 : 150,
