@@ -2,19 +2,35 @@ import 'package:flutter/material.dart';
 
 import 'package:catrans_app/core/permissions/staff_permissions.dart';
 import 'package:catrans_app/models/accounts/user.dart';
+import 'package:catrans_app/screens/staff/admin/transport/admin_transport_navigation.dart';
+import 'package:catrans_app/screens/staff/admin/transport/companies/admin_companies_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
-import 'package:catrans_app/widgets/staff/staff_empty_state.dart';
+import 'package:catrans_app/services/api/staff/admin/transport/admin_transport_base_api_service.dart';
 import 'package:catrans_app/widgets/staff/staff_module_header.dart';
 import 'package:catrans_app/widgets/staff/staff_read_only_banner.dart';
 
-class AdminTransportHomeScreen extends StatelessWidget {
+class AdminTransportHomeScreen extends StatefulWidget {
   final User user;
+  final AdminTransportBaseApiService? apiService;
 
-  const AdminTransportHomeScreen({super.key, required this.user});
+  const AdminTransportHomeScreen({
+    super.key,
+    required this.user,
+    this.apiService,
+  });
+
+  @override
+  State<AdminTransportHomeScreen> createState() =>
+      _AdminTransportHomeScreenState();
+}
+
+class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
+  static const _companiesSectionId = 'companies';
+  String _selectedSectionId = _companiesSectionId;
 
   @override
   Widget build(BuildContext context) {
-    final permissions = StaffPermissions.fromScopes(user.scopes);
+    final permissions = StaffPermissions.fromScopes(widget.user.scopes);
     if (!permissions.canReadAdminTransport) {
       return const StaffAccessDeniedPage();
     }
@@ -28,19 +44,77 @@ class AdminTransportHomeScreen extends StatelessWidget {
             icon: Icons.route,
             title: 'Référentiels transport',
             description:
-                'Compagnies, villes, gares, guichets, classes, routes, tarifs et horaires.',
+                'Administration des référentiels utilisés par le catalogue, les opérations et la vente.',
           ),
           const SizedBox(height: 14),
           StaffReadOnlyBanner(isReadOnly: !permissions.canManageAdminTransport),
           const SizedBox(height: 18),
-          const StaffEmptyState(
-            icon: Icons.route,
-            title: 'Fondation transport disponible',
-            message:
-                'Les vues de gestion des référentiels seront ajoutées progressivement au lot 6.6D.',
+          AdminTransportNavigation(
+            selectedSectionId: _selectedSectionId,
+            sections: _sections,
+            onSectionSelected: (sectionId) {
+              setState(() => _selectedSectionId = sectionId);
+            },
           ),
+          const SizedBox(height: 18),
+          _buildSelectedSection(permissions),
         ],
       ),
     );
   }
+
+  Widget _buildSelectedSection(StaffPermissions permissions) {
+    if (_selectedSectionId == _companiesSectionId) {
+      return AdminCompaniesScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
 }
+
+const _sections = [
+  AdminTransportSection(
+    id: 'companies',
+    label: 'Compagnies',
+    icon: Icons.business,
+    isAvailable: true,
+  ),
+  AdminTransportSection(
+    id: 'cities',
+    label: 'Villes',
+    icon: Icons.location_city,
+  ),
+  AdminTransportSection(
+    id: 'stations',
+    label: 'Gares',
+    icon: Icons.store_mall_directory,
+  ),
+  AdminTransportSection(
+    id: 'counters',
+    label: 'Guichets',
+    icon: Icons.point_of_sale,
+  ),
+  AdminTransportSection(
+    id: 'service_classes',
+    label: 'Classes',
+    icon: Icons.airline_seat_recline_extra,
+  ),
+  AdminTransportSection(
+    id: 'routes',
+    label: 'Routes',
+    icon: Icons.alt_route,
+  ),
+  AdminTransportSection(
+    id: 'fares',
+    label: 'Tarifs',
+    icon: Icons.payments,
+  ),
+  AdminTransportSection(
+    id: 'schedules',
+    label: 'Horaires',
+    icon: Icons.schedule,
+  ),
+];
