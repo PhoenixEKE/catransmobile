@@ -5,7 +5,7 @@ import 'package:catrans_app/screens/staff/admin/transport/admin_transport_naviga
 
 void main() {
   group('admin transport navigation', () {
-    testWidgets('shows companies as available and future sections disabled',
+    testWidgets('shows active transport sections and keeps future sections disabled',
         (tester) async {
       String selected = 'companies';
       await tester.binding.setSurfaceSize(const Size(360, 700));
@@ -29,6 +29,18 @@ void main() {
                       id: 'cities',
                       label: 'Villes',
                       icon: Icons.location_city,
+                      isAvailable: true,
+                    ),
+                    AdminTransportSection(
+                      id: 'service_classes',
+                      label: 'Classes',
+                      icon: Icons.airline_seat_recline_extra,
+                      isAvailable: true,
+                    ),
+                    AdminTransportSection(
+                      id: 'routes',
+                      label: 'Routes',
+                      icon: Icons.alt_route,
                     ),
                   ],
                   onSectionSelected: (sectionId) {
@@ -42,11 +54,21 @@ void main() {
       );
 
       expect(find.text('Compagnies'), findsOneWidget);
-      expect(find.text('Villes · à venir'), findsOneWidget);
-      await tester.tap(find.text('Villes · à venir'), warnIfMissed: false);
-      await tester.pump();
+      expect(find.text('Villes'), findsOneWidget);
+      expect(find.text('Classes'), findsOneWidget);
+      expect(find.text('Routes · à venir'), findsOneWidget);
 
-      expect(selected, 'companies');
+      await tester.tap(find.text('Villes'));
+      await tester.pump();
+      expect(selected, 'cities');
+
+      await tester.tap(find.text('Classes'));
+      await tester.pump();
+      expect(selected, 'service_classes');
+
+      await tester.tap(find.text('Routes · à venir'));
+      await tester.pump();
+      expect(selected, 'service_classes');
     });
   });
 }
