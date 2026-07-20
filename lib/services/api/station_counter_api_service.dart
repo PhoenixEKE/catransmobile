@@ -8,6 +8,7 @@ import 'package:catrans_app/models/station/station_reservation_detail.dart';
 import 'package:catrans_app/models/station/station_reservation_list.dart';
 import 'package:catrans_app/models/station/station_search_result.dart';
 import 'package:catrans_app/models/station/station_ticket_summary.dart';
+import 'package:catrans_app/models/staff/admin/station_cash_models.dart';
 
 class StationCounterApiService {
   final ApiClient _apiClient;
@@ -149,6 +150,57 @@ class StationCounterApiService {
 
     throw ApiException(
       message: 'Réponse PDF ticket invalide.',
+      details: data,
+    );
+  }
+
+  Future<StationCashSaleCreateResponse> createCashReservation(
+    StationCashSaleCreateRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'station/reservations/',
+      data: request.toJson(),
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return StationCashSaleCreateResponse.fromJson(data);
+    }
+    if (data is Map) {
+      return StationCashSaleCreateResponse.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+
+    throw ApiException(
+      message: 'Réponse création vente cash invalide.',
+      details: data,
+    );
+  }
+
+  Future<StationCashConfirmResponse> confirmCashPayment(
+    String reservationId, {
+    String? note,
+  }) async {
+    final response = await _apiClient.post(
+      'station/reservations/$reservationId/confirm-cash/',
+      data: {
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return StationCashConfirmResponse.fromJson(data);
+    }
+    if (data is Map) {
+      return StationCashConfirmResponse.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+
+    throw ApiException(
+      message: 'Réponse confirmation cash invalide.',
       details: data,
     );
   }

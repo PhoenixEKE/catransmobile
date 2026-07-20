@@ -1,0 +1,49 @@
+class StaffPermissions {
+  static const adminUsersRead = 'admin.users.read';
+  static const adminUsersManage = 'admin.users.manage';
+  static const adminTransportRead = 'admin.transport.read';
+  static const adminTransportManage = 'admin.transport.manage';
+  static const adminOperationsRead = 'admin.operations.read';
+  static const adminOperationsManage = 'admin.operations.manage';
+  static const adminDashboardRead = 'admin.dashboard.read';
+  static const stationSalesCash = 'station.sales.cash';
+
+  final Set<String> scopes;
+
+  StaffPermissions(Iterable<String> scopes) : scopes = scopes.toSet();
+
+  factory StaffPermissions.fromScopes(Iterable<String> scopes) {
+    return StaffPermissions(scopes);
+  }
+
+  bool hasScope(String scope) => scopes.contains(scope);
+
+  bool hasAnyScope(Iterable<String> expectedScopes) {
+    return expectedScopes.any(scopes.contains);
+  }
+
+  bool get canReadAdminUsers => hasAnyScope(const [
+        adminUsersRead,
+        adminUsersManage,
+      ]);
+
+  bool get canManageAdminUsers => hasScope(adminUsersManage);
+
+  bool get canReadAdminTransport => hasAnyScope(const [
+        adminTransportRead,
+        adminTransportManage,
+      ]);
+
+  bool get canManageAdminTransport => hasScope(adminTransportManage);
+
+  bool get canReadAdminOperations => hasAnyScope(const [
+        adminOperationsRead,
+        adminOperationsManage,
+      ]);
+
+  bool get canManageAdminOperations => hasScope(adminOperationsManage);
+
+  bool get canReadAdminDashboard => hasScope(adminDashboardRead);
+
+  bool get canSellCashAtStation => hasScope(stationSalesCash);
+}

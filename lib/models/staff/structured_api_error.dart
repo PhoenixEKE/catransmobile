@@ -1,0 +1,100 @@
+import 'package:catrans_app/core/network/api_exception.dart';
+
+class StructuredApiError {
+  final String? code;
+  final String detail;
+  final String? field;
+  final int? statusCode;
+  final dynamic rawPayload;
+
+  const StructuredApiError({
+    this.code,
+    required this.detail,
+    this.field,
+    this.statusCode,
+    this.rawPayload,
+  });
+
+  String get userMessage => detail;
+
+  factory StructuredApiError.fromException(ApiException exception) {
+    return StructuredApiError.fromPayload(
+      exception.details,
+      statusCode: exception.statusCode,
+      fallbackMessage: exception.message,
+    );
+  }
+
+  factory StructuredApiError.fromPayload(
+    dynamic payload, {
+    int? statusCode,
+    String fallbackMessage = 'Une erreur est survenue. Veuillez réessayer.',
+  }) {
+    if (payload is Map) {
+      final map = Map<String, dynamic>.from(payload);
+      final code = map['code']?.toString();
+      final field = map['field']?.toString();
+      final detail = _readMessage(map['detail']) ??
+          _readMessage(map['message']) ??
+          _readDrfFieldMessage(map) ??
+          fallbackMessage;
+      return StructuredApiError(
+        code: code,
+        detail: detail,
+        field: field,
+        statusCode: statusCode,
+        rawPayload: payload,
+      );
+    }
+
+    if (payload is String && payload.isNotEmpty) {
+      return StructuredApiError(
+        detail: payload,
+        statusCode: statusCode,
+        rawPayload: payload,
+      );
+    }
+
+    return StructuredApiError(
+      detail: fallbackMessage,
+      statusCode: statusCode,
+      rawPayload: payload,
+    );
+  }
+
+  static String? _readDrfFieldMessage(Map<String, dynamic> map) {
+    for (final entry in map.entries) {
+      final message = _readMessage(entry.value);
+      if (message != null) return message;
+    }
+    return null;
+  }
+
+  static String? _readMessage(dynamic value) {
+    if (value is String && value.isNotEmpty) return value;
+    if (value is List && value.isNotEmpty) {
+      final messages = value.map(_readMessage).whereType<String>().toList();
+      return messages.isEmpty ? null : messages.join(', ');
+    }
+    if (value is Map && value.isNotEmpty) {
+      return _readDrfFieldMessage(Map<String, dynamic>.from(value));
+    }
+    return null;
+  }
+}
+
+const recognizedStaffApiErrorCodes = <String>{
+  'authentication_failed',
+  'permission_denied',
+  'active_pending_reservation_exists',
+  'station_counter_required',
+  'station_counter_inactive',
+  'station_departure_scope_forbidden',
+  'booking_customer_not_found',
+  'booking_seat_not_available',
+  'booking_economy_capacity_exceeded',
+  'payment_station_scope_forbidden',
+  'operations_invalid_status_transition',
+  'operations_departure_has_active_holds',
+  'operations_departure_has_active_bookings',
+};

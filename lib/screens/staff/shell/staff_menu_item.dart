@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:catrans_app/core/permissions/staff_permissions.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 
@@ -31,42 +32,10 @@ class StaffMenuItem {
     final roleItems = switch (role) {
       InternalRole.admin => [
           _home('Tableau de bord'),
-          _item(
-            id: 'administration',
-            title: 'Administration',
-            icon: Icons.admin_panel_settings,
-            description: 'Pilotage global du portail CA TRANS.',
-            nextStep:
-                'Les outils d’administration seront disponibles progressivement.',
-            scopes: ['admin.dashboard.read', 'admin.users.manage'],
-          ),
-          _item(
-            id: 'transport',
-            title: 'Transport',
-            icon: Icons.route,
-            description: 'Gestion des gares, lignes, horaires et tarifs.',
-            nextStep:
-                'Les référentiels transport seront disponibles dans cet espace.',
-            scopes: ['admin.transport.manage'],
-          ),
-          _item(
-            id: 'operations',
-            title: 'Opérations',
-            icon: Icons.event_seat,
-            description: 'Suivi des départs, sièges et opérations terrain.',
-            nextStep:
-                'Les opérations terrain seront regroupées dans cet espace.',
-            scopes: ['admin.operations.manage'],
-          ),
-          _item(
-            id: 'statistics',
-            title: 'Statistiques',
-            icon: Icons.query_stats,
-            description: 'Vue consolidée des indicateurs métier.',
-            nextStep:
-                'Le dashboard analytique sera branché sur les endpoints admin.',
-            scopes: ['admin.dashboard.read'],
-          ),
+          _adminDashboard(),
+          _adminUsers(),
+          _adminTransport(),
+          _adminOperations(),
           if (hasScope('finance.read'))
             _item(
               id: 'finance',
@@ -80,22 +49,10 @@ class StaffMenuItem {
         ],
       InternalRole.director => [
           _home('Pilotage'),
-          _item(
-            id: 'overview',
-            title: 'Vue direction',
-            icon: Icons.dashboard,
-            description: 'Vue lecture globale pour la direction.',
-            nextStep: 'Les tableaux de bord seront enrichis progressivement.',
-            scopes: ['admin.dashboard.read'],
-          ),
-          _item(
-            id: 'transport_read',
-            title: 'Transport',
-            icon: Icons.route,
-            description: 'Consultation des référentiels transport.',
-            nextStep: 'Les vues transport en lecture seront disponibles ici.',
-            scopes: ['admin.transport.read'],
-          ),
+          _adminDashboard(),
+          _adminUsers(),
+          _adminTransport(),
+          _adminOperations(),
           if (hasScope('finance.read'))
             _item(
               id: 'finance',
@@ -265,16 +222,36 @@ class StaffMenuItem {
   static List<StaffMenuItem> _scopeFirstItems(Set<String> scopes) {
     final items = <StaffMenuItem>[];
 
+    if (_hasAnyScope(scopes, const [StaffPermissions.adminDashboardRead])) {
+      items.add(_adminDashboard());
+    }
+
     if (_hasAnyScope(scopes, const [
-      'station.dashboard.read',
-      'admin.dashboard.read',
+      StaffPermissions.adminUsersRead,
+      StaffPermissions.adminUsersManage,
     ])) {
+      items.add(_adminUsers());
+    }
+
+    if (_hasAnyScope(scopes, const [
+      StaffPermissions.adminTransportRead,
+      StaffPermissions.adminTransportManage,
+    ])) {
+      items.add(_adminTransport());
+    }
+
+    if (_hasAnyScope(scopes, const [
+      StaffPermissions.adminOperationsRead,
+      StaffPermissions.adminOperationsManage,
+    ])) {
+      items.add(_adminOperations());
+    }
+
+    if (_hasAnyScope(scopes, const ['station.dashboard.read'])) {
       items.add(
         _home(
-          scopes.contains('station.dashboard.read')
-              ? 'Tableau de bord gare'
-              : 'Tableau de bord',
-          scopes: const ['station.dashboard.read', 'admin.dashboard.read'],
+          'Tableau de bord gare',
+          scopes: const ['station.dashboard.read'],
         ),
       );
     }
@@ -378,6 +355,59 @@ class StaffMenuItem {
     return expectedScopes.any(scopes.contains);
   }
 
+  static StaffMenuItem _adminDashboard() {
+    return _item(
+      id: 'admin_dashboard',
+      title: 'Tableau admin',
+      icon: Icons.query_stats,
+      description: 'Vue consolidée des indicateurs métier CA TRANS.',
+      nextStep: 'Les indicateurs globaux seront branchés progressivement.',
+      scopes: const [StaffPermissions.adminDashboardRead],
+    );
+  }
+
+  static StaffMenuItem _adminUsers() {
+    return _item(
+      id: 'admin_users',
+      title: 'Utilisateurs internes',
+      icon: Icons.manage_accounts,
+      description: 'Gestion des comptes personnel, rôles, gares et guichets.',
+      nextStep: 'Le CRUD utilisateurs sera livré au lot 6.6C.',
+      scopes: const [
+        StaffPermissions.adminUsersRead,
+        StaffPermissions.adminUsersManage,
+      ],
+    );
+  }
+
+  static StaffMenuItem _adminTransport() {
+    return _item(
+      id: 'admin_transport',
+      title: 'Transport',
+      icon: Icons.route,
+      description: 'Référentiels transport, lignes, horaires et tarifs.',
+      nextStep: 'Les référentiels transport seront livrés au lot 6.6D.',
+      scopes: const [
+        StaffPermissions.adminTransportRead,
+        StaffPermissions.adminTransportManage,
+      ],
+    );
+  }
+
+  static StaffMenuItem _adminOperations() {
+    return _item(
+      id: 'admin_operations',
+      title: 'Opérations admin',
+      icon: Icons.event_seat,
+      description: 'Layouts, templates, départs et sièges côté admin.',
+      nextStep: 'Les opérations admin seront livrées au lot 6.6E.',
+      scopes: const [
+        StaffPermissions.adminOperationsRead,
+        StaffPermissions.adminOperationsManage,
+      ],
+    );
+  }
+
   static StaffMenuItem _home(String title, {List<String> scopes = const []}) {
     return _item(
       id: 'home',
@@ -419,6 +449,10 @@ String? resolveInitialStaffMenuId({
 
   if (scopes.isNotEmpty) {
     const priorityIds = [
+      'admin_dashboard',
+      'admin_users',
+      'admin_transport',
+      'admin_operations',
       'home',
       'departures',
       'reservation_search',

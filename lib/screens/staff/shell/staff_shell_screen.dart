@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
+import 'package:catrans_app/screens/staff/admin/admin_dashboard_home_screen.dart';
+import 'package:catrans_app/screens/staff/admin/admin_operations_home_screen.dart';
+import 'package:catrans_app/screens/staff/admin/admin_transport_home_screen.dart';
+import 'package:catrans_app/screens/staff/admin/admin_users_home_screen.dart';
 import 'package:catrans_app/screens/staff/boarding/boarding_screen.dart';
 import 'package:catrans_app/screens/staff/dashboard/station_dashboard_screen.dart';
 import 'package:catrans_app/screens/staff/departures/station_departures_screen.dart';
@@ -119,6 +123,22 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
       }
 
       return StaffHomePage(user: user, menuItems: menuItems);
+    }
+
+    if (selectedItem.id == 'admin_dashboard') {
+      return AdminDashboardHomeScreen(user: user);
+    }
+
+    if (selectedItem.id == 'admin_users') {
+      return AdminUsersHomeScreen(user: user);
+    }
+
+    if (selectedItem.id == 'admin_transport') {
+      return AdminTransportHomeScreen(user: user);
+    }
+
+    if (selectedItem.id == 'admin_operations') {
+      return AdminOperationsHomeScreen(user: user);
     }
 
     if (selectedItem.id == 'reservation_search') {
