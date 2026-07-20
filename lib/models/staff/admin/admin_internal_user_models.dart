@@ -101,11 +101,19 @@ class AdminInternalRoleOption {
   final String value;
   final String label;
   final List<String> scopes;
+  final bool requiresStation;
+  final bool requiresCounter;
+  final bool allowsStation;
+  final bool allowsCounter;
 
   const AdminInternalRoleOption({
     required this.value,
     required this.label,
     this.scopes = const [],
+    this.requiresStation = false,
+    this.requiresCounter = false,
+    this.allowsStation = false,
+    this.allowsCounter = false,
   });
 
   factory AdminInternalRoleOption.fromJson(JsonMap json) {
@@ -113,6 +121,10 @@ class AdminInternalRoleOption {
       value: _readString(json['value'] ?? json['role'] ?? json['code']),
       label: _readString(json['label'] ?? json['name']),
       scopes: _readStringList(json['scopes']),
+      requiresStation: json['requires_station'] as bool? ?? false,
+      requiresCounter: json['requires_counter'] as bool? ?? false,
+      allowsStation: json['allows_station'] as bool? ?? false,
+      allowsCounter: json['allows_counter'] as bool? ?? false,
     );
   }
 }
@@ -123,6 +135,7 @@ class AdminInternalUserCreateRequest {
   final String lastname;
   final String firstname;
   final String role;
+  final String password;
   final String? stationId;
   final String? counterId;
 
@@ -132,6 +145,7 @@ class AdminInternalUserCreateRequest {
     required this.lastname,
     required this.firstname,
     required this.role,
+    required this.password,
     this.stationId,
     this.counterId,
   });
@@ -142,6 +156,7 @@ class AdminInternalUserCreateRequest {
         'lastname': lastname,
         'firstname': firstname,
         'role': role,
+        'password': password,
         if (stationId != null) 'station_id': stationId,
         if (counterId != null) 'counter_id': counterId,
       };

@@ -57,11 +57,13 @@ void main() {
         lastname: 'Koffi',
         firstname: 'Jean',
         role: 'cashier',
+        password: 'Admin@1234',
         stationId: 'station-1',
         counterId: 'counter-1',
       );
 
       expect(create.toJson()['phone_number'], '+2250101010101');
+      expect(create.toJson()['password'], 'Admin@1234');
       expect(create.toJson()['station_id'], 'station-1');
     });
 

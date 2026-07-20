@@ -3,8 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
+import 'package:catrans_app/models/staff/admin/admin_internal_user_models.dart';
+import 'package:catrans_app/models/staff/paged_result.dart';
+import 'package:catrans_app/models/staff/staff_refs.dart';
 import 'package:catrans_app/screens/staff/admin/admin_users_home_screen.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
+import 'package:catrans_app/services/api/staff/admin/admin_users_api_service.dart';
 
 void main() {
   group('admin staff navigation', () {
@@ -83,11 +87,25 @@ void main() {
         scopes: const ['admin.users.read'],
       );
 
-      await tester
-          .pumpWidget(MaterialApp(home: AdminUsersHomeScreen(user: user)));
+      final fakeApiService = _NavigationAdminUsersApiService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AdminUsersHomeScreen(
+              user: user,
+              apiService: fakeApiService,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
 
       expect(find.text('Accès en lecture seule'), findsOneWidget);
       expect(find.text('Utilisateurs internes'), findsOneWidget);
+      expect(find.text('Nouvel utilisateur'), findsNothing);
+      expect(fakeApiService.listRolesCalls, 1);
+      expect(fakeApiService.listUsersCalls, 1);
     });
   });
 }
@@ -110,4 +128,46 @@ User _internalUser({
     ),
     scopes: scopes,
   );
+}
+
+class _NavigationAdminUsersApiService extends AdminUsersApiService {
+  int listRolesCalls = 0;
+  int listUsersCalls = 0;
+
+  @override
+  Future<List<AdminInternalRoleOption>> listRoles() async {
+    listRolesCalls += 1;
+    return const [
+      AdminInternalRoleOption(
+        value: 'director',
+        label: 'Direction',
+        scopes: ['admin.users.read'],
+      ),
+    ];
+  }
+
+  @override
+  Future<List<StaffStationRef>> listStations() async {
+    return const [];
+  }
+
+  @override
+  Future<PagedResult<AdminInternalUserSummary>> listUsers({
+    String? query,
+    String? role,
+    String? stationId,
+    String? counterId,
+    bool? isActive,
+    String? ordering,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    listUsersCalls += 1;
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
 }

@@ -33,15 +33,16 @@ class StructuredApiError {
     if (payload is Map) {
       final map = Map<String, dynamic>.from(payload);
       final code = map['code']?.toString();
-      final field = map['field']?.toString();
+      final explicitField = map['field']?.toString();
+      final drfField = explicitField == null ? _readDrfField(map) : null;
       final detail = _readMessage(map['detail']) ??
           _readMessage(map['message']) ??
-          _readDrfFieldMessage(map) ??
+          drfField?.message ??
           fallbackMessage;
       return StructuredApiError(
         code: code,
         detail: detail,
-        field: field,
+        field: explicitField ?? drfField?.field,
         statusCode: statusCode,
         rawPayload: payload,
       );
@@ -62,12 +63,18 @@ class StructuredApiError {
     );
   }
 
-  static String? _readDrfFieldMessage(Map<String, dynamic> map) {
+  static _DrfFieldError? _readDrfField(Map<String, dynamic> map) {
+    const reservedKeys = {'code', 'detail', 'message', 'field'};
     for (final entry in map.entries) {
+      if (reservedKeys.contains(entry.key)) continue;
       final message = _readMessage(entry.value);
-      if (message != null) return message;
+      if (message != null) return _DrfFieldError(entry.key, message);
     }
     return null;
+  }
+
+  static String? _readDrfFieldMessage(Map<String, dynamic> map) {
+    return _readDrfField(map)?.message;
   }
 
   static String? _readMessage(dynamic value) {
@@ -98,3 +105,10 @@ const recognizedStaffApiErrorCodes = <String>{
   'operations_departure_has_active_holds',
   'operations_departure_has_active_bookings',
 };
+
+class _DrfFieldError {
+  final String field;
+  final String message;
+
+  const _DrfFieldError(this.field, this.message);
+}

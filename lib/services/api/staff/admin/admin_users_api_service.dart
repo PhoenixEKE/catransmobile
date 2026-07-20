@@ -90,13 +90,19 @@ class AdminUsersApiService {
     return _readResults(response.data).map(StaffRef.fromJson).toList();
   }
 
-  Future<List<StaffCounterRef>> listCounters({String? stationId}) async {
+  Future<List<StaffCounterRef>> listCounters(
+      {required String stationId}) async {
+    final normalizedStationId = stationId.trim();
+    if (normalizedStationId.isEmpty) {
+      throw ApiException(
+        message: 'La gare est obligatoire pour charger les guichets.',
+        statusCode: 400,
+      );
+    }
+
     final response = await _apiClient.get(
       'admin/users/counters/',
-      queryParameters: {
-        if (stationId != null && stationId.trim().isNotEmpty)
-          'station_id': stationId.trim(),
-      },
+      queryParameters: {'station_id': normalizedStationId},
     );
     return _readResults(response.data).map(StaffRef.fromJson).toList();
   }
