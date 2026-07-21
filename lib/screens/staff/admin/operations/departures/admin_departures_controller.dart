@@ -106,6 +106,36 @@ class AdminDeparturesController extends ChangeNotifier {
   Future<AdminDeparture> getDetail(String id) =>
       apiService.getAdminDeparture(id);
 
+  Future<Map<String, dynamic>> previewGeneration(
+    String templateId,
+    AdminDepartureDatesRequest request,
+  ) =>
+      apiService.previewDepartures(templateId, request);
+
+  Future<AdminDepartureGenerationResult?> generateDeparturesBatch(
+    String templateId,
+    AdminDepartureDatesRequest request,
+  ) async {
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    formError = null;
+    structuredFormError = null;
+    notifyListeners();
+    try {
+      final result = await apiService.generateDepartures(templateId, request);
+      await loadTemplates();
+      await loadDepartures();
+      return result;
+    } catch (error) {
+      structuredFormError = _structuredError(error);
+      formError = structuredFormError?.userMessage ?? _messageFromError(error);
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> createDeparture(AdminDepartureCreateRequest request) async {
     return _submit(() async => apiService.createAdminDeparture(request));
   }

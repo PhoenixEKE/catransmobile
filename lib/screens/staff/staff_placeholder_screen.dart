@@ -23,35 +23,35 @@ class StaffPlaceholderScreen extends StatelessWidget {
         return const StaffPlaceholderScreen(
           title: 'Portail chef de gare',
           subtitle:
-              'Les opérations de gare seront branchées dans un prochain lot.',
+              'Les opérations de gare ne sont pas exposées dans ce parcours.',
         );
       case InternalRole.cashier:
         return const StaffPlaceholderScreen(
           title: 'Portail guichet',
-          subtitle: 'La vente guichet sera branchée dans un prochain lot.',
+          subtitle: 'La vente guichet n’est pas exposée dans ce parcours.',
         );
       case InternalRole.station_agent:
         return const StaffPlaceholderScreen(
           title: 'Portail embarquement',
           subtitle:
-              'La validation embarquement sera branchée dans un prochain lot.',
+              'La validation embarquement n’est pas exposée dans ce parcours.',
         );
       case InternalRole.support:
         return const StaffPlaceholderScreen(
           title: 'Portail support',
-          subtitle: 'Les outils support seront branchés dans un prochain lot.',
+          subtitle: 'Les outils support ne sont pas exposés dans ce parcours.',
         );
       case InternalRole.accounting:
         return const StaffPlaceholderScreen(
           title: 'Portail comptabilité',
           subtitle:
-              'Les rapports financiers seront branchés dans un prochain lot.',
+              'Les rapports financiers ne sont pas exposés dans ce parcours.',
         );
       case InternalRole.marketing:
         return const StaffPlaceholderScreen(
           title: 'Accès marketing',
           subtitle:
-              'Ce rôle est reconnu mais son portail n’est pas encore disponible.',
+              'Ce rôle est reconnu mais son portail n’est pas exposé ici.',
         );
       case InternalRole.legacy_unknown:
         return const StaffPlaceholderScreen(
@@ -65,7 +65,7 @@ class StaffPlaceholderScreen extends StatelessWidget {
         return const StaffPlaceholderScreen(
           title: 'Accès personnel CA TRANS',
           subtitle:
-              'Votre profil est reconnu, mais aucun portail dédié n’est encore disponible.',
+              'Votre profil est reconnu, mais aucun portail dédié n’est exposé ici.',
         );
     }
   }

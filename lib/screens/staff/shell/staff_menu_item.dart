@@ -43,7 +43,7 @@ class StaffMenuItem {
               icon: Icons.account_balance_wallet,
               description: 'Lecture des revenus et paiements.',
               nextStep:
-                  'Les rapports financiers seront accessibles depuis cet espace.',
+                  'Consultez les revenus et les paiements depuis cet espace.',
               scopes: ['finance.read'],
             ),
         ],
@@ -60,7 +60,7 @@ class StaffMenuItem {
               icon: Icons.payments,
               description: 'Consultation des indicateurs financiers.',
               nextStep:
-                  'Les rapports financiers seront disponibles depuis cet espace.',
+                  'Consultez les indicateurs financiers depuis cet espace.',
               scopes: ['finance.read'],
             ),
         ],
@@ -72,7 +72,7 @@ class StaffMenuItem {
             icon: Icons.directions_bus,
             description: 'Suivi opérationnel des départs de la gare.',
             nextStep:
-                'Le suivi des départs du jour sera disponible depuis cet espace.',
+                'Consultez et pilotez les départs du jour depuis cet espace.',
             scopes: ['station.departures.read', 'station.departures.manage'],
           ),
           _item(
@@ -80,8 +80,7 @@ class StaffMenuItem {
             title: 'Réservations gare',
             icon: Icons.confirmation_number,
             description: 'Consultation des réservations liées à la gare.',
-            nextStep:
-                'Recherche et consultation des réservations gare disponibles.',
+            nextStep: 'Recherchez et consultez les réservations de la gare.',
             scopes: ['station.reservations.read'],
           ),
           _item(
@@ -103,7 +102,7 @@ class StaffMenuItem {
             icon: Icons.edit_calendar,
             description: 'Traitement des demandes de report et annulation.',
             nextStep:
-                'Le traitement des demandes sera disponible progressivement.',
+                'Traitez les demandes de report et d’annulation depuis cet espace.',
             scopes: ['station.reports.manage'],
           ),
         ],
@@ -115,22 +114,8 @@ class StaffMenuItem {
             icon: Icons.confirmation_number,
             description: 'Recherche, consultation et impression des tickets.',
             nextStep:
-                'Retrouvez une réservation, consultez le détail et ouvrez les tickets disponibles.',
+                'Retrouvez une réservation, consultez le détail et ouvrez les tickets.',
             scopes: ['station.reservations.search', 'station.tickets.print'],
-          ),
-          _item(
-            id: 'counter_reports',
-            title: 'Reports / annulations',
-            icon: Icons.assignment_return,
-            description:
-                'Traitement des demandes de report et d’annulation des voyageurs.',
-            nextStep:
-                'Ce module permettra de traiter les demandes de report et d’annulation des voyageurs.',
-            scopes: [
-              'station.reports.request',
-              'station.cancellations.request'
-            ],
-            isAvailable: false,
           ),
         ],
       InternalRole.station_agent => [
@@ -157,7 +142,7 @@ class StaffMenuItem {
             title: 'Recherche réservation',
             icon: Icons.search,
             description: 'Recherche support sur les réservations client.',
-            nextStep: 'La recherche support sera disponible depuis cet espace.',
+            nextStep: 'Recherchez les réservations support depuis cet espace.',
             scopes: ['support.reservations.read'],
           ),
           _item(
@@ -166,7 +151,7 @@ class StaffMenuItem {
             icon: Icons.payments,
             description: 'Consultation des paiements et statuts Wave.',
             nextStep:
-                'Les détails paiement seront consultables depuis cet espace.',
+                'Consultez les paiements et leurs statuts depuis cet espace.',
             scopes: ['support.payments.read'],
           ),
           _item(
@@ -174,7 +159,7 @@ class StaffMenuItem {
             title: 'Recherche ticket',
             icon: Icons.airplane_ticket,
             description: 'Consultation des tickets générés.',
-            nextStep: 'La recherche ticket sera disponible depuis cet espace.',
+            nextStep: 'Consultez les tickets générés depuis cet espace.',
             scopes: ['support.tickets.read'],
           ),
         ],
@@ -185,7 +170,7 @@ class StaffMenuItem {
             title: 'Paiements',
             icon: Icons.receipt_long,
             description: 'Suivi comptable des paiements.',
-            nextStep: 'Les paiements seront consultables depuis cet espace.',
+            nextStep: 'Consultez les paiements depuis cet espace.',
             scopes: ['finance.payments.read'],
           ),
           _item(
@@ -194,7 +179,7 @@ class StaffMenuItem {
             icon: Icons.bar_chart,
             description: 'Préparation des exports et rapports financiers.',
             nextStep:
-                'Les exports financiers seront disponibles depuis cet espace.',
+                'Préparez les exports et rapports financiers depuis cet espace.',
             scopes: ['finance.reports.read', 'finance.exports.read'],
           ),
         ],
@@ -202,11 +187,10 @@ class StaffMenuItem {
           _home('Marketing'),
           _item(
             id: 'marketing_pending',
-            title: 'Marketing non disponible',
+            title: 'Marketing',
             icon: Icons.campaign,
             description: 'Le rôle marketing est reconnu par le portail.',
-            nextStep:
-                'Les fonctionnalités marketing seront disponibles progressivement.',
+            nextStep: 'Les fonctionnalités marketing ne sont pas exposées ici.',
             scopes: ['marketing.read'],
           ),
         ],
@@ -342,7 +326,7 @@ class StaffMenuItem {
           icon: Icons.edit_calendar,
           description: 'Traitement des demandes de report et annulation.',
           nextStep:
-              'Le traitement des demandes sera disponible progressivement.',
+              'Traitez les demandes de report et d’annulation depuis cet espace.',
           scopes: const ['station.reports.manage'],
         ),
       );
@@ -401,7 +385,7 @@ class StaffMenuItem {
       title: 'Opérations admin',
       icon: Icons.event_seat,
       description: 'Layouts, templates, départs et sièges côté admin.',
-      nextStep: 'Les opérations admin seront livrées au lot 6.6E.',
+      nextStep: 'Accédez aux opérations admin déjà disponibles.',
       scopes: const [
         StaffPermissions.adminOperationsRead,
         StaffPermissions.adminOperationsManage,

@@ -5,6 +5,7 @@ import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/staff/admin/station_cash_models.dart';
 import 'package:catrans_app/models/staff/structured_api_error.dart';
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
+import 'package:catrans_app/screens/staff/counter/counter_permissions.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
 import 'package:catrans_app/services/api/station_operational_departures_api_service.dart';
@@ -34,7 +35,6 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _customerIdController = TextEditingController();
-  final _manualDepartureIdController = TextEditingController();
 
   final List<_TravelerDraft> _travelers = [];
 
@@ -44,6 +44,7 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
 
   String? _departureLoadError;
   String? _formError;
+  int _nonSellableDepartureCount = 0;
 
   List<StationOperationalDeparture> _departures = const [];
   String? _selectedDepartureId;
@@ -51,6 +52,15 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
 
   StationCashSaleCreateResponse? _pendingSale;
   StationCashConfirmResponse? _confirmedSale;
+
+  bool get _hasDepartureReadScope =>
+      hasCounterDeparturesReadScope(widget.user.scopes);
+
+  bool get _canLoadDepartures =>
+      canLoadCounterDeparturesForCashSale(widget.user.scopes);
+
+  bool get _isDepartureSelectionLocked =>
+      _pendingSale != null || _confirmedSale != null;
 
   @override
   void initState() {
@@ -61,13 +71,14 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
     _stationBoardingApiService =
         widget.stationBoardingApiService ?? StationBoardingApiService();
     _travelers.add(_TravelerDraft(isForCustomer: true));
-    _loadDepartures();
+    if (_canLoadDepartures) {
+      _loadDepartures();
+    }
   }
 
   @override
   void dispose() {
     _customerIdController.dispose();
-    _manualDepartureIdController.dispose();
     for (final traveler in _travelers) {
       traveler.dispose();
     }
@@ -114,20 +125,32 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
                 const SizedBox(height: 16),
                 _PendingReservationCard(response: _pendingSale!),
                 const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    key: const Key('counter-sales-confirm-cash'),
-                    onPressed: _canConfirmCash ? _confirmCash : null,
-                    icon: _isSubmittingCash
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.payments_outlined),
-                    label: const Text('Confirmer paiement espèces'),
-                  ),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      key: const Key('counter-sales-reset-pending-sale'),
+                      onPressed: _isSubmittingCash || _isSubmittingReservation
+                          ? null
+                          : _resetForNewSale,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Réinitialiser la vente'),
+                    ),
+                    ElevatedButton.icon(
+                      key: const Key('counter-sales-confirm-cash'),
+                      onPressed: _canConfirmCash ? _confirmCash : null,
+                      icon: _isSubmittingCash
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.payments_outlined),
+                      label: const Text('Confirmer paiement espèces'),
+                    ),
+                  ],
                 ),
               ],
               if (_confirmedSale != null) ...[
@@ -154,6 +177,10 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
   }
 
   Widget _buildDepartureSection(bool compact) {
+    final canEditDeparture = !_isSubmittingReservation &&
+        !_isSubmittingCash &&
+        !_isDepartureSelectionLocked;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -174,13 +201,38 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
               ),
               IconButton(
                 key: const Key('counter-sales-refresh-departures'),
-                onPressed: _isLoadingDepartures ? null : _loadDepartures,
+                onPressed: !_canLoadDepartures || _isLoadingDepartures
+                    ? null
+                    : _loadDepartures,
                 tooltip: 'Rafraîchir les départs',
                 icon: const Icon(Icons.refresh),
               ),
             ],
           ),
-          if (_departureLoadError != null)
+          if (!_hasDepartureReadScope) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                key: const Key('counter-sales-departure-scope-blocked'),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4ED),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: const Text(
+                  'Impossible de charger les départs: le scope station.departures.read '
+                  'n\'est pas présent dans votre session. Reconnectez-vous ou actualisez la session.',
+                  style: TextStyle(color: Color(0xFFB42318)),
+                ),
+              ),
+            ),
+          ] else if (_isLoadingDepartures) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ] else if (_departureLoadError != null) ...[
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
@@ -188,51 +240,62 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
                 style: const TextStyle(color: Color(0xFFB42318)),
               ),
             ),
-          if (_departures.isNotEmpty)
-            KeyedSubtree(
-              key: ValueKey(
-                  'counter-sales-departure-${_selectedDepartureId ?? 'none'}'),
-              child: DropdownButtonFormField<String>(
-                key: const Key('counter-sales-departure-select'),
-                initialValue: _selectedDepartureId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Départ'),
-                items: _departures
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                key: const Key('counter-sales-departure-retry'),
+                onPressed: _loadDepartures,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Réessayer'),
+              ),
+            ),
+          ] else if (_departures.isEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Aucun départ vendable ouvert pour votre gare actuellement.',
+              ),
+            ),
+          ] else ...[
+            if (_nonSellableDepartureCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '$_nonSellableDepartureCount départ(s) masqué(s): non ouverts à la vente.',
+                  style: const TextStyle(
+                    color: Color(0xFFB54708),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            Container(
+              key: const Key('counter-sales-departure-list'),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE4E7EF)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: _departures
                     .map(
-                      (departure) => DropdownMenuItem(
-                        value: departure.id,
-                        child: Text(
-                          _departureLabel(departure),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      (departure) => _DepartureChoiceCard(
+                        key:
+                            Key('counter-sales-departure-card-${departure.id}'),
+                        departure: departure,
+                        selected: departure.id == _selectedDepartureId,
+                        enabled: canEditDeparture,
+                        compact: compact,
+                        onTap: () => _selectDeparture(departure.id),
                       ),
                     )
                     .toList(),
-                onChanged: _isSubmittingReservation || _isSubmittingCash
-                    ? null
-                    : (value) async {
-                        setState(() {
-                          _selectedDepartureId = value;
-                          _manualDepartureIdController.text = value ?? '';
-                          _pendingSale = null;
-                          _confirmedSale = null;
-                        });
-                        await _syncServiceClassFromDeparture();
-                      },
-              ),
-            )
-          else
-            TextFormField(
-              key: const Key('counter-sales-departure-id-field'),
-              controller: _manualDepartureIdController,
-              enabled: !_isSubmittingReservation && !_isSubmittingCash,
-              decoration: const InputDecoration(
-                labelText: 'Identifiant départ',
-                helperText:
-                    'Aucune liste départ accessible avec vos scopes. Saisissez l’identifiant backend du départ.',
               ),
             ),
+            const SizedBox(height: 10),
+            _SelectedDepartureSummary(
+              key: const Key('counter-sales-selected-departure-summary'),
+              departure: _selectedDeparture,
+            ),
+          ],
           const SizedBox(height: 10),
           KeyedSubtree(
             key: ValueKey(
@@ -246,7 +309,9 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
                 DropdownMenuItem(value: 'ECONOMIE', child: Text('ÉCONOMIE')),
                 DropdownMenuItem(value: 'PRESTIGE', child: Text('PRESTIGE')),
               ],
-              onChanged: _isSubmittingReservation || _isSubmittingCash
+              onChanged: _isSubmittingReservation ||
+                      _isSubmittingCash ||
+                      _isDepartureSelectionLocked
                   ? null
                   : (value) => setState(() {
                         _selectedServiceClassCode = value;
@@ -255,10 +320,6 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
                       }),
             ),
           ),
-          if (_isLoadingDepartures) ...[
-            const SizedBox(height: 10),
-            const LinearProgressIndicator(minHeight: 2),
-          ],
           if (compact) const SizedBox(height: 4),
         ],
       ),
@@ -348,6 +409,16 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
   }
 
   Future<void> _loadDepartures() async {
+    if (!_canLoadDepartures) {
+      setState(() {
+        _departures = const [];
+        _selectedDepartureId = null;
+        _departureLoadError = null;
+        _nonSellableDepartureCount = 0;
+      });
+      return;
+    }
+
     setState(() {
       _isLoadingDepartures = true;
       _departureLoadError = null;
@@ -356,15 +427,24 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
     try {
       final response = await _operationalApiService.getOperationalDepartures(
         date: DateTime.now(),
-        statuses: const ['open', 'scheduled'],
         pageSize: 50,
       );
+      final sellable = response.results
+          .where((departure) => departure.status.toLowerCase() == 'open')
+          .toList(growable: false);
+      final nonSellableCount = response.results.length - sellable.length;
+
       if (!mounted) return;
       setState(() {
-        _departures = response.results;
+        _departures = sellable;
+        _nonSellableDepartureCount = nonSellableCount;
+        if (_departures
+            .every((departure) => departure.id != _selectedDepartureId)) {
+          _selectedDepartureId =
+              _departures.isNotEmpty ? _departures.first.id : null;
+        }
         if (_departures.isNotEmpty && _selectedDepartureId == null) {
           _selectedDepartureId = _departures.first.id;
-          _manualDepartureIdController.text = _departures.first.id;
         }
       });
       await _syncServiceClassFromDeparture();
@@ -372,6 +452,8 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       if (!mounted) return;
       setState(() {
         _departures = const [];
+        _selectedDepartureId = null;
+        _nonSellableDepartureCount = 0;
         _departureLoadError =
             StructuredApiError.fromException(error).userMessage;
       });
@@ -379,6 +461,8 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       if (!mounted) return;
       setState(() {
         _departures = const [];
+        _selectedDepartureId = null;
+        _nonSellableDepartureCount = 0;
         _departureLoadError =
             'Impossible de charger la liste des départs pour ce compte.';
       });
@@ -386,6 +470,34 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       if (mounted) {
         setState(() => _isLoadingDepartures = false);
       }
+    }
+  }
+
+  Future<void> _selectDeparture(String departureId) async {
+    if (_isDepartureSelectionLocked ||
+        _isSubmittingReservation ||
+        _isSubmittingCash ||
+        departureId == _selectedDepartureId) {
+      return;
+    }
+
+    final previousClass = _selectedServiceClassCode;
+    setState(() {
+      _selectedDepartureId = departureId;
+      _pendingSale = null;
+      _confirmedSale = null;
+      _formError = null;
+    });
+
+    await _syncServiceClassFromDeparture();
+    if (!mounted) return;
+
+    final nextClass = _selectedServiceClassCode;
+    final classChanged = previousClass != null &&
+        nextClass != null &&
+        previousClass != nextClass;
+    if (classChanged && nextClass != 'PRESTIGE') {
+      _clearPrestigeSeatNumbers();
     }
   }
 
@@ -400,10 +512,20 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       if (!mounted) return;
       final code = detail.serviceClassCode?.toUpperCase();
       if (code == 'ECONOMIE' || code == 'PRESTIGE') {
+        final previousCode = _selectedServiceClassCode;
         setState(() => _selectedServiceClassCode = code);
+        if (previousCode == 'PRESTIGE' && code != 'PRESTIGE') {
+          _clearPrestigeSeatNumbers();
+        }
       }
     } catch (_) {
       // Le backend reste l'autorité; on garde la sélection manuelle de classe.
+    }
+  }
+
+  void _clearPrestigeSeatNumbers() {
+    for (final traveler in _travelers) {
+      traveler.seatNumberController.clear();
     }
   }
 
@@ -411,10 +533,17 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final departureId =
-        (_selectedDepartureId ?? _manualDepartureIdController.text).trim();
+    final departureId = (_selectedDepartureId ?? '').trim();
     final serviceClassCode =
         (_selectedServiceClassCode ?? '').trim().toUpperCase();
+
+    if (!_canLoadDepartures) {
+      setState(() {
+        _formError =
+            'La vente est bloquée: rechargez votre session pour obtenir le scope station.departures.read.';
+      });
+      return;
+    }
 
     if (departureId.isEmpty) {
       setState(() => _formError = 'Le departure_id est obligatoire.');
@@ -578,17 +707,135 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       _pendingSale = null;
       _confirmedSale = null;
     });
+    if (_canLoadDepartures) {
+      _loadDepartures();
+    }
   }
 
-  String _departureLabel(StationOperationalDeparture departure) {
+  StationOperationalDeparture? get _selectedDeparture {
+    final selectedId = _selectedDepartureId;
+    if (selectedId == null) return null;
+    for (final departure in _departures) {
+      if (departure.id == selectedId) return departure;
+    }
+    return null;
+  }
+}
+
+class _DepartureChoiceCard extends StatelessWidget {
+  final StationOperationalDeparture departure;
+  final bool selected;
+  final bool enabled;
+  final bool compact;
+  final VoidCallback onTap;
+
+  const _DepartureChoiceCard({
+    super.key,
+    required this.departure,
+    required this.selected,
+    required this.enabled,
+    required this.compact,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final date = departure.departureDate;
     final dateText = date == null
         ? '-'
         : '${date.year.toString().padLeft(4, '0')}-'
             '${date.month.toString().padLeft(2, '0')}-'
             '${date.day.toString().padLeft(2, '0')}';
-    return '$dateText ${departure.displayTime} · ${departure.displayRoute} · '
-        '${departure.displayServiceClass}';
+
+    return Material(
+      color: selected ? const Color(0xFFEFF4FF) : Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      departure.displayRoute,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (selected)
+                    const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF175CD3),
+                      size: 18,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${departure.stationName} → ${departure.destinationName}',
+                maxLines: compact ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$dateText · ${departure.displayTime} · ${departure.statusLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                departure.capacityLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedDepartureSummary extends StatelessWidget {
+  final StationOperationalDeparture? departure;
+
+  const _SelectedDepartureSummary({
+    super.key,
+    required this.departure,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (departure == null) {
+      return const SizedBox.shrink();
+    }
+
+    final date = departure!.departureDate;
+    final dateText = date == null
+        ? '-'
+        : '${date.year.toString().padLeft(4, '0')}-'
+            '${date.month.toString().padLeft(2, '0')}-'
+            '${date.day.toString().padLeft(2, '0')}';
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFD0D5DD)),
+      ),
+      child: Text(
+        'Départ sélectionné: ${departure!.displayRoute} · '
+        '${departure!.stationName} → ${departure!.destinationName} · '
+        '$dateText ${departure!.displayTime} · ${departure!.statusLabel}',
+      ),
+    );
   }
 }
 

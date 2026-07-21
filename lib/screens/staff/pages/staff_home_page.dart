@@ -229,27 +229,7 @@ class _ActionLine extends StatelessWidget {
               ],
             ),
           ),
-          if (!item.isAvailable) const _SoonBadge(),
         ],
-      ),
-    );
-  }
-}
-
-class _SoonBadge extends StatelessWidget {
-  const _SoonBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3CD),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text(
-        'Bientôt disponible',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
