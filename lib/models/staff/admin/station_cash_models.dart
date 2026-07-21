@@ -1,117 +1,240 @@
-import 'package:catrans_app/models/staff/paged_result.dart';
+import 'package:catrans_app/models/station/station_reservation_detail.dart';
+
+typedef JsonMap = Map<String, dynamic>;
 
 class StationCashSaleItemRequest {
+  final bool isForCustomer;
+  final int? seatNumber;
   final String? travelerLastname;
   final String? travelerFirstname;
   final String? travelerPhone;
-  final bool isForCustomer;
-  final bool useLoyaltyPoints;
+  final String? note;
 
   const StationCashSaleItemRequest({
+    this.isForCustomer = true,
+    this.seatNumber,
     this.travelerLastname,
     this.travelerFirstname,
     this.travelerPhone,
-    this.isForCustomer = false,
-    this.useLoyaltyPoints = false,
+    this.note,
   });
 
   Map<String, dynamic> toJson() => {
         'is_for_customer': isForCustomer,
-        'use_loyalty_points': useLoyaltyPoints,
+        if (seatNumber != null) 'seat_number': seatNumber,
         if (travelerLastname != null) 'traveler_lastname': travelerLastname,
         if (travelerFirstname != null) 'traveler_firstname': travelerFirstname,
         if (travelerPhone != null) 'traveler_phone': travelerPhone,
+        if (note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
       };
 }
 
 class StationCashSaleCreateRequest {
   final String departureId;
   final String serviceClassCode;
+  final String customerId;
   final List<StationCashSaleItemRequest> items;
   final String? note;
 
   const StationCashSaleCreateRequest({
     required this.departureId,
     required this.serviceClassCode,
+    this.customerId = '',
     required this.items,
     this.note,
   });
 
   Map<String, dynamic> toJson() => {
-        'departure_id': departureId,
-        'service_class_code': serviceClassCode,
+        'departure_id': departureId.trim(),
+        'service_class_code': serviceClassCode.trim().toUpperCase(),
+        'customer_id': customerId.trim(),
         'items': items.map((item) => item.toJson()).toList(),
         if (note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
       };
 }
 
 class StationCashSaleCreateResponse {
-  final String reservationId;
-  final String reference;
-  final String status;
+  final StationReservationDetail reservation;
+  final DateTime? expiresAt;
   final String totalAmount;
   final String currency;
-  final Map<String, dynamic> raw;
+  final int itemCount;
+  final bool canConfirmCash;
+  final JsonMap raw;
 
   const StationCashSaleCreateResponse({
-    required this.reservationId,
-    required this.reference,
-    required this.status,
+    required this.reservation,
+    this.expiresAt,
     required this.totalAmount,
     required this.currency,
+    required this.itemCount,
+    required this.canConfirmCash,
     this.raw = const {},
   });
 
   factory StationCashSaleCreateResponse.fromJson(JsonMap json) {
-    final reservation = json['reservation'] is Map
-        ? Map<String, dynamic>.from(json['reservation'] as Map)
-        : json;
+    final reservationMap = _readMap(json['reservation']);
     return StationCashSaleCreateResponse(
-      reservationId:
-          (reservation['id'] ?? json['reservation_id'] ?? '').toString(),
-      reference:
-          (reservation['reference'] ?? json['reference'] ?? '').toString(),
-      status: (reservation['status'] ?? json['status'] ?? '').toString(),
-      totalAmount: (reservation['total_amount'] ?? json['total_amount'] ?? '')
-          .toString(),
-      currency:
-          (reservation['currency'] ?? json['currency'] ?? 'XOF').toString(),
+      reservation: StationReservationDetail.fromJson(reservationMap),
+      expiresAt: _readDateTime(json['expires_at']),
+      totalAmount: _readString(json['total_amount']),
+      currency: _readString(json['currency']),
+      itemCount: _readInt(json['item_count']),
+      canConfirmCash: json['can_confirm_cash'] == true,
       raw: json,
     );
   }
+
+  String get reservationId => reservation.id;
 }
 
 class StationCashConfirmResponse {
-  final String reservationId;
-  final String paymentId;
-  final String status;
-  final String detail;
-  final Map<String, dynamic> raw;
+  final bool alreadyPaid;
+  final StationReservationDetail reservation;
+  final StationCashPaymentSummary payment;
+  final List<StationCashTicketSummary> tickets;
+  final JsonMap raw;
 
   const StationCashConfirmResponse({
-    required this.reservationId,
-    required this.paymentId,
-    required this.status,
-    required this.detail,
+    required this.alreadyPaid,
+    required this.reservation,
+    required this.payment,
+    required this.tickets,
     this.raw = const {},
   });
 
   factory StationCashConfirmResponse.fromJson(JsonMap json) {
-    final reservation = json['reservation'] is Map
-        ? Map<String, dynamic>.from(json['reservation'] as Map)
-        : const <String, dynamic>{};
-    final payment = json['payment'] is Map
-        ? Map<String, dynamic>.from(json['payment'] as Map)
-        : const <String, dynamic>{};
     return StationCashConfirmResponse(
-      reservationId:
-          (json['reservation_id'] ?? reservation['id'] ?? '').toString(),
-      paymentId: (json['payment_id'] ?? payment['id'] ?? '').toString(),
-      status:
-          (json['status'] ?? reservation['status'] ?? payment['status'] ?? '')
-              .toString(),
-      detail: (json['detail'] ?? json['message'] ?? '').toString(),
+      alreadyPaid: json['already_paid'] == true,
+      reservation:
+          StationReservationDetail.fromJson(_readMap(json['reservation'])),
+      payment: StationCashPaymentSummary.fromJson(_readMap(json['payment'])),
+      tickets: _readList(json['tickets'])
+          .map((item) => StationCashTicketSummary.fromJson(_readMap(item)))
+          .toList(),
       raw: json,
     );
   }
+
+  String get paymentId => payment.id;
+}
+
+class StationCashPaymentSummary {
+  final String id;
+  final String reference;
+  final String status;
+  final String method;
+  final String provider;
+  final String amount;
+  final String currency;
+  final DateTime? paidAt;
+
+  const StationCashPaymentSummary({
+    required this.id,
+    required this.reference,
+    required this.status,
+    required this.method,
+    required this.provider,
+    required this.amount,
+    required this.currency,
+    this.paidAt,
+  });
+
+  String get displayAmount => '$amount $currency'.trim();
+
+  factory StationCashPaymentSummary.fromJson(JsonMap json) {
+    return StationCashPaymentSummary(
+      id: _readString(json['id']),
+      reference: _readString(json['reference']),
+      status: _readString(json['status']),
+      method: _readString(json['method']),
+      provider: _readString(json['provider']),
+      amount: _readString(json['amount']),
+      currency: _readString(json['currency']),
+      paidAt: _readDateTime(json['paid_at']),
+    );
+  }
+}
+
+class StationCashTicketSummary {
+  final String id;
+  final String reference;
+  final String status;
+  final int? seatNumber;
+  final String? travelerLastname;
+  final String? travelerFirstname;
+  final String? travelerPhone;
+  final String amount;
+  final String currency;
+  final DateTime? issuedAt;
+
+  const StationCashTicketSummary({
+    required this.id,
+    required this.reference,
+    required this.status,
+    this.seatNumber,
+    this.travelerLastname,
+    this.travelerFirstname,
+    this.travelerPhone,
+    required this.amount,
+    required this.currency,
+    this.issuedAt,
+  });
+
+  String get travelerFullName {
+    return [travelerFirstname, travelerLastname]
+        .where((part) => part != null && part.trim().isNotEmpty)
+        .join(' ');
+  }
+
+  String get seatLabel =>
+      seatNumber == null ? 'Placement gare' : 'Siège $seatNumber';
+
+  factory StationCashTicketSummary.fromJson(JsonMap json) {
+    return StationCashTicketSummary(
+      id: _readString(json['id']),
+      reference: _readString(json['reference']),
+      status: _readString(json['status']),
+      seatNumber: _readNullableInt(json['seat_number']),
+      travelerLastname: _readNullableString(json['traveler_lastname']),
+      travelerFirstname: _readNullableString(json['traveler_firstname']),
+      travelerPhone: _readNullableString(json['traveler_phone']),
+      amount: _readString(json['amount']),
+      currency: _readString(json['currency']),
+      issuedAt: _readDateTime(json['issued_at']),
+    );
+  }
+}
+
+Map<String, dynamic> _readMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return const <String, dynamic>{};
+}
+
+List<dynamic> _readList(dynamic value) => value is List ? value : const [];
+
+String _readString(dynamic value) => value?.toString() ?? '';
+
+String? _readNullableString(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
+
+int _readInt(dynamic value) {
+  if (value is int) return value;
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _readNullableInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
+}
+
+DateTime? _readDateTime(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String && value.isNotEmpty) return DateTime.tryParse(value);
+  return null;
 }

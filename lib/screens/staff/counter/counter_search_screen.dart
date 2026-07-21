@@ -7,6 +7,7 @@ import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/station_reservation_list.dart';
 import 'package:catrans_app/models/station/station_ticket_summary.dart';
 import 'package:catrans_app/screens/staff/counter/counter_permissions.dart';
+import 'package:catrans_app/screens/staff/counter/counter_sales_screen.dart';
 import 'package:catrans_app/screens/staff/counter/station_reservation_detail_dialog.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
@@ -59,6 +60,41 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       return _AccessDeniedContent(user: user);
     }
 
+    final canSellCash = _canSellCash(user) && !widget.supervisionMode;
+    if (!canSellCash) {
+      return _buildSearchPane(user);
+    }
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          const Material(
+            color: Colors.white,
+            child: TabBar(
+              tabs: [
+                Tab(text: 'Recherche'),
+                Tab(text: 'Vente cash'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildSearchPane(user),
+                CounterSalesScreen(
+                  user: user,
+                  counterApiService: _apiService,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchPane(User user) {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -102,6 +138,10 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
         scopes.contains('station.reservations.read') ||
         scopes.contains('station.tickets.print') ||
         scopes.contains('station.tickets.read');
+  }
+
+  bool _canSellCash(User user) {
+    return hasCounterSalesCashScope(user.scopes);
   }
 
   bool _canPrint(User user) {
@@ -283,9 +323,8 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       onPrevious: response.hasPrevious
           ? () => _loadReservations(page: _page > 1 ? _page - 1 : 1)
           : null,
-      onNext: response.hasNext
-          ? () => _loadReservations(page: _page + 1)
-          : null,
+      onNext:
+          response.hasNext ? () => _loadReservations(page: _page + 1) : null,
     );
   }
 }
@@ -299,9 +338,8 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final station = user.internalProfile?.station?.name;
-    final title = supervisionMode
-        ? 'Réservations gare'
-        : 'Réservations & tickets';
+    final title =
+        supervisionMode ? 'Réservations gare' : 'Réservations & tickets';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,9 +982,8 @@ class _ReservationActions extends StatelessWidget {
       width: compact ? 132 : 150,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            compact ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           TextButton(
             onPressed: reservation.actions.canViewDetail
@@ -1266,12 +1303,10 @@ String _formatDate(DateTime? value) {
 String _formatDateTime(DateTime? value) {
   if (value == null) return '-';
   final local = value.toLocal();
-  final date =
-      '${local.day.toString().padLeft(2, '0')}/'
+  final date = '${local.day.toString().padLeft(2, '0')}/'
       '${local.month.toString().padLeft(2, '0')}/'
       '${local.year}';
-  final time =
-      '${local.hour.toString().padLeft(2, '0')}:'
+  final time = '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
   return '$date à $time';
 }
