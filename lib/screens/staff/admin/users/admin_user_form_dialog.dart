@@ -91,6 +91,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
   late final TextEditingController _lastnameController;
   late final TextEditingController _firstnameController;
   late final TextEditingController _passwordController;
+  late final TextEditingController _confirmPasswordController;
   List<StaffCounterRef> _counters = const [];
   String? _role;
   String? _stationId;
@@ -128,6 +129,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
     );
     _passwordController =
         TextEditingController(text: createDraft?.password ?? '');
+    _confirmPasswordController = TextEditingController();
     _role = updateDraft?.role ?? user?.role ?? createDraft?.role;
     _stationId = updateDraft != null
         ? updateDraft.stationId
@@ -145,6 +147,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
     _lastnameController.dispose();
     _firstnameController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -175,6 +178,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                     const SizedBox(height: 12),
                   ],
                   _TextField(
+                    fieldKey: const Key('admin-user-form-firstname'),
                     controller: _firstnameController,
                     label: 'Prénom',
                     fieldName: 'firstname',
@@ -183,6 +187,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   _TextField(
+                    fieldKey: const Key('admin-user-form-lastname'),
                     controller: _lastnameController,
                     label: 'Nom',
                     fieldName: 'lastname',
@@ -191,6 +196,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   _TextField(
+                    fieldKey: const Key('admin-user-form-email'),
                     controller: _emailController,
                     label: 'Email',
                     fieldName: 'email',
@@ -200,6 +206,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   _TextField(
+                    fieldKey: const Key('admin-user-form-phone'),
                     controller: _phoneController,
                     label: 'Téléphone',
                     fieldName: 'phone_number',
@@ -210,16 +217,46 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   if (!_isEdit) ...[
                     const SizedBox(height: 12),
                     _TextField(
+                      fieldKey: const Key('admin-user-form-password'),
                       controller: _passwordController,
                       label: 'Mot de passe initial',
                       fieldName: 'password',
                       error: widget.error,
                       requiredField: true,
                       obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Mot de passe initial est obligatoire.';
+                        }
+                        if (value.length < 8) {
+                          return 'Le mot de passe doit contenir au moins 8 caractères.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _TextField(
+                      fieldKey: const Key('admin-user-form-password-confirm'),
+                      controller: _confirmPasswordController,
+                      label: 'Confirmer le mot de passe',
+                      fieldName: 'password_confirm',
+                      error: widget.error,
+                      requiredField: true,
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Confirmer le mot de passe est obligatoire.';
+                        }
+                        if (value != _passwordController.text) {
+                          return 'La confirmation du mot de passe ne correspond pas.';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    key: const Key('admin-user-form-role'),
                     initialValue: _role,
                     decoration: InputDecoration(
                       labelText: 'Rôle',
@@ -256,6 +293,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    key: const Key('admin-user-form-station'),
                     initialValue: allowsStation ? _stationId : null,
                     decoration: InputDecoration(
                       labelText: requiresStation ? 'Gare *' : 'Gare',
@@ -288,6 +326,7 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    key: const Key('admin-user-form-counter'),
                     initialValue: allowsCounter ? _counterId : null,
                     decoration: InputDecoration(
                       labelText: _isLoadingCounters
@@ -372,19 +411,29 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_isEdit) {
+      final initialUser = widget.initialUser;
+      final email = _normalizedOrNull(_emailController.text);
+      final phone = _normalizedOrNull(_phoneController.text);
+      final lastname = _normalizedOrNull(_lastnameController.text);
+      final firstname = _normalizedOrNull(_firstnameController.text);
+
+      final roleChanged = _role != initialUser?.role;
+      final stationChanged = _stationId != initialUser?.station?.id;
+      final counterChanged = _counterId != initialUser?.counter?.id;
+
       Navigator.pop(
         context,
         AdminUserFormResult.update(
           AdminInternalUserUpdateRequest(
-            email: _emailController.text.trim(),
-            phoneNumber: _phoneController.text.trim(),
-            lastname: _lastnameController.text.trim(),
-            firstname: _firstnameController.text.trim(),
-            role: _role,
-            stationId: _stationId,
-            counterId: _counterId,
-            clearStation: _stationId == null,
-            clearCounter: _counterId == null,
+            email: email != initialUser?.email ? email : null,
+            phoneNumber: phone != initialUser?.phoneNumber ? phone : null,
+            lastname: lastname != initialUser?.lastname ? lastname : null,
+            firstname: firstname != initialUser?.firstname ? firstname : null,
+            role: roleChanged ? _role : null,
+            stationId: stationChanged ? _stationId : null,
+            counterId: counterChanged ? _counterId : null,
+            clearStation: stationChanged && _stationId == null,
+            clearCounter: counterChanged && _counterId == null,
           ),
         ),
       );
@@ -413,9 +462,16 @@ class _AdminUserFormDialogState extends State<AdminUserFormDialog> {
     if (error == null || error.field != field) return null;
     return error.userMessage;
   }
+
+  String? _normalizedOrNull(String value) {
+    final normalized = value.trim();
+    if (normalized.isEmpty) return null;
+    return normalized;
+  }
 }
 
 class _TextField extends StatelessWidget {
+  final Key fieldKey;
   final TextEditingController controller;
   final String label;
   final String fieldName;
@@ -423,8 +479,10 @@ class _TextField extends StatelessWidget {
   final bool requiredField;
   final bool obscureText;
   final TextInputType? keyboardType;
+  final String? Function(String?)? validator;
 
   const _TextField({
+    required this.fieldKey,
     required this.controller,
     required this.label,
     required this.fieldName,
@@ -432,11 +490,13 @@ class _TextField extends StatelessWidget {
     this.requiredField = false,
     this.obscureText = false,
     this.keyboardType,
+    this.validator,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
+      key: fieldKey,
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
@@ -446,11 +506,19 @@ class _TextField extends StatelessWidget {
         errorText: error?.field == fieldName ? error?.userMessage : null,
       ),
       validator: (value) {
+        if (validator != null) {
+          return validator!(value);
+        }
         if (!requiredField) {
           return null;
         }
         if (value == null || value.trim().isEmpty) {
           return '$label est obligatoire.';
+        }
+        if (keyboardType == TextInputType.emailAddress &&
+            value.trim().isNotEmpty &&
+            !value.contains('@')) {
+          return 'Email invalide.';
         }
         return null;
       },
@@ -512,11 +580,13 @@ class _Footer extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           TextButton(
+            key: const Key('admin-user-form-cancel'),
             onPressed: isSubmitting ? null : onCancel,
             child: const Text('Annuler'),
           ),
           const SizedBox(width: 10),
           ElevatedButton.icon(
+            key: const Key('admin-user-form-submit'),
             onPressed: isSubmitting ? null : onSubmit,
             icon: isSubmitting
                 ? const SizedBox(

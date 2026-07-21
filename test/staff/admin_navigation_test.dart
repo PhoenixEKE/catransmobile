@@ -158,7 +158,6 @@ class _NavigationAdminUsersApiService extends AdminUsersApiService {
     String? stationId,
     String? counterId,
     bool? isActive,
-    String? ordering,
     int page = 1,
     int pageSize = 20,
   }) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/staff/admin/admin_internal_user_models.dart';
@@ -32,13 +33,19 @@ class AdminUsersController extends ChangeNotifier {
   String? stationId;
   String? counterId;
   bool? isActive;
-  String? ordering;
   int page = 1;
   int pageSize = 20;
+  Timer? _searchDebounce;
 
   bool get hasUsers => usersPage?.results.isNotEmpty == true;
   bool get hasPreviousPage => usersPage?.hasPrevious == true || page > 1;
   bool get hasNextPage => usersPage?.hasNext == true;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
 
   Future<void> initialize() async {
     await Future.wait([loadOptions(), loadUsers(resetPage: true)]);
@@ -73,7 +80,6 @@ class AdminUsersController extends ChangeNotifier {
         stationId: stationId,
         counterId: counterId,
         isActive: isActive,
-        ordering: ordering,
         page: page,
         pageSize: pageSize,
       );
@@ -90,6 +96,13 @@ class AdminUsersController extends ChangeNotifier {
   Future<void> search(String value) async {
     query = value.trim();
     await loadUsers(resetPage: true);
+  }
+
+  void searchDebounced(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
+      search(value);
+    });
   }
 
   Future<void> setRole(String? value) async {
@@ -116,11 +129,6 @@ class AdminUsersController extends ChangeNotifier {
     await loadUsers(resetPage: true);
   }
 
-  Future<void> setOrdering(String? value) async {
-    ordering = _emptyToNull(value);
-    await loadUsers(resetPage: true);
-  }
-
   Future<void> nextPage() async {
     if (!hasNextPage) return;
     page += 1;
@@ -131,6 +139,18 @@ class AdminUsersController extends ChangeNotifier {
     if (page <= 1) return;
     page -= 1;
     await loadUsers();
+  }
+
+  Future<void> resetFilters() async {
+    _searchDebounce?.cancel();
+    query = '';
+    role = null;
+    stationId = null;
+    counterId = null;
+    isActive = null;
+    counters = const [];
+    notifyListeners();
+    await loadUsers(resetPage: true);
   }
 
   Future<void> loadCountersForStation(String? selectedStationId) async {

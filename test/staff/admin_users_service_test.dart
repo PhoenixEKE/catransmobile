@@ -14,7 +14,6 @@ void main() {
         stationId: ' station-1 ',
         counterId: ' counter-1 ',
         isActive: false,
-        ordering: ' lastname ',
         page: -4,
         pageSize: 250,
       );
@@ -24,7 +23,6 @@ void main() {
       expect(query, containsPair('station_id', 'station-1'));
       expect(query, containsPair('counter_id', 'counter-1'));
       expect(query, containsPair('is_active', false));
-      expect(query, containsPair('ordering', 'lastname'));
       expect(query, containsPair('page', 1));
       expect(query, containsPair('page_size', 100));
     });

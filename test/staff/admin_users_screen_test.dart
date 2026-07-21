@@ -35,7 +35,7 @@ void main() {
 
       expect(find.text('Utilisateurs internes'), findsOneWidget);
       expect(find.text('Accès en lecture seule'), findsOneWidget);
-      expect(find.text('Nouvel utilisateur'), findsNothing);
+      expect(find.text('Ajouter un utilisateur'), findsNothing);
     });
 
     testWidgets('manage scope shows create action and list', (tester) async {
@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Nouvel utilisateur'), findsOneWidget);
+      expect(find.text('Ajouter un utilisateur'), findsOneWidget);
       expect(find.text('Aya Koffi'), findsOneWidget);
       expect(find.text('cashier@catrans.test'), findsOneWidget);
     });
@@ -114,7 +114,6 @@ class _FakeAdminUsersApiService extends AdminUsersApiService {
     String? stationId,
     String? counterId,
     bool? isActive,
-    String? ordering,
     int page = 1,
     int pageSize = 20,
   }) async {

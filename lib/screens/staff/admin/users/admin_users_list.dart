@@ -7,6 +7,8 @@ import 'package:catrans_app/widgets/staff/staff_pagination_controls.dart';
 
 class AdminUsersList extends StatelessWidget {
   final PagedResult<AdminInternalUserSummary> page;
+  final int currentPage;
+  final int pageSize;
   final bool canManage;
   final VoidCallback? onPreviousPage;
   final VoidCallback? onNextPage;
@@ -18,6 +20,8 @@ class AdminUsersList extends StatelessWidget {
   const AdminUsersList({
     super.key,
     required this.page,
+    required this.currentPage,
+    required this.pageSize,
     required this.canManage,
     required this.onPreviousPage,
     required this.onNextPage,
@@ -35,8 +39,25 @@ class AdminUsersList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (useCards) _buildCards(context) else _buildTable(context),
+            if (useCards)
+              KeyedSubtree(
+                key: const Key('admin-users-cards-view'),
+                child: _buildCards(context),
+              )
+            else
+              KeyedSubtree(
+                key: const Key('admin-users-table-view'),
+                child: _buildTable(context),
+              ),
             const SizedBox(height: 10),
+            Text(
+              'Page $currentPage · ${page.results.length} résultat(s) affiché(s) sur ${page.count} (taille page $pageSize)',
+              style: const TextStyle(
+                color: Color(0xFF656A78),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
             StaffPaginationControls(
               hasPrevious: page.hasPrevious,
               hasNext: page.hasNext,
@@ -59,26 +80,34 @@ class AdminUsersList extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          columnSpacing: 20,
           headingRowColor: WidgetStateProperty.all(const Color(0xFFF7F8FC)),
           columns: const [
             DataColumn(label: Text('Nom')),
             DataColumn(label: Text('Email')),
+            DataColumn(label: Text('Téléphone')),
             DataColumn(label: Text('Rôle')),
             DataColumn(label: Text('Gare')),
             DataColumn(label: Text('Guichet')),
             DataColumn(label: Text('Statut')),
+            DataColumn(label: Text('Créé le')),
             DataColumn(label: Text('Actions')),
           ],
           rows: page.results.map((user) {
             return DataRow(
               cells: [
-                DataCell(Text(_displayName(user))),
-                DataCell(Text(user.email.isEmpty ? '-' : user.email)),
+                DataCell(_ellipsized(_displayName(user), width: 160)),
+                DataCell(_ellipsized(user.email.isEmpty ? '-' : user.email,
+                    width: 200)),
+                DataCell(_ellipsized(
+                    user.phoneNumber.isEmpty ? '-' : user.phoneNumber,
+                    width: 140)),
                 DataCell(AdminUserRoleBadge(label: user.roleLabel)),
-                DataCell(Text(user.station?.name ?? '-')),
-                DataCell(Text(user.counter?.label ?? '-')),
+                DataCell(_ellipsized(user.station?.name ?? '-', width: 150)),
+                DataCell(_ellipsized(user.counter?.label ?? '-', width: 150)),
                 DataCell(AdminUserStatusBadge(isActive: user.isActive)),
-                DataCell(_Actions(
+                DataCell(Text(_formatDate(user.createdAt))),
+                DataCell(_ActionsMenu(
                   user: user,
                   canManage: canManage,
                   onOpenDetail: onOpenDetail,
@@ -122,10 +151,19 @@ class AdminUsersList extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 3),
                         Text(
                           user.email.isEmpty ? '-' : user.email,
+                          style: const TextStyle(color: Color(0xFF656A78)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          user.phoneNumber.isEmpty ? '-' : user.phoneNumber,
                           style: const TextStyle(color: Color(0xFF656A78)),
                         ),
                       ],
@@ -148,10 +186,11 @@ class AdminUsersList extends StatelessWidget {
               const SizedBox(height: 10),
               Text('Gare : ${user.station?.name ?? '-'}'),
               Text('Guichet : ${user.counter?.label ?? '-'}'),
+              Text('Créé le : ${_formatDate(user.createdAt)}'),
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
-                child: _Actions(
+                child: _ActionsMenu(
                   user: user,
                   canManage: canManage,
                   onOpenDetail: onOpenDetail,
@@ -184,7 +223,30 @@ class AdminUsersList extends StatelessWidget {
   }
 }
 
-class _Actions extends StatelessWidget {
+Widget _ellipsized(String value, {required double width}) {
+  return SizedBox(
+    width: width,
+    child: Tooltip(
+      message: value,
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  );
+}
+
+String _formatDate(DateTime? date) {
+  if (date == null) return '-';
+  final local = date.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final year = local.year.toString().padLeft(4, '0');
+  return '$day/$month/$year';
+}
+
+class _ActionsMenu extends StatelessWidget {
   final AdminInternalUserSummary user;
   final bool canManage;
   final ValueChanged<AdminInternalUserSummary> onOpenDetail;
@@ -192,7 +254,7 @@ class _Actions extends StatelessWidget {
   final ValueChanged<AdminInternalUserSummary> onActivate;
   final ValueChanged<AdminInternalUserSummary> onDeactivate;
 
-  const _Actions({
+  const _ActionsMenu({
     required this.user,
     required this.canManage,
     required this.onOpenDetail,
@@ -203,35 +265,49 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 4,
-      children: [
-        IconButton(
-          tooltip: 'Détail',
-          onPressed: () => onOpenDetail(user),
-          icon: const Icon(Icons.visibility_outlined),
-        ),
-        if (canManage) ...[
-          IconButton(
-            tooltip: 'Modifier',
-            onPressed: () => onEdit(user),
-            icon: const Icon(Icons.edit_outlined),
+    return PopupMenuButton<String>(
+      key: Key('admin-users-actions-${user.id}'),
+      tooltip: 'Actions utilisateur',
+      icon: const Icon(Icons.more_horiz),
+      onSelected: (value) {
+        switch (value) {
+          case 'detail':
+            onOpenDetail(user);
+            return;
+          case 'edit':
+            onEdit(user);
+            return;
+          case 'activate':
+            onActivate(user);
+            return;
+          case 'deactivate':
+            onDeactivate(user);
+            return;
+        }
+      },
+      itemBuilder: (_) {
+        final items = <PopupMenuEntry<String>>[
+          const PopupMenuItem<String>(
+            value: 'detail',
+            child: Text('Consulter'),
           ),
-          if (user.isActive)
-            IconButton(
-              tooltip: 'Désactiver',
-              onPressed: () => onDeactivate(user),
-              icon: const Icon(Icons.block, color: Color(0xFFB42318)),
-            )
-          else
-            IconButton(
-              tooltip: 'Activer',
-              onPressed: () => onActivate(user),
-              icon: const Icon(Icons.check_circle_outline,
-                  color: Color(0xFF157347)),
+        ];
+        if (canManage) {
+          items.add(
+            const PopupMenuItem<String>(
+              value: 'edit',
+              child: Text('Modifier'),
             ),
-        ],
-      ],
+          );
+          items.add(
+            PopupMenuItem<String>(
+              value: user.isActive ? 'deactivate' : 'activate',
+              child: Text(user.isActive ? 'Désactiver' : 'Activer'),
+            ),
+          );
+        }
+        return items;
+      },
     );
   }
 }

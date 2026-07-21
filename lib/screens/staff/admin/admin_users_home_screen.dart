@@ -57,7 +57,7 @@ class _AdminUsersHomeScreenState extends State<AdminUsersHomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_permissions.canReadAdminUsers) {
-      return const StaffAccessDeniedPage();
+      return StaffAccessDeniedPage(user: widget.user);
     }
 
     final controller = _controller!;
@@ -92,19 +92,19 @@ class _AdminUsersHomeScreenState extends State<AdminUsersHomeScreen> {
                 selectedStationId: controller.stationId,
                 selectedCounterId: controller.counterId,
                 selectedIsActive: controller.isActive,
-                ordering: controller.ordering,
                 roles: controller.roles,
                 stations: controller.stations,
                 counters: controller.counters,
                 isLoadingCounters: controller.isLoadingCounters,
                 canManage: _canManage,
                 onSearch: controller.search,
+                onSearchChanged: controller.searchDebounced,
                 onRoleChanged: controller.setRole,
                 onStationChanged: controller.setStation,
                 onCounterChanged: controller.setCounter,
                 onActiveChanged: controller.setActiveFilter,
-                onOrderingChanged: controller.setOrdering,
                 onRefresh: controller.refresh,
+                onResetFilters: controller.resetFilters,
                 onCreate: _openCreateForm,
               ),
               const SizedBox(height: 18),
@@ -118,25 +118,34 @@ class _AdminUsersHomeScreenState extends State<AdminUsersHomeScreen> {
 
   Widget _buildContent(AdminUsersController controller) {
     if (controller.isLoadingUsers && controller.usersPage == null) {
-      return const StaffLoadingState(
-        message: 'Chargement des utilisateurs internes...',
+      return const KeyedSubtree(
+        key: Key('admin-users-loading-state'),
+        child: StaffLoadingState(
+          message: 'Chargement des utilisateurs internes...',
+        ),
       );
     }
 
     if (controller.listError != null) {
-      return StaffErrorState(
-        message: controller.listError!,
-        onRetry: controller.refresh,
+      return KeyedSubtree(
+        key: const Key('admin-users-error-state'),
+        child: StaffErrorState(
+          message: controller.listError!,
+          onRetry: controller.refresh,
+        ),
       );
     }
 
     final page = controller.usersPage;
     if (page == null || page.results.isEmpty) {
-      return const StaffEmptyState(
-        icon: Icons.manage_accounts,
-        title: 'Aucun utilisateur interne',
-        message:
-            'Aucun compte ne correspond aux filtres actuels. Ajustez la recherche ou créez un nouvel utilisateur si vous avez les droits de gestion.',
+      return const KeyedSubtree(
+        key: Key('admin-users-empty-state'),
+        child: StaffEmptyState(
+          icon: Icons.manage_accounts,
+          title: 'Aucun utilisateur interne',
+          message:
+              'Aucun compte ne correspond aux filtres actuels. Ajustez la recherche ou créez un nouvel utilisateur si vous avez les droits de gestion.',
+        ),
       );
     }
 
@@ -144,6 +153,8 @@ class _AdminUsersHomeScreenState extends State<AdminUsersHomeScreen> {
       children: [
         AdminUsersList(
           page: page,
+          currentPage: controller.page,
+          pageSize: controller.pageSize,
           canManage: _canManage,
           onPreviousPage: controller.hasPreviousPage
               ? () => controller.previousPage()

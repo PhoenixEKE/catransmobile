@@ -16,7 +16,6 @@ class AdminUsersApiService {
     String? stationId,
     String? counterId,
     bool? isActive,
-    String? ordering,
     int page = 1,
     int pageSize = 20,
   }) async {
@@ -28,7 +27,6 @@ class AdminUsersApiService {
         stationId: stationId,
         counterId: counterId,
         isActive: isActive,
-        ordering: ordering,
         page: page,
         pageSize: pageSize,
       ),
@@ -114,7 +112,6 @@ Map<String, dynamic> buildAdminUsersQueryParameters({
   String? stationId,
   String? counterId,
   bool? isActive,
-  String? ordering,
   int page = 1,
   int pageSize = 20,
 }) {
@@ -126,7 +123,6 @@ Map<String, dynamic> buildAdminUsersQueryParameters({
     'station_id': stationId?.trim(),
     'counter_id': counterId?.trim(),
     if (isActive != null) 'is_active': isActive,
-    'ordering': ordering?.trim(),
   });
 }
 

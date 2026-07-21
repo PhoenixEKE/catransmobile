@@ -7,9 +7,9 @@ class AdminUserStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? const Color(0xFF157347) : const Color(0xFF7A3E00);
+    final color = isActive ? const Color(0xFF157347) : const Color(0xFFB42318);
     final background =
-        isActive ? const Color(0xFFEAF6EF) : const Color(0xFFFFF3DD);
+        isActive ? const Color(0xFFEAF6EF) : const Color(0xFFFFE9E7);
     return _Badge(
       label: isActive ? 'Actif' : 'Inactif',
       color: color,

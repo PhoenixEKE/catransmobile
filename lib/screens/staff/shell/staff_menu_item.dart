@@ -361,7 +361,7 @@ class StaffMenuItem {
       title: 'Tableau admin',
       icon: Icons.query_stats,
       description: 'Vue consolidée des indicateurs métier CA TRANS.',
-      nextStep: 'Les indicateurs globaux seront branchés progressivement.',
+      nextStep: 'Suivez les indicateurs clés par date pour piloter l’activité.',
       scopes: const [StaffPermissions.adminDashboardRead],
     );
   }
@@ -372,7 +372,8 @@ class StaffMenuItem {
       title: 'Utilisateurs internes',
       icon: Icons.manage_accounts,
       description: 'Gestion des comptes personnel, rôles, gares et guichets.',
-      nextStep: 'Le CRUD utilisateurs sera livré au lot 6.6C.',
+      nextStep:
+          'Consultez, créez et mettez à jour les comptes internes autorisés.',
       scopes: const [
         StaffPermissions.adminUsersRead,
         StaffPermissions.adminUsersManage,

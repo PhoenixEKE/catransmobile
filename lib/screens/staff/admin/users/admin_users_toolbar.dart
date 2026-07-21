@@ -9,19 +9,19 @@ class AdminUsersToolbar extends StatefulWidget {
   final String? selectedStationId;
   final String? selectedCounterId;
   final bool? selectedIsActive;
-  final String? ordering;
   final List<AdminInternalRoleOption> roles;
   final List<StaffStationRef> stations;
   final List<StaffCounterRef> counters;
   final bool isLoadingCounters;
   final bool canManage;
   final ValueChanged<String> onSearch;
+  final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onRoleChanged;
   final ValueChanged<String?> onStationChanged;
   final ValueChanged<String?> onCounterChanged;
   final ValueChanged<bool?> onActiveChanged;
-  final ValueChanged<String?> onOrderingChanged;
   final VoidCallback onRefresh;
+  final VoidCallback onResetFilters;
   final VoidCallback onCreate;
 
   const AdminUsersToolbar({
@@ -31,19 +31,19 @@ class AdminUsersToolbar extends StatefulWidget {
     required this.selectedStationId,
     required this.selectedCounterId,
     required this.selectedIsActive,
-    required this.ordering,
     required this.roles,
     required this.stations,
     required this.counters,
     required this.isLoadingCounters,
     required this.canManage,
     required this.onSearch,
+    required this.onSearchChanged,
     required this.onRoleChanged,
     required this.onStationChanged,
     required this.onCounterChanged,
     required this.onActiveChanged,
-    required this.onOrderingChanged,
     required this.onRefresh,
+    required this.onResetFilters,
     required this.onCreate,
   });
 
@@ -84,9 +84,11 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
           SizedBox(
             width: compact ? double.infinity : 280,
             child: TextField(
+              key: const Key('admin-users-search-field'),
               controller: _searchController,
               textInputAction: TextInputAction.search,
               onSubmitted: widget.onSearch,
+              onChanged: widget.onSearchChanged,
               decoration: InputDecoration(
                 labelText: 'Recherche',
                 hintText: 'Nom, email ou téléphone',
@@ -102,6 +104,7 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
             ),
           ),
           _Dropdown<String>(
+            fieldKey: const Key('admin-users-role-filter'),
             width: compact ? double.infinity : 190,
             label: 'Rôle',
             value: widget.selectedRole,
@@ -118,6 +121,7 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
             ],
           ),
           _Dropdown<String>(
+            fieldKey: const Key('admin-users-station-filter'),
             width: compact ? double.infinity : 190,
             label: 'Gare',
             value: widget.selectedStationId,
@@ -134,6 +138,7 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
             ],
           ),
           _Dropdown<String>(
+            fieldKey: const Key('admin-users-counter-filter'),
             width: compact ? double.infinity : 190,
             label: widget.isLoadingCounters ? 'Guichets...' : 'Guichet',
             value: widget.selectedCounterId,
@@ -152,6 +157,7 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
             ],
           ),
           _Dropdown<bool>(
+            fieldKey: const Key('admin-users-status-filter'),
             width: compact ? double.infinity : 150,
             label: 'Statut',
             value: widget.selectedIsActive,
@@ -160,18 +166,6 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
               DropdownMenuItem(value: null, child: Text('Tous')),
               DropdownMenuItem(value: true, child: Text('Actifs')),
               DropdownMenuItem(value: false, child: Text('Inactifs')),
-            ],
-          ),
-          _Dropdown<String>(
-            width: compact ? double.infinity : 170,
-            label: 'Tri',
-            value: widget.ordering,
-            onChanged: widget.onOrderingChanged,
-            items: const [
-              DropdownMenuItem(value: null, child: Text('Par défaut')),
-              DropdownMenuItem(value: 'lastname', child: Text('Nom A-Z')),
-              DropdownMenuItem(
-                  value: '-created_at', child: Text('Plus récents')),
             ],
           ),
         ];
@@ -192,15 +186,23 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
               alignment: WrapAlignment.end,
               children: [
                 OutlinedButton.icon(
+                  key: const Key('admin-users-reset-filters-button'),
+                  onPressed: widget.onResetFilters,
+                  icon: const Icon(Icons.filter_alt_off_outlined),
+                  label: const Text('Réinitialiser filtres'),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('admin-users-refresh-button'),
                   onPressed: widget.onRefresh,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Rafraîchir'),
                 ),
                 if (widget.canManage)
                   ElevatedButton.icon(
+                    key: const Key('admin-users-create-button'),
                     onPressed: widget.onCreate,
                     icon: const Icon(Icons.person_add),
-                    label: const Text('Nouvel utilisateur'),
+                    label: const Text('Ajouter un utilisateur'),
                   ),
               ],
             ),
@@ -212,6 +214,7 @@ class _AdminUsersToolbarState extends State<AdminUsersToolbar> {
 }
 
 class _Dropdown<T> extends StatelessWidget {
+  final Key fieldKey;
   final double width;
   final String label;
   final T? value;
@@ -219,6 +222,7 @@ class _Dropdown<T> extends StatelessWidget {
   final List<DropdownMenuItem<T?>> items;
 
   const _Dropdown({
+    required this.fieldKey,
     required this.width,
     required this.label,
     required this.value,
@@ -231,6 +235,7 @@ class _Dropdown<T> extends StatelessWidget {
     return SizedBox(
       width: width,
       child: DropdownButtonFormField<T?>(
+        key: fieldKey,
         initialValue: value,
         items: items,
         onChanged: onChanged,
