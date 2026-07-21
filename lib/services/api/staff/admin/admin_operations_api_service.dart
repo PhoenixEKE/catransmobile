@@ -1,7 +1,9 @@
 import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
+import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
+import 'package:catrans_app/models/station/station_ticket_validation.dart';
 
 class AdminOperationsApiService {
   final ApiClient _apiClient;
@@ -44,25 +46,93 @@ class AdminOperationsApiService {
       _get('admin/operations/departure-templates/$id/');
 
   Future<PagedResult<AdminOperationRecord>> listDepartures({
-    String? query,
+    String? stationId,
+    String? routeId,
+    String? serviceClassId,
+    String? departureTemplateId,
     String? status,
-    bool? isActive,
+    String? dateFrom,
+    String? dateTo,
     String? ordering,
     int page = 1,
     int pageSize = 20,
   }) =>
       _list(
         'admin/operations/departures/',
-        query: query,
-        isActive: isActive,
         ordering: ordering,
         page: page,
         pageSize: pageSize,
-        extra: {'status': status?.trim()},
+        extra: {
+          'station_id': stationId?.trim(),
+          'route_id': routeId?.trim(),
+          'service_class_id': serviceClassId?.trim(),
+          'departure_template_id': departureTemplateId?.trim(),
+          'status': status?.trim(),
+          'date_from': dateFrom?.trim(),
+          'date_to': dateTo?.trim(),
+        },
       );
+
+  Future<PagedResult<AdminDeparture>> listAdminDepartures({
+    String? stationId,
+    String? routeId,
+    String? serviceClassId,
+    String? departureTemplateId,
+    String? status,
+    String? dateFrom,
+    String? dateTo,
+    String? ordering,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final response = await _apiClient.get(
+      'admin/operations/departures/',
+      queryParameters: buildAdminOperationsQueryParameters(
+        ordering: ordering,
+        page: page,
+        pageSize: pageSize,
+        extra: {
+          'station_id': stationId?.trim(),
+          'route_id': routeId?.trim(),
+          'service_class_id': serviceClassId?.trim(),
+          'departure_template_id': departureTemplateId?.trim(),
+          'status': status?.trim(),
+          'date_from': dateFrom?.trim(),
+          'date_to': dateTo?.trim(),
+        },
+      ),
+    );
+    return PagedResult.fromJson(response.data, AdminDeparture.fromJson);
+  }
 
   Future<AdminOperationRecord> getDeparture(String id) =>
       _get('admin/operations/departures/$id/');
+
+  Future<AdminDeparture> getAdminDeparture(String id) async {
+    final response = await _apiClient.get('admin/operations/departures/$id/');
+    return AdminDeparture.fromJson(_readMap(response.data));
+  }
+
+  Future<AdminDepartureCreateResult> createAdminDeparture(
+    AdminDepartureCreateRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/departures/',
+      data: request.toJson(),
+    );
+    return AdminDepartureCreateResult.fromJson(_readMap(response.data));
+  }
+
+  Future<AdminDeparture> updateAdminDepartureDate(
+    String departureId,
+    AdminDepartureDateUpdateRequest request,
+  ) async {
+    final response = await _apiClient.patch(
+      'admin/operations/departures/$departureId/',
+      data: request.toJson(),
+    );
+    return AdminDeparture.fromJson(_readMap(response.data));
+  }
 
   Future<Map<String, dynamic>> getDepartureSeatMap(String departureId) async {
     final response = await _apiClient
@@ -70,57 +140,152 @@ class AdminOperationsApiService {
     return _readMap(response.data);
   }
 
-  Future<Map<String, dynamic>> previewDepartures(String templateId) async {
+  Future<AdminDepartureSeatMap> getAdminDepartureSeatMap(
+    String departureId,
+  ) async {
+    final response = await _apiClient
+        .get('admin/operations/departures/$departureId/seat-map/');
+    return AdminDepartureSeatMap.fromJson(_readMap(response.data));
+  }
+
+  Future<AdminDepartureSeatsResponse> listDepartureSeats({
+    required String departureId,
+    String? status,
+    String? seatType,
+    int? seatNumber,
+    bool? isSelectable,
+    String? ordering,
+  }) async {
     final response = await _apiClient.get(
-        'admin/operations/departure-templates/$templateId/departures/preview/');
+      'admin/operations/departures/$departureId/seats/',
+      queryParameters: buildAdminOperationsQueryParameters(
+        ordering: ordering,
+        page: 1,
+        pageSize: 100,
+        extra: {
+          'status': status?.trim(),
+          'seat_type': seatType?.trim(),
+          'seat_number': seatNumber,
+          'is_selectable': isSelectable,
+        },
+      )..removeWhere((key, value) => key == 'page' || key == 'page_size'),
+    );
+    return AdminDepartureSeatsResponse.fromJson(_readMap(response.data));
+  }
+
+  Future<Map<String, dynamic>> previewDepartures(
+    String templateId,
+    AdminDepartureDatesRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/departure-templates/$templateId/departures/preview/',
+      data: request.toJson(),
+    );
     return _readMap(response.data);
   }
 
-  Future<AdminOperationActionResponse> generateDepartures(
-      String templateId) async {
+  Future<AdminDepartureGenerationResult> generateDepartures(
+    String templateId,
+    AdminDepartureDatesRequest request,
+  ) async {
     final response = await _apiClient.post(
-        'admin/operations/departure-templates/$templateId/departures/generate/');
-    return AdminOperationActionResponse.fromJson(_readMap(response.data));
+      'admin/operations/departure-templates/$templateId/departures/generate/',
+      data: request.toJson(),
+    );
+    return AdminDepartureGenerationResult.fromJson(_readMap(response.data));
   }
 
-  Future<AdminOperationActionResponse> generateSeats(String departureId) async {
+  Future<AdminDepartureSeatGenerationResult> generateSeats(
+    String departureId,
+  ) async {
     final response = await _apiClient
         .post('admin/operations/departures/$departureId/generate-seats/');
-    return AdminOperationActionResponse.fromJson(_readMap(response.data));
+    return AdminDepartureSeatGenerationResult.fromJson(_readMap(response.data));
   }
 
   Future<AdminOperationActionResponse> blockSeats(
-      String departureId, List<int> seatNumbers) async {
+    String departureId,
+    List<int> seatNumbers, {
+    required String reason,
+  }) async {
     final response = await _apiClient.post(
       'admin/operations/departures/$departureId/seats/block/',
-      data: {'seat_numbers': seatNumbers},
+      data: AdminDepartureSeatActionRequest(
+        seatNumbers: seatNumbers,
+        reason: reason,
+      ).toJson(),
     );
     return AdminOperationActionResponse.fromJson(_readMap(response.data));
   }
 
   Future<AdminOperationActionResponse> unblockSeats(
-      String departureId, List<int> seatNumbers) async {
+    String departureId,
+    List<int> seatNumbers, {
+    required String reason,
+  }) async {
     final response = await _apiClient.post(
       'admin/operations/departures/$departureId/seats/unblock/',
-      data: {'seat_numbers': seatNumbers},
+      data: AdminDepartureSeatActionRequest(
+        seatNumbers: seatNumbers,
+        reason: reason,
+      ).toJson(),
     );
     return AdminOperationActionResponse.fromJson(_readMap(response.data));
   }
 
-  Future<void> openDeparture(String departureId) async {
-    await _apiClient.post('admin/operations/departures/$departureId/open/');
+  Future<AdminDepartureActionResponse> openDeparture(String departureId) =>
+      _departureAction(departureId, 'open');
+
+  Future<AdminDepartureActionResponse> closeDeparture(String departureId) =>
+      _departureAction(departureId, 'close');
+
+  Future<AdminDepartureActionResponse> markDeparted(String departureId) =>
+      _departureAction(departureId, 'depart');
+
+  Future<AdminDepartureActionResponse> cancelDeparture(String departureId) =>
+      _departureAction(departureId, 'cancel');
+
+  Future<StationTicketValidation> validateTicket({
+    required String validationToken,
+    required String departureId,
+    String deviceIdentifier = 'admin_operations_portal',
+  }) async {
+    final response = await _apiClient.post(
+      'tickets/validate/',
+      data: {
+        'validation_token': validationToken.trim(),
+        'departure_id': departureId.trim(),
+        if (deviceIdentifier.trim().isNotEmpty)
+          'device_identifier': deviceIdentifier.trim(),
+      },
+    );
+    return StationTicketValidation.fromJson(_readMap(response.data));
   }
 
-  Future<void> closeDeparture(String departureId) async {
-    await _apiClient.post('admin/operations/departures/$departureId/close/');
+  Future<StationTicketValidation> validateTicketByReference({
+    required String ticketReference,
+    required String departureId,
+    String deviceIdentifier = 'admin_operations_portal',
+  }) async {
+    final response = await _apiClient.post(
+      'tickets/validate/',
+      data: {
+        'ticket_reference': ticketReference.trim(),
+        'departure_id': departureId.trim(),
+        if (deviceIdentifier.trim().isNotEmpty)
+          'device_identifier': deviceIdentifier.trim(),
+      },
+    );
+    return StationTicketValidation.fromJson(_readMap(response.data));
   }
 
-  Future<void> markDeparted(String departureId) async {
-    await _apiClient.post('admin/operations/departures/$departureId/depart/');
-  }
-
-  Future<void> cancelDeparture(String departureId) async {
-    await _apiClient.post('admin/operations/departures/$departureId/cancel/');
+  Future<AdminDepartureActionResponse> _departureAction(
+    String departureId,
+    String action,
+  ) async {
+    final response = await _apiClient
+        .post('admin/operations/departures/$departureId/$action/');
+    return AdminDepartureActionResponse.fromJson(_readMap(response.data));
   }
 
   Future<PagedResult<AdminOperationRecord>> _list(

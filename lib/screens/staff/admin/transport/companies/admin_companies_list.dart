@@ -35,7 +35,11 @@ class AdminCompaniesList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (useCards) _buildCards() else _buildTable(),
+            Expanded(
+              child: useCards
+                  ? SingleChildScrollView(child: _buildCards())
+                  : _buildTable(),
+            ),
             const SizedBox(height: 10),
             StaffPaginationControls(
               hasPrevious: page.hasPrevious,
@@ -57,34 +61,37 @@ class AdminCompaniesList extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE4E7EF)),
       ),
       child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(const Color(0xFFF7F8FC)),
-          columns: const [
-            DataColumn(label: Text('Nom')),
-            DataColumn(label: Text('Code')),
-            DataColumn(label: Text('Téléphone service client')),
-            DataColumn(label: Text('Statut')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: page.results.map((company) {
-            return DataRow(
-              cells: [
-                DataCell(Text(company.name.isEmpty ? '-' : company.name)),
-                DataCell(Text(_nullable(company.code))),
-                DataCell(Text(_nullable(company.customerServicePhone))),
-                DataCell(AdminTransportStatusBadge(isActive: company.isActive)),
-                DataCell(_Actions(
-                  company: company,
-                  canManage: canManage,
-                  onOpenDetail: onOpenDetail,
-                  onEdit: onEdit,
-                  onActivate: onActivate,
-                  onDeactivate: onDeactivate,
-                )),
-              ],
-            );
-          }).toList(),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFF7F8FC)),
+            columns: const [
+              DataColumn(label: Text('Nom')),
+              DataColumn(label: Text('Code')),
+              DataColumn(label: Text('Téléphone service client')),
+              DataColumn(label: Text('Statut')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: page.results.map((company) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(company.name.isEmpty ? '-' : company.name)),
+                  DataCell(Text(_nullable(company.code))),
+                  DataCell(Text(_nullable(company.customerServicePhone))),
+                  DataCell(
+                      AdminTransportStatusBadge(isActive: company.isActive)),
+                  DataCell(_Actions(
+                    company: company,
+                    canManage: canManage,
+                    onOpenDetail: onOpenDetail,
+                    onEdit: onEdit,
+                    onActivate: onActivate,
+                    onDeactivate: onDeactivate,
+                  )),
+                ],
+              );
+            }).toList(),
+          ),
         ),
       ),
     );

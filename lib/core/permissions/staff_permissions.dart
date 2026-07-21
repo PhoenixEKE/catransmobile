@@ -7,6 +7,9 @@ class StaffPermissions {
   static const adminOperationsManage = 'admin.operations.manage';
   static const adminDashboardRead = 'admin.dashboard.read';
   static const stationSalesCash = 'station.sales.cash';
+  static const boardingManifestRead = 'boarding.manifest.read';
+  static const boardingSummaryRead = 'boarding.summary.read';
+  static const boardingValidate = 'boarding.validate';
 
   final Set<String> scopes;
 
@@ -46,4 +49,10 @@ class StaffPermissions {
   bool get canReadAdminDashboard => hasScope(adminDashboardRead);
 
   bool get canSellCashAtStation => hasScope(stationSalesCash);
+
+  bool get canReadBoardingManifest => hasScope(boardingManifestRead);
+
+  bool get canReadBoardingSummary => hasScope(boardingSummaryRead);
+
+  bool get canValidateBoarding => hasScope(boardingValidate);
 }

@@ -62,7 +62,7 @@ class _AdminCompaniesScreenState extends State<AdminCompaniesScreen> {
               onCreate: _openCreateForm,
             ),
             const SizedBox(height: 18),
-            _buildContent(),
+            Expanded(child: _buildContent()),
           ],
         );
       },
