@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/config/app_config.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
+
 void main() {
+  AppConfig.validateRuntimeConfiguration();
   runApp(const MyApp());
 }
 
