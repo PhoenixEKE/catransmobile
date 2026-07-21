@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/structured_api_error.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departure_detail_dialog.dart';
+import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departure_generation_dialog.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departure_form_dialog.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departure_transition_dialog.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departures_controller.dart';
@@ -70,6 +71,7 @@ class _AdminDeparturesScreenState extends State<AdminDeparturesScreen> {
                 _controller.setDateRange(from: from, to: to),
             onRefresh: _controller.refresh,
             onCreate: _openCreateForm,
+            onGenerate: _openGenerationDialog,
           ),
           const SizedBox(height: 12),
           _SelectedDepartureBanner(departure: widget.selectedDeparture),
@@ -149,6 +151,17 @@ class _AdminDeparturesScreenState extends State<AdminDeparturesScreen> {
   Future<void> _openCreateForm() async {
     if (!widget.canManage) return;
     await _handleFormLoop(initialDeparture: null);
+  }
+
+  Future<void> _openGenerationDialog() async {
+    if (!widget.canManage) return;
+    await showAdminDepartureGenerationDialog(
+      context: context,
+      templates: _controller.templates,
+      previewGeneration: _controller.previewGeneration,
+      generateDepartures: _controller.generateDeparturesBatch,
+      isSubmitting: _controller.isSubmitting,
+    );
   }
 
   Future<void> _openEditDateForm(AdminDeparture departure) async {

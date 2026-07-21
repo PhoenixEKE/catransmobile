@@ -1,5 +1,6 @@
 import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/operations/seat_layout_seat.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
@@ -27,6 +28,43 @@ class AdminOperationsApiService {
 
   Future<AdminOperationRecord> getSeatLayout(String id) =>
       _get('admin/operations/seat-layouts/$id/');
+
+  Future<PagedResult<SeatLayoutSeat>> listSeatLayoutSeats(
+    String seatLayoutId, {
+    String? query,
+    String? seatType,
+    bool? isActive,
+    bool? isSelectable,
+    String? ordering,
+    int page = 1,
+    int pageSize = 100,
+  }) async {
+    final response = await _apiClient.get(
+      'admin/operations/seat-layouts/$seatLayoutId/seats/',
+      queryParameters: buildAdminOperationsQueryParameters(
+        query: query,
+        isActive: isActive,
+        ordering: ordering,
+        page: page,
+        pageSize: pageSize,
+        extra: {
+          'seat_type': seatType?.trim(),
+          'is_selectable': isSelectable,
+        },
+      ),
+    );
+    return PagedResult.fromJson(response.data, SeatLayoutSeat.fromJson);
+  }
+
+  Future<SeatLayoutSeat> getSeatLayoutSeat(
+    String seatLayoutId,
+    String seatId,
+  ) async {
+    final response = await _apiClient.get(
+      'admin/operations/seat-layouts/$seatLayoutId/seats/$seatId/',
+    );
+    return SeatLayoutSeat.fromJson(_readMap(response.data));
+  }
 
   Future<PagedResult<AdminOperationRecord>> listDepartureTemplates({
     String? query,

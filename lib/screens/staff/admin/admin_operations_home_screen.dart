@@ -6,6 +6,7 @@ import 'package:catrans_app/models/staff/admin/operations/admin_departure_models
 import 'package:catrans_app/screens/staff/admin/operations/admin_operations_navigation.dart';
 import 'package:catrans_app/screens/staff/admin/operations/boarding/admin_boarding_screen.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departures_screen.dart';
+import 'package:catrans_app/screens/staff/admin/operations/layouts/admin_seat_layouts_screen.dart';
 import 'package:catrans_app/screens/staff/admin/operations/seats/admin_departure_seats_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/widgets/staff/staff_module_header.dart';
@@ -27,6 +28,11 @@ class _AdminOperationsHomeScreenState extends State<AdminOperationsHomeScreen> {
       id: 'departures',
       label: 'Départs',
       icon: Icons.directions_bus_outlined,
+    ),
+    AdminOperationsSection(
+      id: 'seat-layouts',
+      label: 'Plans de sièges',
+      icon: Icons.view_module_outlined,
     ),
     AdminOperationsSection(
       id: 'seats',
@@ -90,6 +96,10 @@ class _AdminOperationsHomeScreenState extends State<AdminOperationsHomeScreen> {
 
   Widget _buildSection(StaffPermissions permissions) {
     switch (_selectedSectionId) {
+      case 'seat-layouts':
+        return AdminSeatLayoutsScreen(
+          canManage: permissions.canManageAdminOperations,
+        );
       case 'seats':
         return AdminDepartureSeatsScreen(
           departure: _selectedDeparture,
