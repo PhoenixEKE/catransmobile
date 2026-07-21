@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:catrans_app/core/design/personnel_design.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 
@@ -20,22 +21,26 @@ class StaffSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profile = user.internalProfile;
+    final locationLine = _locationLine(
+      profile?.station?.name,
+      profile?.counter?.displayName,
+    );
 
     return Container(
       width: 280,
-      color: const Color(0xFF0F056B),
+      color: PersonnelColors.brandPrimary,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(PersonnelSpacing.lg),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Image.asset(
@@ -67,13 +72,15 @@ class StaffSidebar extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: PersonnelSpacing.lg),
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(PersonnelSpacing.md),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(PersonnelRadius.sm),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,14 +106,27 @@ class StaffSidebar extends StatelessWidget {
                       style:
                           const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
+                    if (locationLine != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        locationLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: PersonnelSpacing.lg),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: PersonnelSpacing.sm),
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];
@@ -114,36 +134,59 @@ class StaffSidebar extends StatelessWidget {
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: ListTile(
-                      leading: Icon(
-                        item.icon,
-                        color: isSelected
-                            ? const Color(0xFFEFD807)
-                            : Colors.white70,
-                      ),
-                      title: Text(
-                        item.title,
-                        style: TextStyle(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Ink(
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFFEFD807)
-                              : Colors.white,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.w500,
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.transparent,
+                          borderRadius:
+                              BorderRadius.circular(PersonnelRadius.sm),
+                          border: Border(
+                            left: BorderSide(
+                              color: isSelected
+                                  ? PersonnelColors.brandAccent
+                                  : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: Icon(
+                            item.icon,
+                            color: isSelected
+                                ? PersonnelColors.brandAccent
+                                : Colors.white70,
+                          ),
+                          title: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? PersonnelColors.brandAccent
+                                  : Colors.white,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          selected: isSelected,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(PersonnelRadius.sm),
+                          ),
+                          onTap: () => onSelected(item.id),
                         ),
                       ),
-                      selected: isSelected,
-                      selectedTileColor: Colors.white.withOpacity(0.1),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      onTap: () => onSelected(item.id),
                     ),
                   );
                 },
               ),
             ),
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(PersonnelSpacing.md),
               child: Text(
                 'Portail métier v1',
                 textAlign: TextAlign.center,
@@ -154,5 +197,13 @@ class StaffSidebar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String? _locationLine(String? stationName, String? counterName) {
+    final parts = <String>[
+      if (stationName != null && stationName.isNotEmpty) stationName,
+      if (counterName != null && counterName.isNotEmpty) counterName,
+    ];
+    return parts.isEmpty ? null : parts.join(' • ');
   }
 }

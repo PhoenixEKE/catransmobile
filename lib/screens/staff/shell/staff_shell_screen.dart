@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:catrans_app/core/design/personnel_design.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
@@ -41,12 +42,12 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     final user = authService.currentUser;
 
     if (user == null || user.isCustomer) {
-      return const StaffAccessDeniedPage();
+      return StaffAccessDeniedPage(user: user);
     }
 
     final menuItems = StaffMenuItem.forUser(user);
     if (menuItems.isEmpty) {
-      return const StaffAccessDeniedPage();
+      return StaffAccessDeniedPage(user: user);
     }
 
     _ensureInitialSelection(user, menuItems);
@@ -60,11 +61,13 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final showSidebar = constraints.maxWidth >= 900;
+        final showSidebar =
+            PersonnelBreakpoints.isDesktop(constraints.maxWidth);
+        final isLarge = PersonnelBreakpoints.isLarge(constraints.maxWidth);
 
         return Scaffold(
           key: _scaffoldKey,
-          backgroundColor: const Color(0xFFF5F6FA),
+          backgroundColor: PersonnelColors.background,
           drawer: showSidebar
               ? null
               : Drawer(
@@ -98,7 +101,20 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
                           : () => _scaffoldKey.currentState?.openDrawer(),
                       onLogout: () => _logout(context),
                     ),
-                    Expanded(child: content),
+                    Expanded(
+                      child: isLarge
+                          ? Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth:
+                                      PersonnelBreakpoints.maxContentWidth,
+                                ),
+                                child: content,
+                              ),
+                            )
+                          : content,
+                    ),
                   ],
                 ),
               ),

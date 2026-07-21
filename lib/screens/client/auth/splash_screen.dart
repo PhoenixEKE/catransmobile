@@ -10,7 +10,6 @@ import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/screens/client/auth/login_screen.dart';
 import 'package:catrans_app/screens/client/auth/register_screen.dart';
-import 'package:catrans_app/screens/admin/admin_login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -341,51 +340,6 @@ class AuthChoiceScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              // ✅ ACCÈS ADMIN
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AdminLoginScreen()),
-                  );
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.admin_panel_settings,
-                        color: Colors.white70,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Administration',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
             ],
           ),
         ),

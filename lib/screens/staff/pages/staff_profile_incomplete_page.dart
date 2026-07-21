@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:catrans_app/core/design/personnel_design.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
@@ -12,9 +13,10 @@ class StaffProfileIncompletePage extends StatelessWidget {
     final user = context.watch<AuthService>().currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: PersonnelColors.background,
       appBar: AppBar(
         title: const Text('Profil interne incomplet'),
+        backgroundColor: PersonnelColors.brandPrimary,
         actions: [
           IconButton(
             tooltip: 'Déconnexion',
@@ -35,12 +37,12 @@ class StaffProfileIncompletePage extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
           child: Container(
-            margin: const EdgeInsets.all(24),
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.all(PersonnelSpacing.lg),
+            padding: const EdgeInsets.all(PersonnelSpacing.lg),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black12),
+              color: PersonnelColors.surface,
+              borderRadius: BorderRadius.circular(PersonnelRadius.sm),
+              border: Border.all(color: PersonnelColors.border),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -48,24 +50,24 @@ class StaffProfileIncompletePage extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.manage_accounts,
-                  color: Color(0xFF0F056B),
+                  color: PersonnelColors.brandPrimary,
                   size: 44,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: PersonnelSpacing.md),
                 const Text(
                   'Votre profil interne doit être complété',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F056B),
+                    color: PersonnelColors.brandPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: PersonnelSpacing.sm),
                 Text(
                   user?.email ?? 'Compte personnel CA TRANS',
-                  style: const TextStyle(color: Colors.black54),
+                  style: const TextStyle(color: PersonnelColors.textMuted),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: PersonnelSpacing.md),
                 const Text(
                   'Votre compte est reconnu, mais aucun rôle métier exploitable n’est encore configuré. Contactez un administrateur CA TRANS.',
                 ),
