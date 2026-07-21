@@ -6,6 +6,8 @@ import 'package:catrans_app/screens/staff/admin/transport/admin_transport_naviga
 import 'package:catrans_app/screens/staff/admin/transport/cities/admin_cities_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/companies/admin_companies_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/counters/admin_counters_screen.dart';
+import 'package:catrans_app/screens/staff/admin/transport/fares/admin_fares_screen.dart';
+import 'package:catrans_app/screens/staff/admin/transport/routes/admin_routes_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/service_classes/admin_service_classes_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/stations/admin_stations_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
@@ -34,6 +36,8 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
   static const _serviceClassesSectionId = 'service_classes';
   static const _stationsSectionId = 'stations';
   static const _countersSectionId = 'counters';
+  static const _routesSectionId = 'routes';
+  static const _faresSectionId = 'fares';
   String _selectedSectionId = _companiesSectionId;
 
   @override
@@ -107,6 +111,20 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
       );
     }
 
+    if (_selectedSectionId == _routesSectionId) {
+      return AdminRoutesScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
+    if (_selectedSectionId == _faresSectionId) {
+      return AdminFaresScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
     return const SizedBox.shrink();
   }
 }
@@ -146,11 +164,13 @@ const _sections = [
     id: 'routes',
     label: 'Routes',
     icon: Icons.alt_route,
+    isAvailable: true,
   ),
   AdminTransportSection(
     id: 'fares',
     label: 'Tarifs',
     icon: Icons.payments,
+    isAvailable: true,
   ),
   AdminTransportSection(
     id: 'schedules',

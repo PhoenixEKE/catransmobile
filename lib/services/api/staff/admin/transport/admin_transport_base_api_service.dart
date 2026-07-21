@@ -3,6 +3,8 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_city_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_company_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_counter_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_fare_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_route_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_service_class_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_station_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_transport_common.dart';
@@ -101,7 +103,8 @@ class AdminTransportBaseApiService {
   }
 
   Future<AdminCompany> activateCompany(String id) {
-    return _action('admin/transport/companies/$id/activate/', AdminCompany.fromJson);
+    return _action(
+        'admin/transport/companies/$id/activate/', AdminCompany.fromJson);
   }
 
   Future<AdminCompany> deactivateCompany(String id) {
@@ -210,7 +213,8 @@ class AdminTransportBaseApiService {
   }
 
   Future<AdminStation> activateStation(String id) {
-    return _action('admin/transport/stations/$id/activate/', AdminStation.fromJson);
+    return _action(
+        'admin/transport/stations/$id/activate/', AdminStation.fromJson);
   }
 
   Future<AdminStation> deactivateStation(String id) {
@@ -342,6 +346,110 @@ class AdminTransportBaseApiService {
       'admin/transport/service-classes/$id/deactivate/',
       AdminServiceClass.fromJson,
     );
+  }
+
+  Future<PagedResult<AdminRoute>> listRoutes({
+    String? query,
+    String? companyId,
+    String? departureStationId,
+    String? departureCityId,
+    String? destinationCityId,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) {
+    return _list(
+      'admin/transport/routes/',
+      AdminRoute.fromJson,
+      query: query,
+      isActive: isActive,
+      ordering: ordering,
+      page: page,
+      pageSize: pageSize,
+      extra: {
+        'company_id': companyId?.trim(),
+        'departure_station_id': departureStationId?.trim(),
+        'departure_city_id': departureCityId?.trim(),
+        'destination_city_id': destinationCityId?.trim(),
+      },
+    );
+  }
+
+  Future<AdminRoute> getRoute(String id) {
+    return _get('admin/transport/routes/$id/', AdminRoute.fromJson);
+  }
+
+  Future<AdminRoute> createRoute(AdminRouteCreateRequest request) {
+    return _create(
+        'admin/transport/routes/', request.toJson(), AdminRoute.fromJson);
+  }
+
+  Future<AdminRoute> updateRoute(String id, AdminRouteUpdateRequest request) {
+    return _patch(
+        'admin/transport/routes/$id/', request.toJson(), AdminRoute.fromJson);
+  }
+
+  Future<AdminRoute> activateRoute(String id) {
+    return _action('admin/transport/routes/$id/activate/', AdminRoute.fromJson);
+  }
+
+  Future<AdminRoute> deactivateRoute(String id) {
+    return _action(
+        'admin/transport/routes/$id/deactivate/', AdminRoute.fromJson);
+  }
+
+  Future<PagedResult<AdminFare>> listFares({
+    String? query,
+    String? routeId,
+    String? serviceClassId,
+    String? currency,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) {
+    return _list(
+      'admin/transport/fares/',
+      AdminFare.fromJson,
+      query: query,
+      isActive: isActive,
+      ordering: ordering,
+      page: page,
+      pageSize: pageSize,
+      extra: {
+        'route_id': routeId?.trim(),
+        'service_class_id': serviceClassId?.trim(),
+        'currency': currency?.trim().toUpperCase(),
+      },
+    );
+  }
+
+  Future<AdminFare> getFare(String id) {
+    return _get('admin/transport/fares/$id/', AdminFare.fromJson);
+  }
+
+  Future<AdminFare> createFare(AdminFareCreateRequest request) {
+    return _create(
+        'admin/transport/fares/', request.toJson(), AdminFare.fromJson);
+  }
+
+  Future<AdminFare> updateFare(String id, AdminFarePatchRequest request) {
+    return _patch(
+        'admin/transport/fares/$id/', request.toJson(), AdminFare.fromJson);
+  }
+
+  Future<AdminFare> replaceFare(String id, AdminFareReplaceRequest request) {
+    return _create('admin/transport/fares/$id/replace/', request.toJson(),
+        AdminFare.fromJson);
+  }
+
+  Future<AdminFare> activateFare(String id) {
+    return _action('admin/transport/fares/$id/activate/', AdminFare.fromJson);
+  }
+
+  Future<AdminFare> deactivateFare(String id) {
+    return _action('admin/transport/fares/$id/deactivate/', AdminFare.fromJson);
   }
 
   Future<PagedResult<T>> _list<T>(
