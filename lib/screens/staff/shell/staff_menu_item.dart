@@ -387,7 +387,7 @@ class StaffMenuItem {
       title: 'Transport',
       icon: Icons.route,
       description: 'Référentiels transport, lignes, horaires et tarifs.',
-      nextStep: 'Les référentiels transport seront livrés au lot 6.6D.',
+      nextStep: 'Accédez aux référentiels transport déjà disponibles.',
       scopes: const [
         StaffPermissions.adminTransportRead,
         StaffPermissions.adminTransportManage,

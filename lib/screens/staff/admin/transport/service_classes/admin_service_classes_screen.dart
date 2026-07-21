@@ -23,7 +23,8 @@ class AdminServiceClassesScreen extends StatefulWidget {
   });
 
   @override
-  State<AdminServiceClassesScreen> createState() => _AdminServiceClassesScreenState();
+  State<AdminServiceClassesScreen> createState() =>
+      _AdminServiceClassesScreenState();
 }
 
 class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
@@ -43,40 +44,44 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
+  Widget build(BuildContext context) => AnimatedBuilder(
       animation: _controller,
-      builder: (context, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AdminServiceClassesToolbar(
-              initialQuery: _controller.query,
-              selectedIsActive: _controller.isActive,
-              selectedAllowsSeatSelection: _controller.allowsSeatSelection,
-              ordering: _controller.ordering,
-              canManage: widget.canManage,
-              onSearch: _controller.search,
-              onActiveChanged: _controller.setActiveFilter,
-              onSeatSelectionChanged: _controller.setSeatSelectionFilter,
-              onOrderingChanged: _controller.setOrdering,
-              onRefresh: _controller.refresh,
-              onCreate: _openCreateForm,
-            ),
-            const SizedBox(height: 18),
-            _buildContent(),
-          ],
-        );
-      },
-    );
-  }
+      builder: (context, _) => LayoutBuilder(builder: (context, constraints) {
+            final compact = constraints.maxWidth < 700;
+            final children = [
+              AdminServiceClassesToolbar(
+                initialQuery: _controller.query,
+                selectedIsActive: _controller.isActive,
+                selectedAllowsSeatSelection: _controller.allowsSeatSelection,
+                ordering: _controller.ordering,
+                canManage: widget.canManage,
+                onSearch: _controller.search,
+                onActiveChanged: _controller.setActiveFilter,
+                onSeatSelectionChanged: _controller.setSeatSelectionFilter,
+                onOrderingChanged: _controller.setOrdering,
+                onRefresh: _controller.refresh,
+                onCreate: _openCreateForm,
+              ),
+              const SizedBox(height: 18),
+              if (compact)
+                _buildContent()
+              else
+                Expanded(child: SingleChildScrollView(child: _buildContent())),
+            ];
+            final column = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            );
+            return compact ? SingleChildScrollView(child: column) : column;
+          }));
 
   Widget _buildContent() {
     if (_controller.isLoading && _controller.serviceClassesPage == null) {
       return const StaffLoadingState(message: 'Chargement des classes...');
     }
     if (_controller.listError != null) {
-      return StaffErrorState(message: _controller.listError!, onRetry: _controller.refresh);
+      return StaffErrorState(
+          message: _controller.listError!, onRetry: _controller.refresh);
     }
     final page = _controller.serviceClassesPage;
     if (page == null || page.results.isEmpty) {
@@ -94,7 +99,8 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
           onPreviousPage: _controller.hasPreviousPage
               ? () => _controller.previousPage()
               : null,
-          onNextPage: _controller.hasNextPage ? () => _controller.nextPage() : null,
+          onNextPage:
+              _controller.hasNextPage ? () => _controller.nextPage() : null,
           onOpenDetail: _openDetail,
           onEdit: _openEditForm,
           onActivate: _activateServiceClass,
@@ -171,7 +177,8 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
       );
       if (result?.updateRequest == null) return;
       draft = result!.updateRequest!;
-      final success = await _controller.updateServiceClass(serviceClass.id, draft);
+      final success =
+          await _controller.updateServiceClass(serviceClass.id, draft);
       if (!mounted) return;
       if (success) {
         _showSnackBar('Classe mise à jour.');
@@ -189,27 +196,33 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
     if (!widget.canManage) return;
     final confirmed = await _confirmAction(
       title: 'Activer cette classe ?',
-      message: 'La classe ${serviceClass.name} pourra être utilisée par les référentiels transport.',
+      message:
+          'La classe ${serviceClass.name} pourra être utilisée par les référentiels transport.',
       actionLabel: 'Activer',
     );
     if (confirmed != true) return;
     final success = await _controller.activateServiceClass(serviceClass.id);
     if (!mounted) return;
-    _showSnackBar(success ? 'Classe activée.' : _controller.formError ?? 'Activation impossible.');
+    _showSnackBar(success
+        ? 'Classe activée.'
+        : _controller.formError ?? 'Activation impossible.');
   }
 
   Future<void> _deactivateServiceClass(AdminServiceClass serviceClass) async {
     if (!widget.canManage) return;
     final confirmed = await _confirmAction(
       title: 'Désactiver cette classe ?',
-      message: 'La classe ${serviceClass.name} ne pourra plus être utilisée pour de nouveaux référentiels actifs.',
+      message:
+          'La classe ${serviceClass.name} ne pourra plus être utilisée pour de nouveaux référentiels actifs.',
       actionLabel: 'Désactiver',
       destructive: true,
     );
     if (confirmed != true) return;
     final success = await _controller.deactivateServiceClass(serviceClass.id);
     if (!mounted) return;
-    _showSnackBar(success ? 'Classe désactivée.' : _controller.formError ?? 'Désactivation impossible.');
+    _showSnackBar(success
+        ? 'Classe désactivée.'
+        : _controller.formError ?? 'Désactivation impossible.');
   }
 
   Future<bool?> _confirmAction({
@@ -230,7 +243,9 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Annuler'),
             ),
             ElevatedButton(
@@ -243,7 +258,9 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
                       foregroundColor: Colors.white,
                     )
                   : null,
-              onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, true),
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
               child: Text(actionLabel),
             ),
           ],
@@ -253,6 +270,7 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }

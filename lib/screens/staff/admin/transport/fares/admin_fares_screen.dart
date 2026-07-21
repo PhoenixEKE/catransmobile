@@ -39,29 +39,38 @@ class _AdminFaresScreenState extends State<AdminFaresScreen> {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
       animation: _controller,
-      builder: (context, _) =>
-          Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            AdminFaresToolbar(
-                initialQuery: _controller.query,
-                selectedRouteId: _controller.routeId,
-                selectedServiceClassId: _controller.serviceClassId,
-                selectedCurrency: _controller.currency,
-                selectedIsActive: _controller.isActive,
-                ordering: _controller.ordering,
-                routes: _controller.routes,
-                serviceClasses: _controller.serviceClasses,
-                canManage: widget.canManage,
-                onSearch: _controller.search,
-                onRouteChanged: _controller.setRouteFilter,
-                onServiceClassChanged: _controller.setServiceClassFilter,
-                onCurrencyChanged: _controller.setCurrencyFilter,
-                onActiveChanged: _controller.setActiveFilter,
-                onOrderingChanged: _controller.setOrdering,
-                onRefresh: _controller.refresh,
-                onCreate: _openCreateForm),
-            const SizedBox(height: 18),
-            _buildContent(),
-          ]));
+      builder: (context, _) => LayoutBuilder(builder: (context, constraints) {
+            final compact = constraints.maxWidth < 700;
+            final children = [
+              AdminFaresToolbar(
+                  initialQuery: _controller.query,
+                  selectedRouteId: _controller.routeId,
+                  selectedServiceClassId: _controller.serviceClassId,
+                  selectedCurrency: _controller.currency,
+                  selectedIsActive: _controller.isActive,
+                  ordering: _controller.ordering,
+                  routes: _controller.routes,
+                  serviceClasses: _controller.serviceClasses,
+                  canManage: widget.canManage,
+                  onSearch: _controller.search,
+                  onRouteChanged: _controller.setRouteFilter,
+                  onServiceClassChanged: _controller.setServiceClassFilter,
+                  onCurrencyChanged: _controller.setCurrencyFilter,
+                  onActiveChanged: _controller.setActiveFilter,
+                  onOrderingChanged: _controller.setOrdering,
+                  onRefresh: _controller.refresh,
+                  onCreate: _openCreateForm),
+              const SizedBox(height: 18),
+              if (compact)
+                _buildContent()
+              else
+                Expanded(child: SingleChildScrollView(child: _buildContent())),
+            ];
+            final column = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children);
+            return compact ? SingleChildScrollView(child: column) : column;
+          }));
 
   Widget _buildContent() {
     if (_controller.isLoading && _controller.faresPage == null) {

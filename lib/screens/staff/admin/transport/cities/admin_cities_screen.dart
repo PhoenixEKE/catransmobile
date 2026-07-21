@@ -43,38 +43,42 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
+  Widget build(BuildContext context) => AnimatedBuilder(
       animation: _controller,
-      builder: (context, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AdminCitiesToolbar(
-              initialQuery: _controller.query,
-              selectedIsActive: _controller.isActive,
-              ordering: _controller.ordering,
-              canManage: widget.canManage,
-              onSearch: _controller.search,
-              onActiveChanged: _controller.setActiveFilter,
-              onOrderingChanged: _controller.setOrdering,
-              onRefresh: _controller.refresh,
-              onCreate: _openCreateForm,
-            ),
-            const SizedBox(height: 18),
-            _buildContent(),
-          ],
-        );
-      },
-    );
-  }
+      builder: (context, _) => LayoutBuilder(builder: (context, constraints) {
+            final compact = constraints.maxWidth < 700;
+            final children = [
+              AdminCitiesToolbar(
+                initialQuery: _controller.query,
+                selectedIsActive: _controller.isActive,
+                ordering: _controller.ordering,
+                canManage: widget.canManage,
+                onSearch: _controller.search,
+                onActiveChanged: _controller.setActiveFilter,
+                onOrderingChanged: _controller.setOrdering,
+                onRefresh: _controller.refresh,
+                onCreate: _openCreateForm,
+              ),
+              const SizedBox(height: 18),
+              if (compact)
+                _buildContent()
+              else
+                Expanded(child: SingleChildScrollView(child: _buildContent())),
+            ];
+            final column = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            );
+            return compact ? SingleChildScrollView(child: column) : column;
+          }));
 
   Widget _buildContent() {
     if (_controller.isLoading && _controller.citiesPage == null) {
       return const StaffLoadingState(message: 'Chargement des villes...');
     }
     if (_controller.listError != null) {
-      return StaffErrorState(message: _controller.listError!, onRetry: _controller.refresh);
+      return StaffErrorState(
+          message: _controller.listError!, onRetry: _controller.refresh);
     }
     final page = _controller.citiesPage;
     if (page == null || page.results.isEmpty) {
@@ -92,7 +96,8 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
           onPreviousPage: _controller.hasPreviousPage
               ? () => _controller.previousPage()
               : null,
-          onNextPage: _controller.hasNextPage ? () => _controller.nextPage() : null,
+          onNextPage:
+              _controller.hasNextPage ? () => _controller.nextPage() : null,
           onOpenDetail: _openDetail,
           onEdit: _openEditForm,
           onActivate: _activateCity,
@@ -187,27 +192,33 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
     if (!widget.canManage) return;
     final confirmed = await _confirmAction(
       title: 'Activer cette ville ?',
-      message: 'La ville ${city.name} pourra être utilisée par les référentiels transport.',
+      message:
+          'La ville ${city.name} pourra être utilisée par les référentiels transport.',
       actionLabel: 'Activer',
     );
     if (confirmed != true) return;
     final success = await _controller.activateCity(city.id);
     if (!mounted) return;
-    _showSnackBar(success ? 'Ville activée.' : _controller.formError ?? 'Activation impossible.');
+    _showSnackBar(success
+        ? 'Ville activée.'
+        : _controller.formError ?? 'Activation impossible.');
   }
 
   Future<void> _deactivateCity(AdminCity city) async {
     if (!widget.canManage) return;
     final confirmed = await _confirmAction(
       title: 'Désactiver cette ville ?',
-      message: 'La ville ${city.name} ne pourra plus être utilisée pour de nouveaux référentiels actifs.',
+      message:
+          'La ville ${city.name} ne pourra plus être utilisée pour de nouveaux référentiels actifs.',
       actionLabel: 'Désactiver',
       destructive: true,
     );
     if (confirmed != true) return;
     final success = await _controller.deactivateCity(city.id);
     if (!mounted) return;
-    _showSnackBar(success ? 'Ville désactivée.' : _controller.formError ?? 'Désactivation impossible.');
+    _showSnackBar(success
+        ? 'Ville désactivée.'
+        : _controller.formError ?? 'Désactivation impossible.');
   }
 
   Future<bool?> _confirmAction({
@@ -228,7 +239,9 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Annuler'),
             ),
             ElevatedButton(
@@ -241,7 +254,9 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
                       foregroundColor: Colors.white,
                     )
                   : null,
-              onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, true),
+              onPressed: _controller.isSubmitting
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
               child: Text(actionLabel),
             ),
           ],
@@ -251,6 +266,7 @@ class _AdminCitiesScreenState extends State<AdminCitiesScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
