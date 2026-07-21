@@ -5,7 +5,9 @@ import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/screens/staff/admin/transport/admin_transport_navigation.dart';
 import 'package:catrans_app/screens/staff/admin/transport/cities/admin_cities_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/companies/admin_companies_screen.dart';
+import 'package:catrans_app/screens/staff/admin/transport/counters/admin_counters_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/service_classes/admin_service_classes_screen.dart';
+import 'package:catrans_app/screens/staff/admin/transport/stations/admin_stations_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/services/api/staff/admin/transport/admin_transport_base_api_service.dart';
 import 'package:catrans_app/widgets/staff/staff_module_header.dart';
@@ -30,6 +32,8 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
   static const _companiesSectionId = 'companies';
   static const _citiesSectionId = 'cities';
   static const _serviceClassesSectionId = 'service_classes';
+  static const _stationsSectionId = 'stations';
+  static const _countersSectionId = 'counters';
   String _selectedSectionId = _companiesSectionId;
 
   @override
@@ -89,6 +93,20 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
       );
     }
 
+    if (_selectedSectionId == _stationsSectionId) {
+      return AdminStationsScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
+    if (_selectedSectionId == _countersSectionId) {
+      return AdminCountersScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
     return const SizedBox.shrink();
   }
 }
@@ -110,11 +128,13 @@ const _sections = [
     id: 'stations',
     label: 'Gares',
     icon: Icons.store_mall_directory,
+    isAvailable: true,
   ),
   AdminTransportSection(
     id: 'counters',
     label: 'Guichets',
     icon: Icons.point_of_sale,
+    isAvailable: true,
   ),
   AdminTransportSection(
     id: 'service_classes',
