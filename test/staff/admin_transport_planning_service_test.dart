@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:catrans_app/models/staff/admin/transport/admin_fare_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_route_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_schedule_models.dart';
 import 'package:catrans_app/services/api/staff/admin/transport/admin_transport_base_api_service.dart';
 
 void main() {
@@ -73,6 +74,48 @@ void main() {
       'service_class_id': 'class-1',
       'amount': '7000.00',
       'currency': 'XOF',
+    });
+  });
+
+  test('uses schedule filters and endpoints', () async {
+    final fake = _FakeTransport({
+      _key('GET', 'admin/transport/schedules/'): _paged([_scheduleJson()])
+    });
+    final service = AdminTransportBaseApiService(transport: fake);
+
+    await service.listSchedules(
+        stationId: 'station-1',
+        routeId: 'route-1',
+        serviceClassId: 'class-1',
+        departureTime: '08:00',
+        ordering: 'departure_time');
+
+    expect(fake.requests.single.path, 'admin/transport/schedules/');
+    expect(fake.requests.single.queryParameters, {
+      'ordering': 'departure_time',
+      'station_id': 'station-1',
+      'route_id': 'route-1',
+      'service_class_id': 'class-1',
+      'departure_time': '08:00',
+    });
+  });
+
+  test('creates schedule without is_active or unknown fields', () async {
+    final fake = _FakeTransport(
+        {_key('POST', 'admin/transport/schedules/'): _scheduleJson()});
+    final service = AdminTransportBaseApiService(transport: fake);
+
+    await service.createSchedule(const AdminScheduleCreateRequest(
+        stationId: 'station-1',
+        routeId: 'route-1',
+        serviceClassId: 'class-1',
+        departureTime: '08:00'));
+
+    expect(fake.requests.single.body, {
+      'station_id': 'station-1',
+      'route_id': 'route-1',
+      'service_class_id': 'class-1',
+      'departure_time': '08:00',
     });
   });
 }
@@ -174,3 +217,22 @@ Map<String, dynamic> _stationRef() => {
     };
 Map<String, dynamic> _cityRef(String id, String name) =>
     {'id': id, 'name': name, 'country': "Côte d'Ivoire", 'is_active': true};
+
+Map<String, dynamic> _scheduleJson() => {
+      'id': 'schedule-1',
+      'station': _stationRef(),
+      'route': _routeRefJson(),
+      'service_class': {
+        'id': 'class-1',
+        'code': 'ECONOMIE',
+        'name': 'Économie',
+        'allows_seat_selection': false,
+        'is_active': true,
+      },
+      'departure_time': '08:00:00',
+      'departure_time_raw': '08:00',
+      'route_note': 'Direct',
+      'is_active': true,
+      'created_at': '',
+      'updated_at': ''
+    };

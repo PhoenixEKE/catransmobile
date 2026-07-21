@@ -5,6 +5,7 @@ import 'package:catrans_app/models/staff/admin/transport/admin_company_models.da
 import 'package:catrans_app/models/staff/admin/transport/admin_counter_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_fare_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_route_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_schedule_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_service_class_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_station_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_transport_common.dart';
@@ -451,6 +452,72 @@ class AdminTransportBaseApiService {
   Future<AdminFare> deactivateFare(String id) {
     return _action('admin/transport/fares/$id/deactivate/', AdminFare.fromJson);
   }
+
+  Future<PagedResult<AdminSchedule>> listSchedules({
+    String? query,
+    String? stationId,
+    String? routeId,
+    String? serviceClassId,
+    String? departureTime,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) {
+    return _list(
+      'admin/transport/schedules/',
+      AdminSchedule.fromJson,
+      query: query,
+      isActive: isActive,
+      ordering: ordering,
+      page: page,
+      pageSize: pageSize,
+      extra: {
+        'station_id': stationId?.trim(),
+        'route_id': routeId?.trim(),
+        'service_class_id': serviceClassId?.trim(),
+        'departure_time': departureTime?.trim(),
+      },
+    );
+  }
+
+  Future<AdminSchedule> getSchedule(String id) {
+    return _get('admin/transport/schedules/$id/', AdminSchedule.fromJson);
+  }
+
+  Future<AdminSchedule> createSchedule(AdminScheduleCreateRequest request) {
+    return _create(
+      'admin/transport/schedules/',
+      request.toJson(),
+      AdminSchedule.fromJson,
+    );
+  }
+
+  Future<AdminSchedule> updateSchedule(
+    String id,
+    AdminScheduleUpdateRequest request,
+  ) {
+    return _patch(
+      'admin/transport/schedules/$id/',
+      request.toJson(),
+      AdminSchedule.fromJson,
+    );
+  }
+
+  Future<AdminSchedule> activateSchedule(String id) {
+    return _action(
+      'admin/transport/schedules/$id/activate/',
+      AdminSchedule.fromJson,
+    );
+  }
+
+  Future<AdminSchedule> deactivateSchedule(String id) {
+    return _action(
+      'admin/transport/schedules/$id/deactivate/',
+      AdminSchedule.fromJson,
+    );
+  }
+
 
   Future<PagedResult<T>> _list<T>(
     String path,

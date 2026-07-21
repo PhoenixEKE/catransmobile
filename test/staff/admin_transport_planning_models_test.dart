@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:catrans_app/models/staff/admin/transport/admin_fare_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_route_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_schedule_models.dart';
 
 void main() {
   test('parses route destination city and free destination safely', () {
@@ -52,6 +53,37 @@ void main() {
     expect(fare.route.displayLabel, 'Gare Yopougon -> Bouake');
     expect(fare.serviceClass.name, 'Économie');
     expect(fare.displayAmount, '7000.00 XOF');
+  });
+
+  test('parses schedule and normalizes time payload', () {
+    final schedule = AdminSchedule.fromJson(_scheduleJson());
+
+    expect(schedule.station.name, 'Gare Yopougon');
+    expect(schedule.displayRoute, 'Gare Yopougon -> Bouake');
+    expect(schedule.displayServiceClass, 'Économie');
+    expect(schedule.displayTime, '08:00');
+    expect(normalizeScheduleTime('08:00:00'), '08:00');
+  });
+
+  test('schedule create and update payloads keep backend field names', () {
+    const create = AdminScheduleCreateRequest(
+      stationId: 'station-1',
+      routeId: 'route-1',
+      serviceClassId: 'class-1',
+      departureTime: '08:00:00',
+      routeNote: 'Direct',
+    );
+    const update = AdminScheduleUpdateRequest(departureTime: '09:00');
+
+    expect(create.toJson(), {
+      'station_id': 'station-1',
+      'route_id': 'route-1',
+      'service_class_id': 'class-1',
+      'departure_time': '08:00',
+      'route_note': 'Direct',
+    });
+    expect(create.toJson().containsKey('is_active'), isFalse);
+    expect(update.toJson(), {'departure_time': '09:00'});
   });
 }
 
@@ -105,3 +137,22 @@ Map<String, dynamic> _stationRef() => {
     };
 Map<String, dynamic> _cityRef(String id, String name) =>
     {'id': id, 'name': name, 'country': "Côte d'Ivoire", 'is_active': true};
+
+Map<String, dynamic> _scheduleJson() => {
+      'id': 'schedule-1',
+      'station': _stationRef(),
+      'route': _routeRefJson(),
+      'service_class': {
+        'id': 'class-1',
+        'code': 'ECONOMIE',
+        'name': 'Économie',
+        'allows_seat_selection': false,
+        'is_active': true,
+      },
+      'departure_time': '08:00:00',
+      'departure_time_raw': '08:00',
+      'route_note': 'Direct',
+      'is_active': true,
+      'created_at': '2026-07-20T08:00:00Z',
+      'updated_at': '2026-07-20T09:00:00Z',
+    };

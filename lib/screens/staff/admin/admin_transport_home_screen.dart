@@ -8,6 +8,7 @@ import 'package:catrans_app/screens/staff/admin/transport/companies/admin_compan
 import 'package:catrans_app/screens/staff/admin/transport/counters/admin_counters_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/fares/admin_fares_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/routes/admin_routes_screen.dart';
+import 'package:catrans_app/screens/staff/admin/transport/schedules/admin_schedules_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/service_classes/admin_service_classes_screen.dart';
 import 'package:catrans_app/screens/staff/admin/transport/stations/admin_stations_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
@@ -38,6 +39,7 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
   static const _countersSectionId = 'counters';
   static const _routesSectionId = 'routes';
   static const _faresSectionId = 'fares';
+  static const _schedulesSectionId = 'schedules';
   String _selectedSectionId = _companiesSectionId;
 
   @override
@@ -46,6 +48,9 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
     if (!permissions.canReadAdminTransport) {
       return const StaffAccessDeniedPage();
     }
+
+    final viewportHeight = MediaQuery.sizeOf(context).height;
+    final sectionHeight = viewportHeight > 760 ? viewportHeight - 260 : 520.0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -69,7 +74,10 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
             },
           ),
           const SizedBox(height: 18),
-          _buildSelectedSection(permissions),
+          SizedBox(
+            height: sectionHeight,
+            child: _buildSelectedSection(permissions),
+          ),
         ],
       ),
     );
@@ -120,6 +128,13 @@ class _AdminTransportHomeScreenState extends State<AdminTransportHomeScreen> {
 
     if (_selectedSectionId == _faresSectionId) {
       return AdminFaresScreen(
+        canManage: permissions.canManageAdminTransport,
+        apiService: widget.apiService,
+      );
+    }
+
+    if (_selectedSectionId == _schedulesSectionId) {
+      return AdminSchedulesScreen(
         canManage: permissions.canManageAdminTransport,
         apiService: widget.apiService,
       );
@@ -176,5 +191,6 @@ const _sections = [
     id: 'schedules',
     label: 'Horaires',
     icon: Icons.schedule,
+    isAvailable: true,
   ),
 ];

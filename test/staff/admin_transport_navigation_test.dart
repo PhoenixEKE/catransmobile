@@ -6,7 +6,7 @@ import 'package:catrans_app/screens/staff/admin/transport/admin_transport_naviga
 void main() {
   group('admin transport navigation', () {
     testWidgets(
-        'shows active transport references and keeps schedules disabled',
+        'shows active transport references including schedules',
         (tester) async {
       String selected = 'companies';
       await tester.binding.setSurfaceSize(const Size(320, 700));
@@ -53,7 +53,10 @@ void main() {
                 icon: Icons.payments,
                 isAvailable: true),
             AdminTransportSection(
-                id: 'schedules', label: 'Horaires', icon: Icons.schedule),
+                id: 'schedules',
+                label: 'Horaires',
+                icon: Icons.schedule,
+                isAvailable: true),
           ],
           onSectionSelected: (sectionId) =>
               setState(() => selected = sectionId),
@@ -67,17 +70,15 @@ void main() {
         'Guichets',
         'Classes',
         'Routes',
-        'Tarifs'
+        'Tarifs',
+        'Horaires'
       ]) {
         expect(find.text(label), findsOneWidget);
         await tester.tap(find.text(label));
         await tester.pump();
       }
-      expect(selected, 'fares');
-      expect(find.text('Horaires · à venir'), findsOneWidget);
-      await tester.tap(find.text('Horaires · à venir'));
-      await tester.pump();
-      expect(selected, 'fares');
+      expect(selected, 'schedules');
+      expect(find.text('Horaires · à venir'), findsNothing);
     });
   });
 }
