@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:catrans_app/core/design/personnel_design.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/screens/staff/admin/admin_dashboard_home_screen.dart';
 import 'package:catrans_app/screens/staff/admin/admin_operations_home_screen.dart';
 import 'package:catrans_app/screens/staff/admin/admin_transport_home_screen.dart';
@@ -237,10 +238,6 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
   Future<void> _logout(BuildContext context) async {
     await context.read<AuthService>().logout();
     if (!context.mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const SplashScreen()),
-      (route) => false,
-    );
+    context.go(RoutePaths.root);
   }
 }
