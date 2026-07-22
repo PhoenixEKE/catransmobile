@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/services/auth_service.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
-import 'package:catrans_app/screens/client/auth/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -67,10 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const AccueilScreen()),
-          );
+          context.go(RoutePaths.accueil);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -534,12 +531,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
-                      );
+                      context.go(RoutePaths.connexion);
                     },
                     child: const Text(
                       'Se connecter',

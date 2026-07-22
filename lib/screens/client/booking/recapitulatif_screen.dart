@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/booking/selected_seat_hold_context.dart';
 import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/services/api/payment_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
@@ -577,10 +578,10 @@ class RecapitulatifScreen extends StatelessWidget {
       return paymentAwareScaffold;
     }
 
-    return WillPopScope(
-      onWillPop: () async {
-        _showBlockingReturnMessage(context);
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _showBlockingReturnMessage(context);
       },
       child: paymentAwareScaffold,
     );
@@ -619,11 +620,7 @@ class RecapitulatifScreen extends StatelessWidget {
             if (!context.mounted) return;
 
             final messenger = ScaffoldMessenger.of(context);
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const AccueilScreen()),
-              (route) => false,
-            );
+            context.go(RoutePaths.accueil);
 
             messenger.showSnackBar(
               const SnackBar(
@@ -660,22 +657,20 @@ class RecapitulatifScreen extends StatelessWidget {
                 onPressed: isCancelling
                     ? null
                     : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PaiementScreen(
-                              reservationDetail: reservationDetail,
-                              depart: depart,
-                              arrivee: arrivee,
-                              date: date,
-                              heure: heure,
-                              prix: prix,
-                              nombrePassagers: nombrePassagers,
-                              points: points,
-                              classe: classe,
-                              passagers: passagers,
-                              total: total,
-                            ),
+                        context.push(
+                          RoutePaths.paiement,
+                          extra: PaiementScreen(
+                            reservationDetail: reservationDetail,
+                            depart: depart,
+                            arrivee: arrivee,
+                            date: date,
+                            heure: heure,
+                            prix: prix,
+                            nombrePassagers: nombrePassagers,
+                            points: points,
+                            classe: classe,
+                            passagers: passagers,
+                            total: total,
                           ),
                         );
                       },
@@ -926,11 +921,9 @@ class _RecapitulatifPaymentRecoveryGateState
 
       if (currentPayment.shouldGoToPaymentScreen &&
           currentPayment.payment != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => widget.paymentScreenBuilder(currentPayment),
-          ),
+        context.go(
+          RoutePaths.paiement,
+          extra: widget.paymentScreenBuilder(currentPayment),
         );
         return;
       }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/selected_departure_context.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
@@ -141,13 +143,11 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
         return false;
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RecapitulatifScreen.fromReservation(
-            reservationDetail: reservation,
-            isBlockingPendingResume: true,
-          ),
+      context.go(
+        RoutePaths.recapitulatif,
+        extra: RecapitulatifScreen.fromReservation(
+          reservationDetail: reservation,
+          isBlockingPendingResume: true,
         ),
       );
       return true;
@@ -192,21 +192,19 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
         _isCreatingReservation = false;
       });
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RecapitulatifScreen(
-            depart: widget.depart,
-            arrivee: widget.arrivee,
-            date: widget.date,
-            heure: widget.heure,
-            prix: widget.prix,
-            nombrePassagers: widget.nombrePassagers,
-            points: widget.points,
-            classe: 'economie',
-            passagers: _buildPassengers(),
-            reservationDetail: reservation,
-          ),
+      context.push(
+        RoutePaths.recapitulatif,
+        extra: RecapitulatifScreen(
+          depart: widget.depart,
+          arrivee: widget.arrivee,
+          date: widget.date,
+          heure: widget.heure,
+          prix: widget.prix,
+          nombrePassagers: widget.nombrePassagers,
+          points: widget.points,
+          classe: 'economie',
+          passagers: _buildPassengers(),
+          reservationDetail: reservation,
         ),
       );
     } catch (error) {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/catalog_destination.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
@@ -8,9 +10,6 @@ import 'package:catrans_app/widgets/client/bottom_nav_bar.dart';
 import 'package:catrans_app/widgets/client/trajet_populaire.dart';
 import 'package:catrans_app/widgets/client/hero_promo.dart';
 import 'package:catrans_app/screens/client/search/choix_classe_screen.dart';
-import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
-import 'package:catrans_app/screens/client/profile/profil_screen.dart';
-import 'package:catrans_app/screens/client/support/support_screen.dart';
 import 'package:catrans_app/services/api/catalog_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:provider/provider.dart';
@@ -326,15 +325,13 @@ class _AccueilScreenState extends State<AccueilScreen> {
       travelDate: travelDate,
     );
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChoixClasseScreen(
-          depart: criteria.stationName,
-          arrivee: criteria.destinationName,
-          date: criteria.date,
-          searchCriteria: criteria,
-        ),
+    context.push(
+      RoutePaths.choixClasse,
+      extra: ChoixClasseScreen(
+        depart: criteria.stationName,
+        arrivee: criteria.destinationName,
+        date: criteria.date,
+        searchCriteria: criteria,
       ),
     );
   }
@@ -397,26 +394,17 @@ class _AccueilScreenState extends State<AccueilScreen> {
 
     if (index == 1) {
       // Mes billets
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MesReservationsScreen()),
-      ).then((_) {
+      context.push(RoutePaths.mesReservations).then((_) {
         if (mounted) setState(() => _selectedIndex = 0);
       });
     } else if (index == 2) {
       // Support
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const SupportScreen()),
-      ).then((_) {
+      context.push(RoutePaths.support).then((_) {
         if (mounted) setState(() => _selectedIndex = 0);
       });
     } else if (index == 3) {
       // Profil
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ProfilScreen()),
-      ).then((_) {
+      context.push(RoutePaths.profil).then((_) {
         if (mounted) setState(() => _selectedIndex = 0);
       });
     }

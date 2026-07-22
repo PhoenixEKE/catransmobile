@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/payment/wave_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
-import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
 import 'package:catrans_app/services/api/payment_api_service.dart';
 
 class PaiementScreen extends StatefulWidget {
@@ -452,12 +452,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
             height: 55,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MesReservationsScreen(),
-                  ),
-                );
+                context.push(RoutePaths.mesReservations);
               },
               style: _primaryButtonStyle(),
               child: const Text(
@@ -472,12 +467,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
             height: 55,
             child: OutlinedButton(
               onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const AccueilScreen()),
-                  (route) => false,
-                );
+                context.go(RoutePaths.accueil);
               },
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF0F056B),

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:catrans_app/core/design/personnel_design.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/staff/auth/personnel_login_screen.dart';
 import 'package:catrans_app/services/auth_redirect_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
@@ -15,7 +16,7 @@ enum _PersonnelEntryPhase { resolving, loginForm, customerBlocked }
 /// Branches on the current auth state (see LOT 6.8B1 report §2):
 /// - no user: shows [PersonnelLoginScreen] (email + password only);
 /// - staff user (any role, complete or incomplete profile): redirected via
-///   `AuthRedirectService.homeForUser`, which already handles the
+///   `AuthRedirectService.pathForUser`, which already handles the
 ///   incomplete-profile case;
 /// - customer user: shown a dedicated "reserved for staff" state instead of
 ///   silently opening (or silently leaving) the staff portal.
@@ -55,12 +56,7 @@ class _PersonnelEntryScreenState extends State<PersonnelEntryScreen> {
       return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AuthRedirectService.homeForUser(user),
-      ),
-    );
+    context.go(AuthRedirectService.pathForUser(user));
   }
 
   Future<void> _handleLoginSuccess(User user) async {
@@ -87,10 +83,7 @@ class _PersonnelEntryScreenState extends State<PersonnelEntryScreen> {
   }
 
   Future<void> _returnToTravellerApp() async {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const AccueilScreen()),
-    );
+    context.go(RoutePaths.accueil);
   }
 
   Future<void> _logout() async {

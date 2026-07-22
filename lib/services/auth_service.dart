@@ -13,6 +13,7 @@ class AuthService extends ChangeNotifier {
   User? _currentUser;
   String? _token;
   bool _isLoading = false;
+  bool _isInitialized = false;
   String? _errorMessage;
 
   AuthService({
@@ -26,6 +27,11 @@ class AuthService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _currentUser != null;
+
+  /// Whether [loadUser] has completed at least once since app start. The
+  /// go_router redirect guard (`lib/core/navigation/app_router.dart`) uses
+  /// this to avoid guarding a protected route before auth state is known.
+  bool get isInitialized => _isInitialized;
 
   Future<void> loadUser() async {
     _setLoading(true);
@@ -47,6 +53,7 @@ class AuthService extends ChangeNotifier {
       _currentUser = null;
       _errorMessage = _readableErrorMessage(error);
     } finally {
+      _isInitialized = true;
       _setLoading(false);
     }
   }

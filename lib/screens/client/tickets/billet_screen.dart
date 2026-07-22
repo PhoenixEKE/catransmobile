@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/ticket/ticket_digital.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/services/api/ticket_api_service.dart';
 
 class BilletScreen extends StatefulWidget {
@@ -440,13 +441,7 @@ class _BilletScreenState extends State<BilletScreen> {
             height: 50,
             child: OutlinedButton.icon(
               onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AccueilScreen(),
-                  ),
-                  (route) => false,
-                );
+                context.go(RoutePaths.accueil);
               },
               icon: const Icon(Icons.home, color: Color(0xFF0F056B)),
               label: const Text(

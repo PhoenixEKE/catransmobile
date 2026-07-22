@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:catrans_app/core/design/personnel_design.dart';
-import 'package:catrans_app/screens/client/auth/splash_screen.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
 class StaffProfileIncompletePage extends StatelessWidget {
@@ -24,11 +25,7 @@ class StaffProfileIncompletePage extends StatelessWidget {
             onPressed: () async {
               await context.read<AuthService>().logout();
               if (!context.mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const SplashScreen()),
-                (route) => false,
-              );
+              context.go(RoutePaths.root);
             },
           ),
         ],

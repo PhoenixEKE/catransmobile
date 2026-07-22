@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/services/auth_redirect_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/models/payment/wave_current_payment_response.dart';
@@ -8,8 +10,6 @@ import 'package:catrans_app/services/api/payment_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
-import 'package:catrans_app/screens/client/auth/login_screen.dart';
-import 'package:catrans_app/screens/client/auth/register_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -57,6 +57,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigateToAuth() async {
     final authService = context.read<AuthService>();
+    // Set by the go_router redirect guard when a direct link to a
+    // protected path was loaded before auth state was known (see
+    // app_router.dart's `resumableAfterSplashPaths`); lets the user land
+    // where they actually asked to go instead of always on the default
+    // destination for their role.
+    final from = GoRouterState.of(context).uri.queryParameters['from'];
 
     await Future.wait([
       Future.delayed(const Duration(seconds: 5)),
@@ -65,15 +71,18 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    void goToRoleDefaultOrFrom(String roleDefault) {
+      if (from != null && resumableAfterSplashPaths.contains(from)) {
+        context.go(from);
+      } else {
+        context.go(roleDefault);
+      }
+    }
+
     final currentUser = authService.currentUser;
     if (authService.isAuthenticated && currentUser != null) {
       if (!currentUser.isCustomer) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AuthRedirectService.homeForUser(currentUser),
-          ),
-        );
+        goToRoleDefaultOrFrom(AuthRedirectService.pathForUser(currentUser));
         return;
       }
 
@@ -85,31 +94,23 @@ class _SplashScreenState extends State<SplashScreen>
             await _loadCurrentWavePayment(pendingReservation);
         if (!mounted) return;
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => _resumePendingReservationScreen(
-              pendingReservation,
-              currentPayment,
-            ),
-          ),
+        final resumeScreen = _resumePendingReservationScreen(
+          pendingReservation,
+          currentPayment,
         );
+        if (resumeScreen is PaiementScreen) {
+          context.go(RoutePaths.paiement, extra: resumeScreen);
+        } else {
+          context.go(RoutePaths.recapitulatif, extra: resumeScreen);
+        }
         return;
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AuthRedirectService.homeForUser(currentUser),
-        ),
-      );
+      goToRoleDefaultOrFrom(AuthRedirectService.pathForUser(currentUser));
       return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const AuthChoiceScreen()),
-    );
+    goToRoleDefaultOrFrom(RoutePaths.bienvenue);
   }
 
   Future<ReservationDetail?> _loadPendingReservation() async {
@@ -284,11 +285,7 @@ class AuthChoiceScreen extends StatelessWidget {
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const LoginScreen()),
-                    );
+                    context.push(RoutePaths.connexion);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEFD807),
@@ -316,11 +313,7 @@ class AuthChoiceScreen extends StatelessWidget {
                 height: 55,
                 child: OutlinedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const RegisterScreen()),
-                    );
+                    context.push(RoutePaths.inscription);
                   },
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
