@@ -176,6 +176,33 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Returns `null` on success, or the [ApiException] on failure so the
+  /// caller can distinguish "current password incorrect" from "new password
+  /// invalid" using `error.details` (both are field-scoped by the backend)
+  /// instead of a single flattened message.
+  ///
+  /// Deliberately does not call [_setLoading]/`notifyListeners()`: this is
+  /// the app's `GoRouter.refreshListenable` target, so notifying mid-flow
+  /// re-runs the router's redirect guard and was observed to reset the
+  /// caller's screen state before it could navigate back on success. The
+  /// caller tracks its own local loading flag instead.
+  Future<ApiException?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirm,
+  }) async {
+    try {
+      await _authApiService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        newPasswordConfirm: newPasswordConfirm,
+      );
+      return null;
+    } on ApiException catch (error) {
+      return error;
+    }
+  }
+
   Future<void> logout() async {
     await _tokenStorage.clearTokens();
     await _clearLegacySession();
