@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/catalog_departure.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
@@ -208,35 +210,31 @@ class _RechercheResultatScreenState extends State<RechercheResultatScreen> {
     final price = departure.fare.amountAsDouble ?? widget.prixUnitaire;
 
     if (widget.classe == 'economie') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChoixPlaceEconomieScreen(
-            depart: widget.depart,
-            arrivee: widget.arrivee,
-            date: departure.departureDate,
-            heure: departure.departureTime,
-            prix: price,
-            nombrePassagers: widget.nombrePassagers,
-            points: widget.points,
-            selectedDepartureContext: selectedContext,
-          ),
+      context.push(
+        RoutePaths.choixPlaceEconomie,
+        extra: ChoixPlaceEconomieScreen(
+          depart: widget.depart,
+          arrivee: widget.arrivee,
+          date: departure.departureDate,
+          heure: departure.departureTime,
+          prix: price,
+          nombrePassagers: widget.nombrePassagers,
+          points: widget.points,
+          selectedDepartureContext: selectedContext,
         ),
       );
     } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChoixPlacePrestigeScreen(
-            depart: widget.depart,
-            arrivee: widget.arrivee,
-            date: departure.departureDate,
-            heure: departure.departureTime,
-            prix: price,
-            nombrePassagers: widget.nombrePassagers,
-            points: widget.points,
-            selectedDepartureContext: selectedContext,
-          ),
+      context.push(
+        RoutePaths.choixPlacePrestige,
+        extra: ChoixPlacePrestigeScreen(
+          depart: widget.depart,
+          arrivee: widget.arrivee,
+          date: departure.departureDate,
+          heure: departure.departureTime,
+          prix: price,
+          nombrePassagers: widget.nombrePassagers,
+          points: widget.points,
+          selectedDepartureContext: selectedContext,
         ),
       );
     }

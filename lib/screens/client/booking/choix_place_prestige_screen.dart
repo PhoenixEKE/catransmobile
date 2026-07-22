@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/booking/seat_hold_response.dart';
@@ -221,13 +223,11 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
         return false;
       }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RecapitulatifScreen.fromReservation(
-            reservationDetail: reservation,
-            isBlockingPendingResume: true,
-          ),
+      context.go(
+        RoutePaths.recapitulatif,
+        extra: RecapitulatifScreen.fromReservation(
+          reservationDetail: reservation,
+          isBlockingPendingResume: true,
         ),
       );
       return true;
@@ -285,27 +285,25 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
         _isCreatingReservation = false;
       });
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RecapitulatifScreen(
-            depart: widget.depart,
-            arrivee: widget.arrivee,
-            date: widget.date,
-            heure: widget.heure,
-            prix: widget.prix,
-            nombrePassagers: widget.nombrePassagers,
-            points: widget.points,
-            classe: 'prestige',
-            passagers: _buildPassengers(
-              seatNumbers: reservation.items
-                  .map((item) => item.seatNumber)
-                  .whereType<int>()
-                  .toList(),
-            ),
-            reservationDetail: reservation,
-            isBlockingPendingResume: true,
+      context.push(
+        RoutePaths.recapitulatif,
+        extra: RecapitulatifScreen(
+          depart: widget.depart,
+          arrivee: widget.arrivee,
+          date: widget.date,
+          heure: widget.heure,
+          prix: widget.prix,
+          nombrePassagers: widget.nombrePassagers,
+          points: widget.points,
+          classe: 'prestige',
+          passagers: _buildPassengers(
+            seatNumbers: reservation.items
+                .map((item) => item.seatNumber)
+                .whereType<int>()
+                .toList(),
           ),
+          reservationDetail: reservation,
+          isBlockingPendingResume: true,
         ),
       );
     } catch (error) {

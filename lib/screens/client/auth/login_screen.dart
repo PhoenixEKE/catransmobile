@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/services/auth_service.dart';
-import 'package:catrans_app/screens/client/home/accueil_screen.dart';
-import 'package:catrans_app/screens/client/auth/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,10 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
 
         if (success) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const AccueilScreen()),
-          );
+          context.go(RoutePaths.accueil);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -206,11 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const RegisterScreen()),
-                      );
+                      context.go(RoutePaths.inscription);
                     },
                     child: const Text(
                       'Créer un compte',

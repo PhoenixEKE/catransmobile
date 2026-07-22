@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/models/trip/client_trip.dart';
 import 'package:catrans_app/screens/client/tickets/billet_screen.dart';
 import 'package:catrans_app/services/api/trip_api_service.dart';
@@ -152,21 +154,19 @@ class _MesReservationsScreenState extends State<MesReservationsScreen> {
   void _openTripTicket(ClientTrip trip) {
     final passagers = [_passengerFromTrip(trip)];
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => BilletScreen(
-          depart: _tripDeparture(trip),
-          arrivee: _tripDestination(trip),
-          date: _tripDate(trip),
-          heure: trip.trip.departureTime ?? '--:--',
-          classe: trip.serviceClassLabel,
-          prix: _tripAmount(trip),
-          nombrePassagers: passagers.length,
-          passagers: passagers,
-          reference: trip.ticket.reference,
-          ticketId: trip.ticket.id,
-        ),
+    context.push(
+      RoutePaths.billet,
+      extra: BilletScreen(
+        depart: _tripDeparture(trip),
+        arrivee: _tripDestination(trip),
+        date: _tripDate(trip),
+        heure: trip.trip.departureTime ?? '--:--',
+        classe: trip.serviceClassLabel,
+        prix: _tripAmount(trip),
+        nombrePassagers: passagers.length,
+        passagers: passagers,
+        reference: trip.ticket.reference,
+        ticketId: trip.ticket.id,
       ),
     );
   }

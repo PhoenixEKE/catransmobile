@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
 import 'package:catrans_app/screens/client/search/recherche_resultat_screen.dart';
 
@@ -196,19 +198,17 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
               height: 55,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RechercheResultatScreen(
-                        depart: widget.depart,
-                        arrivee: widget.arrivee,
-                        date: widget.date,
-                        classe: _selectedClasse,
-                        nombrePassagers: _nombrePassagers,
-                        prixUnitaire: _prixParClasse[_selectedClasse]!,
-                        points: _pointsParClasse[_selectedClasse]!,
-                        searchCriteria: widget.searchCriteria,
-                      ),
+                  context.push(
+                    RoutePaths.rechercheResultat,
+                    extra: RechercheResultatScreen(
+                      depart: widget.depart,
+                      arrivee: widget.arrivee,
+                      date: widget.date,
+                      classe: _selectedClasse,
+                      nombrePassagers: _nombrePassagers,
+                      prixUnitaire: _prixParClasse[_selectedClasse]!,
+                      points: _pointsParClasse[_selectedClasse]!,
+                      searchCriteria: widget.searchCriteria,
                     ),
                   );
                 },

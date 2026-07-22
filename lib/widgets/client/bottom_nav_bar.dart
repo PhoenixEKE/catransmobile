@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:catrans_app/screens/client/support/support_screen.dart';
-import 'package:catrans_app/screens/client/profile/profil_screen.dart';
+import 'package:go_router/go_router.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -30,16 +30,10 @@ class BottomNavBar extends StatelessWidget {
         onTap: (index) {
           if (index == 2) {
             // Support
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SupportScreen()),
-            ).then((_) => onTap(0));
+            context.push(RoutePaths.support).then((_) => onTap(0));
           } else if (index == 3) {
             // Profil
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfilScreen()),
-            ).then((_) => onTap(0));
+            context.push(RoutePaths.profil).then((_) => onTap(0));
           } else {
             onTap(index);
           }

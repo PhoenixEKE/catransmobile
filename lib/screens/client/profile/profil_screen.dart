@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/services/auth_service.dart';
-import 'package:catrans_app/screens/client/auth/splash_screen.dart';
-import 'package:catrans_app/screens/client/profile/change_password_screen.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -85,11 +85,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   Provider.of<AuthService>(context, listen: false);
               await authService.logout();
               if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const SplashScreen()),
-                (route) => false,
-              );
+              context.go(RoutePaths.root);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -325,11 +321,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     style: TextStyle(fontWeight: FontWeight.w500)),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const ChangePasswordScreen()),
-                  );
+                  context.push(RoutePaths.changePassword);
                 },
               ),
             ),
