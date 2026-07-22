@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/permissions/staff_permissions.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
@@ -14,6 +16,7 @@ import 'package:catrans_app/screens/staff/admin/operations/departures/admin_depa
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 import 'package:catrans_app/screens/staff/shell/staff_shell_screen.dart';
+import 'package:catrans_app/services/api/staff/admin/admin_operations_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/widgets/staff/staff_sidebar.dart';
 
@@ -345,6 +348,13 @@ void main() {
                           );
                         },
                         isSubmitting: false,
+                        apiService: AdminOperationsApiService(
+                          apiClient: ApiClient(
+                            dio: Dio(BaseOptions(
+                              baseUrl: 'http://localhost/api/v1/',
+                            )),
+                          ),
+                        ),
                       );
                     },
                     child: const Text('Open dialog'),
