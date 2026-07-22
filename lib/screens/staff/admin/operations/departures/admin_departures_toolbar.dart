@@ -11,6 +11,7 @@ class AdminDeparturesToolbar extends StatefulWidget {
   final void Function(String? from, String? to) onDateRangeChanged;
   final VoidCallback onRefresh;
   final VoidCallback onCreate;
+  final VoidCallback onGenerate;
 
   const AdminDeparturesToolbar({
     super.key,
@@ -24,6 +25,7 @@ class AdminDeparturesToolbar extends StatefulWidget {
     required this.onDateRangeChanged,
     required this.onRefresh,
     required this.onCreate,
+    required this.onGenerate,
   });
 
   @override
@@ -132,6 +134,13 @@ class _AdminDeparturesToolbarState extends State<AdminDeparturesToolbar> {
             onPressed: widget.onCreate,
             icon: const Icon(Icons.add),
             label: const Text('Créer'),
+          ),
+        if (widget.canManage)
+          OutlinedButton.icon(
+            key: const Key('admin-departures-generate'),
+            onPressed: widget.onGenerate,
+            icon: const Icon(Icons.auto_awesome_outlined),
+            label: const Text('Générer'),
           ),
       ],
     );

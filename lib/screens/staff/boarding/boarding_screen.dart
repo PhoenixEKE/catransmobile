@@ -2357,7 +2357,7 @@ class _SummarySection extends StatelessWidget {
           if (manifest == null) ...[
             const SizedBox(height: 14),
             const Text(
-              'Le détail passagers sera affiché dès que le manifeste sera disponible.',
+              'Le détail passagers s’affiche après le chargement du manifeste.',
               style: TextStyle(color: Colors.black54),
             ),
           ],

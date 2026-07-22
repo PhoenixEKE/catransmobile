@@ -46,7 +46,9 @@ class AdminTransportNavigation extends StatelessWidget {
                   color: selected ? Colors.white : const Color(0xFF0F056B),
                 ),
                 label: Text(
-                  section.isAvailable ? section.label : '${section.label} · à venir',
+                  section.isAvailable
+                      ? section.label
+                      : '${section.label} · indisponible',
                 ),
                 onSelected: section.isAvailable
                     ? (_) => onSectionSelected(section.id)

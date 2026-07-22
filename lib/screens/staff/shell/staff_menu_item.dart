@@ -27,8 +27,6 @@ class StaffMenuItem {
     final role = user.internalProfile?.role;
     final scopes = user.scopes.toSet();
 
-    bool hasScope(String scope) => scopes.contains(scope);
-
     final roleItems = switch (role) {
       InternalRole.admin => [
           _home('Tableau de bord'),
@@ -36,16 +34,6 @@ class StaffMenuItem {
           _adminUsers(),
           _adminTransport(),
           _adminOperations(),
-          if (hasScope('finance.read'))
-            _item(
-              id: 'finance',
-              title: 'Finance',
-              icon: Icons.account_balance_wallet,
-              description: 'Lecture des revenus et paiements.',
-              nextStep:
-                  'Consultez les revenus et les paiements depuis cet espace.',
-              scopes: ['finance.read'],
-            ),
         ],
       InternalRole.director => [
           _home('Pilotage'),
@@ -53,16 +41,6 @@ class StaffMenuItem {
           _adminUsers(),
           _adminTransport(),
           _adminOperations(),
-          if (hasScope('finance.read'))
-            _item(
-              id: 'finance',
-              title: 'Finance',
-              icon: Icons.payments,
-              description: 'Consultation des indicateurs financiers.',
-              nextStep:
-                  'Consultez les indicateurs financiers depuis cet espace.',
-              scopes: ['finance.read'],
-            ),
         ],
       InternalRole.station_manager => [
           _home('Tableau de bord gare'),
@@ -91,7 +69,6 @@ class StaffMenuItem {
             nextStep:
                 'Ouvrez les départs du jour, consultez le manifeste et validez les billets.',
             scopes: [
-              'station.departures.read',
               'boarding.manifest.read',
               'boarding.summary.read',
             ],
@@ -128,7 +105,6 @@ class StaffMenuItem {
             nextStep:
                 'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
             scopes: [
-              'station.departures.read',
               'boarding.manifest.read',
               'boarding.validate',
               'boarding.summary.read',
@@ -137,65 +113,24 @@ class StaffMenuItem {
         ],
       InternalRole.support => [
           _home('Support'),
-          _item(
-            id: 'support_reservations',
-            title: 'Recherche réservation',
-            icon: Icons.search,
-            description: 'Recherche support sur les réservations client.',
-            nextStep: 'Recherchez les réservations support depuis cet espace.',
-            scopes: ['support.reservations.read'],
-          ),
-          _item(
-            id: 'support_payments',
-            title: 'Recherche paiement',
-            icon: Icons.payments,
-            description: 'Consultation des paiements et statuts Wave.',
-            nextStep:
-                'Consultez les paiements et leurs statuts depuis cet espace.',
-            scopes: ['support.payments.read'],
-          ),
-          _item(
-            id: 'support_tickets',
-            title: 'Recherche ticket',
-            icon: Icons.airplane_ticket,
-            description: 'Consultation des tickets générés.',
-            nextStep: 'Consultez les tickets générés depuis cet espace.',
-            scopes: ['support.tickets.read'],
-          ),
         ],
       InternalRole.accounting => [
           _home('Comptabilité'),
-          _item(
-            id: 'payments',
-            title: 'Paiements',
-            icon: Icons.receipt_long,
-            description: 'Suivi comptable des paiements.',
-            nextStep: 'Consultez les paiements depuis cet espace.',
-            scopes: ['finance.payments.read'],
-          ),
-          _item(
-            id: 'financial_reports',
-            title: 'Rapports financiers',
-            icon: Icons.bar_chart,
-            description: 'Préparation des exports et rapports financiers.',
-            nextStep:
-                'Préparez les exports et rapports financiers depuis cet espace.',
-            scopes: ['finance.reports.read', 'finance.exports.read'],
-          ),
         ],
       InternalRole.marketing => [
           _home('Marketing'),
-          _item(
-            id: 'marketing_pending',
-            title: 'Marketing',
-            icon: Icons.campaign,
-            description: 'Le rôle marketing est reconnu par le portail.',
-            nextStep: 'Les fonctionnalités marketing ne sont pas exposées ici.',
-            scopes: ['marketing.read'],
-          ),
         ],
       InternalRole.legacy_unknown || null => const <StaffMenuItem>[],
     };
+
+    final roleScopedItems = roleItems.where((item) {
+      if (item.usefulScopes.isEmpty || scopes.isEmpty) return true;
+      return item.usefulScopes.any(scopes.contains);
+    }).toList(growable: false);
+
+    if (roleScopedItems.isNotEmpty) {
+      return roleScopedItems;
+    }
 
     final scopeItems = _scopeFirstItems(scopes);
     if (scopeItems.isNotEmpty) return scopeItems;
@@ -251,7 +186,7 @@ class StaffMenuItem {
           icon: Icons.directions_bus,
           description: 'Suivi opérationnel des départs de la gare.',
           nextStep:
-              'Le suivi des départs du jour sera disponible depuis cet espace.',
+              'Consultez et pilotez les départs du jour depuis cet espace.',
           scopes: const [
             'station.departures.read',
             'station.departures.manage'
@@ -399,7 +334,8 @@ class StaffMenuItem {
       title: title,
       icon: Icons.dashboard_outlined,
       description: 'Accueil du portail personnel CA TRANS.',
-      nextStep: 'Les indicateurs métier seront ajoutés progressivement.',
+      nextStep:
+          'Consultez vos indicateurs métier et ouvrez une action du menu.',
       scopes: scopes,
     );
   }
@@ -432,6 +368,18 @@ String? resolveInitialStaffMenuId({
 }) {
   if (menuItems.isEmpty) return null;
 
+  final rolePreferredId = switch (role) {
+    InternalRole.station_manager => 'home',
+    InternalRole.cashier => 'reservation_search',
+    InternalRole.station_agent => 'boarding',
+    _ => null,
+  };
+
+  if (rolePreferredId != null &&
+      menuItems.any((item) => item.id == rolePreferredId)) {
+    return rolePreferredId;
+  }
+
   if (scopes.isNotEmpty) {
     const priorityIds = [
       'admin_dashboard',
@@ -454,18 +402,6 @@ String? resolveInitialStaffMenuId({
       });
       if (matches.isNotEmpty) return matches.first.id;
     }
-  }
-
-  final rolePreferredId = switch (role) {
-    InternalRole.station_manager => 'home',
-    InternalRole.cashier => 'reservation_search',
-    InternalRole.station_agent => 'boarding',
-    _ => null,
-  };
-
-  if (rolePreferredId != null &&
-      menuItems.any((item) => item.id == rolePreferredId)) {
-    return rolePreferredId;
   }
 
   return menuItems.first.id;

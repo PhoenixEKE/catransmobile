@@ -17,7 +17,8 @@ import '../support/fake_auth.dart';
 
 void main() {
   group('StaffShellScreen responsive shell', () {
-    testWidgets('shows a permanent sidebar and no drawer/menu button at desktop width',
+    testWidgets(
+        'shows a permanent sidebar and no drawer/menu button at desktop width',
         (tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -32,7 +33,8 @@ void main() {
       expect(find.byTooltip('Menu'), findsNothing);
     });
 
-    testWidgets('shows a drawer reachable via the menu button under 900px width',
+    testWidgets(
+        'shows a drawer reachable via the menu button under 900px width',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -69,7 +71,8 @@ void main() {
       expect(find.byTooltip('Menu'), findsOneWidget);
     });
 
-    testWidgets('closes the drawer and keeps the selected item after picking a menu entry',
+    testWidgets(
+        'closes the drawer and keeps the selected item after picking a menu entry',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -83,20 +86,19 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(Drawer), findsOneWidget);
 
-      // Support role's second menu entry: "Recherche réservation". Scoped
-      // to the drawer since the same label may also appear in the
-      // StaffHomePage quick-actions list underneath.
+      // Support role keeps only routed items. Selecting "Support" from the
+      // drawer must still close it cleanly.
       await tester.tap(
         find.descendant(
           of: find.byType(Drawer),
-          matching: find.text('Recherche réservation'),
+          matching: find.byKey(const Key('staff-sidebar-item-home')),
         ),
       );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
       expect(find.byType(Drawer), findsNothing);
-      expect(find.text('Recherche réservation'), findsWidgets);
+      expect(find.text('Support'), findsWidgets);
     });
   });
 }

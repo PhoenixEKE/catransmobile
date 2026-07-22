@@ -35,7 +35,16 @@ class AdminCitiesList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (useCards) _buildCards() else _buildTable(),
+            if (useCards)
+              KeyedSubtree(
+                key: const Key('admin-cities-list-view'),
+                child: _buildCards(),
+              )
+            else
+              KeyedSubtree(
+                key: const Key('admin-cities-table-view'),
+                child: _buildTable(),
+              ),
             const SizedBox(height: 10),
             StaffPaginationControls(
               hasPrevious: page.hasPrevious,

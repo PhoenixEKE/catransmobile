@@ -35,7 +35,16 @@ class AdminServiceClassesList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (useCards) _buildCards() else _buildTable(),
+            if (useCards)
+              KeyedSubtree(
+                key: const Key('admin-service-classes-list-view'),
+                child: _buildCards(),
+              )
+            else
+              KeyedSubtree(
+                key: const Key('admin-service-classes-table-view'),
+                child: _buildTable(),
+              ),
             const SizedBox(height: 10),
             StaffPaginationControls(
               hasPrevious: page.hasPrevious,
@@ -71,11 +80,16 @@ class AdminServiceClassesList extends StatelessWidget {
           rows: page.results.map((serviceClass) {
             return DataRow(
               cells: [
-                DataCell(Text(serviceClass.code.isEmpty ? '-' : serviceClass.code)),
-                DataCell(Text(serviceClass.name.isEmpty ? '-' : serviceClass.name)),
+                DataCell(
+                    Text(serviceClass.code.isEmpty ? '-' : serviceClass.code)),
+                DataCell(
+                    Text(serviceClass.name.isEmpty ? '-' : serviceClass.name)),
                 DataCell(Text(serviceClass.defaultLoyaltyPoints.toString())),
-                DataCell(Text(serviceClass.allowsSeatSelection ? 'Manuelle' : 'Automatique')),
-                DataCell(AdminTransportStatusBadge(isActive: serviceClass.isActive)),
+                DataCell(Text(serviceClass.allowsSeatSelection
+                    ? 'Manuelle'
+                    : 'Automatique')),
+                DataCell(
+                    AdminTransportStatusBadge(isActive: serviceClass.isActive)),
                 DataCell(_Actions(
                   serviceClass: serviceClass,
                   canManage: canManage,
@@ -113,7 +127,8 @@ class AdminServiceClassesList extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '${serviceClass.code} · ${serviceClass.name}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16),
                     ),
                   ),
                   AdminTransportStatusBadge(isActive: serviceClass.isActive),
@@ -121,7 +136,8 @@ class AdminServiceClassesList extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text('Points : ${serviceClass.defaultLoyaltyPoints}'),
-              Text('Sélection siège : ${serviceClass.allowsSeatSelection ? 'manuelle' : 'automatique'}'),
+              Text(
+                  'Sélection siège : ${serviceClass.allowsSeatSelection ? 'manuelle' : 'automatique'}'),
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,

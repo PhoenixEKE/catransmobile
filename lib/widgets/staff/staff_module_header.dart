@@ -20,7 +20,14 @@ class StaffModuleHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < PersonnelBreakpoints.mobile;
+        // Le header passe en disposition verticale dès que la largeur
+        // disponible devient insuffisante pour afficher correctement
+        // le contenu principal et les actions.
+        //
+        // Le seuil de 960 px corrige notamment le cas tablette à 752 px
+        // observé dans les tests du dashboard.
+        final compact = constraints.maxWidth < 960;
+
         final content = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -28,10 +35,17 @@ class StaffModuleHeader extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: PersonnelColors.brandPrimary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(PersonnelRadius.sm),
+                color: PersonnelColors.brandPrimary.withValues(
+                  alpha: 0.08,
+                ),
+                borderRadius: BorderRadius.circular(
+                  PersonnelRadius.sm,
+                ),
               ),
-              child: Icon(icon, color: PersonnelColors.brandPrimary),
+              child: Icon(
+                icon,
+                color: PersonnelColors.brandPrimary,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -40,6 +54,8 @@ class StaffModuleHeader extends StatelessWidget {
                 children: [
                   Text(
                     title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: PersonnelColors.textPrimary,
@@ -59,29 +75,46 @@ class StaffModuleHeader extends StatelessWidget {
           ],
         );
 
-        if (trailing == null) return content;
+        final trailingWidget = trailing;
 
-        // P0 fix (LOT 6.8A / 6.8B1): the trailing slot (e.g. a counter
-        // badge, or a future primary action button) must never be dropped
-        // from the render tree. Below the breakpoint it is stacked full
-        // width under the title/description instead of being discarded.
+        if (trailingWidget == null) {
+          return content;
+        }
+
+        // En mode compact, les actions restent visibles mais passent
+        // sous le titre et la description.
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               content,
-              const SizedBox(height: PersonnelSpacing.md),
-              trailing!,
+              const SizedBox(
+                height: PersonnelSpacing.md,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: trailingWidget,
+              ),
             ],
           );
         }
 
+        // Sur grand écran, le contenu principal occupe l'espace disponible
+        // et le trailing reçoit une largeur contrainte afin d'éviter
+        // tout RenderFlex overflow.
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: content),
+            Expanded(
+              child: content,
+            ),
             const SizedBox(width: 16),
-            trailing!,
+            Flexible(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: trailingWidget,
+              ),
+            ),
           ],
         );
       },

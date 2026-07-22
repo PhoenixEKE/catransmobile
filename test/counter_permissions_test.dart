@@ -54,4 +54,33 @@ void main() {
       );
     });
   });
+
+  group('counter cash departure selection permissions', () {
+    test('requires both cash and departures read scopes', () {
+      expect(
+        hasCounterDeparturesReadScope(const ['station.departures.read']),
+        isTrue,
+      );
+      expect(
+        canLoadCounterDeparturesForCashSale(
+          const ['station.sales.cash', 'station.departures.read'],
+        ),
+        isTrue,
+      );
+    });
+
+    test('cash scope alone is not enough', () {
+      expect(
+        canLoadCounterDeparturesForCashSale(const ['station.sales.cash']),
+        isFalse,
+      );
+    });
+
+    test('departures read scope alone is not enough', () {
+      expect(
+        canLoadCounterDeparturesForCashSale(const ['station.departures.read']),
+        isFalse,
+      );
+    });
+  });
 }

@@ -108,6 +108,7 @@ class _AdminDepartureGenerationDialogState
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: _templateId,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Template'),
                   items: widget.templates
                       .map(
@@ -125,29 +126,50 @@ class _AdminDepartureGenerationDialogState
                       : (value) => setState(() => _templateId = value),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
+                if (compact)
+                  Column(
+                    children: [
+                      TextFormField(
                         controller: _startController,
                         decoration: const InputDecoration(
                             labelText: 'Début (YYYY-MM-DD)'),
                         validator: _validateDate,
                         enabled: !_previewing && !_generating,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
+                      const SizedBox(height: 12),
+                      TextFormField(
                         controller: _endController,
                         decoration: const InputDecoration(
                             labelText: 'Fin (YYYY-MM-DD)'),
                         validator: _validateDate,
                         enabled: !_previewing && !_generating,
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _startController,
+                          decoration: const InputDecoration(
+                              labelText: 'Début (YYYY-MM-DD)'),
+                          validator: _validateDate,
+                          enabled: !_previewing && !_generating,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _endController,
+                          decoration: const InputDecoration(
+                              labelText: 'Fin (YYYY-MM-DD)'),
+                          validator: _validateDate,
+                          enabled: !_previewing && !_generating,
+                        ),
+                      ),
+                    ],
+                  ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -179,8 +201,10 @@ class _AdminDepartureGenerationDialogState
                   _GenerationList(result: _generationResult!),
                   const SizedBox(height: 16),
                 ],
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     TextButton(
                       onPressed: (_previewing || _generating)
@@ -188,12 +212,10 @@ class _AdminDepartureGenerationDialogState
                           : () => Navigator.pop(context),
                       child: const Text('Fermer'),
                     ),
-                    const SizedBox(width: 8),
                     OutlinedButton(
                       onPressed: (_previewing || _generating) ? null : _preview,
                       child: const Text('Prévisualiser'),
                     ),
-                    const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed:
                           (_previewing || _generating) ? null : _generate,

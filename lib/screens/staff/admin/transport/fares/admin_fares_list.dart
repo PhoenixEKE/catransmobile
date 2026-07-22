@@ -33,7 +33,16 @@ class AdminFaresList extends StatelessWidget {
         return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (cards) _buildCards() else _buildTable(),
+              if (cards)
+                KeyedSubtree(
+                  key: const Key('admin-fares-list-view'),
+                  child: _buildCards(),
+                )
+              else
+                KeyedSubtree(
+                  key: const Key('admin-fares-table-view'),
+                  child: _buildTable(),
+                ),
               const SizedBox(height: 10),
               StaffPaginationControls(
                   hasPrevious: page.hasPrevious,

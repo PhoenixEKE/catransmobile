@@ -8,24 +8,35 @@ class AdminDashboardApiService {
   AdminDashboardApiService({ApiClient? apiClient})
       : _apiClient = apiClient ?? ApiClient();
 
-  Future<AdminDashboardResponse> getOverview({DateTime? date}) {
-    return _getDashboard('admin/dashboard/overview/', date: date);
+  Future<AdminDashboardOverviewResponse> getOverview({DateTime? date}) async {
+    final json = await _getDashboard('admin/dashboard/overview/', date: date);
+    return AdminDashboardOverviewResponse.fromJson(json);
   }
 
-  Future<AdminDashboardResponse> getRevenueByPaymentMethod({DateTime? date}) {
-    return _getDashboard('admin/dashboard/revenue-by-payment-method/',
-        date: date);
+  Future<AdminDashboardRevenueByPaymentMethodResponse>
+      getRevenueByPaymentMethod({DateTime? date}) async {
+    final json = await _getDashboard(
+      'admin/dashboard/revenue-by-payment-method/',
+      date: date,
+    );
+    return AdminDashboardRevenueByPaymentMethodResponse.fromJson(json);
   }
 
-  Future<AdminDashboardResponse> getSalesByChannel({DateTime? date}) {
-    return _getDashboard('admin/dashboard/sales-by-channel/', date: date);
+  Future<AdminDashboardSalesByChannelResponse> getSalesByChannel(
+      {DateTime? date}) async {
+    final json = await _getDashboard(
+      'admin/dashboard/sales-by-channel/',
+      date: date,
+    );
+    return AdminDashboardSalesByChannelResponse.fromJson(json);
   }
 
-  Future<AdminDashboardResponse> getTopRoutes({DateTime? date}) {
-    return _getDashboard('admin/dashboard/top-routes/', date: date);
+  Future<AdminDashboardTopRoutesResponse> getTopRoutes({DateTime? date}) async {
+    final json = await _getDashboard('admin/dashboard/top-routes/', date: date);
+    return AdminDashboardTopRoutesResponse.fromJson(json);
   }
 
-  Future<AdminDashboardResponse> _getDashboard(String path,
+  Future<Map<String, dynamic>> _getDashboard(String path,
       {DateTime? date}) async {
     final response = await _apiClient.get(
       path,
@@ -33,7 +44,7 @@ class AdminDashboardApiService {
         if (date != null) 'date': _formatDate(date),
       },
     );
-    return AdminDashboardResponse.fromJson(_readMap(response.data));
+    return _readMap(response.data);
   }
 
   String _formatDate(DateTime date) {

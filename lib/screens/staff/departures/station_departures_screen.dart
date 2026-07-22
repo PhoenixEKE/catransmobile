@@ -217,7 +217,7 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
       return _StatePanel(
         icon: Icons.insights_outlined,
         title: 'Synthèse indisponible',
-        message: 'La synthèse sera affichée après le chargement des départs.',
+        message: 'La synthèse s’affiche après le chargement des départs.',
         actionLabel: 'Actualiser',
         onAction: _loadDepartures,
       );

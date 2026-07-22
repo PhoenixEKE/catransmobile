@@ -153,6 +153,7 @@ class StaffSidebar extends StatelessWidget {
                           ),
                         ),
                         child: ListTile(
+                          key: Key('staff-sidebar-item-${item.id}'),
                           leading: Icon(
                             item.icon,
                             color: isSelected
@@ -188,7 +189,7 @@ class StaffSidebar extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.all(PersonnelSpacing.md),
               child: Text(
-                'Portail métier v1',
+                'Portail métier CA TRANS',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white38, fontSize: 12),
               ),
