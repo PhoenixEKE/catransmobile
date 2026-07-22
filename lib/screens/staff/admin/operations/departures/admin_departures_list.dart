@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
+import 'package:catrans_app/screens/staff/admin/operations/admin_departure_not_open_badge.dart';
 import 'package:catrans_app/screens/staff/admin/operations/admin_departure_status_badge.dart';
 import 'package:catrans_app/widgets/staff/staff_pagination_controls.dart';
 
@@ -77,9 +78,18 @@ class AdminDeparturesList extends StatelessWidget {
                 DataCell(Text(departure.displayRoute)),
                 DataCell(Text(departure.displayStation)),
                 DataCell(Text(departure.displayClass)),
-                DataCell(AdminDepartureStatusBadge(
-                  code: departure.status.code,
-                  label: departure.status.label,
+                DataCell(Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    AdminDepartureStatusBadge(
+                      code: departure.status.code,
+                      label: departure.status.label,
+                    ),
+                    if (departure.status.code == 'scheduled')
+                      const AdminDepartureNotOpenBadge(),
+                  ],
                 )),
                 DataCell(_Actions(
                   departure: departure,
@@ -131,6 +141,13 @@ class AdminDeparturesList extends StatelessWidget {
                   ),
                 ],
               ),
+              if (departure.status.code == 'scheduled') ...[
+                const SizedBox(height: 6),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: AdminDepartureNotOpenBadge(),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(departure.displayRoute),
               Text('${departure.displayStation} · ${departure.displayClass}'),
