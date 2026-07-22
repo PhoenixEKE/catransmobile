@@ -170,9 +170,15 @@ String? _guard(GoRouterState state, AuthService authService) {
 
   if (!authService.isInitialized) {
     // A direct link to a protected path loaded before auth state is known:
-    // send it through the splash screen first, which will bounce back to
-    // the right place once `loadUser()` resolves and this redirect re-runs
-    // (refreshListenable: authService).
+    // send it through the splash screen first. SplashScreen reads `from`
+    // once `loadUser()` resolves and, if it's in resumableAfterSplashPaths,
+    // tries to go back there instead of the generic default destination.
+    if (resumableAfterSplashPaths.contains(location)) {
+      return Uri(
+        path: RoutePaths.root,
+        queryParameters: {'from': location},
+      ).toString();
+    }
     return RoutePaths.root;
   }
 

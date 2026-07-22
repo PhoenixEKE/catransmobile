@@ -57,6 +57,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigateToAuth() async {
     final authService = context.read<AuthService>();
+    // Set by the go_router redirect guard when a direct link to a
+    // protected path was loaded before auth state was known (see
+    // app_router.dart's `resumableAfterSplashPaths`); lets the user land
+    // where they actually asked to go instead of always on the default
+    // destination for their role.
+    final from = GoRouterState.of(context).uri.queryParameters['from'];
 
     await Future.wait([
       Future.delayed(const Duration(seconds: 5)),
@@ -65,10 +71,18 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    void goToRoleDefaultOrFrom(String roleDefault) {
+      if (from != null && resumableAfterSplashPaths.contains(from)) {
+        context.go(from);
+      } else {
+        context.go(roleDefault);
+      }
+    }
+
     final currentUser = authService.currentUser;
     if (authService.isAuthenticated && currentUser != null) {
       if (!currentUser.isCustomer) {
-        context.go(AuthRedirectService.pathForUser(currentUser));
+        goToRoleDefaultOrFrom(AuthRedirectService.pathForUser(currentUser));
         return;
       }
 
@@ -92,11 +106,11 @@ class _SplashScreenState extends State<SplashScreen>
         return;
       }
 
-      context.go(AuthRedirectService.pathForUser(currentUser));
+      goToRoleDefaultOrFrom(AuthRedirectService.pathForUser(currentUser));
       return;
     }
 
-    context.go(RoutePaths.bienvenue);
+    goToRoleDefaultOrFrom(RoutePaths.bienvenue);
   }
 
   Future<ReservationDetail?> _loadPendingReservation() async {

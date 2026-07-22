@@ -29,3 +29,26 @@ class RoutePaths {
   static const String personnelIncomplet = '/personnel/incomplet';
   static const String personnelHome = '/personnel/home';
 }
+
+/// Paths that can be resumed after the forced splash detour (via
+/// `SplashScreen` reading a `?from=` query parameter) because their
+/// [GoRoute] builder needs no `extra` data. Paths that require a
+/// constructed widget via `extra` (recapitulatif, paiement, billet, the
+/// two seat-selection screens...) are intentionally excluded: nothing
+/// could have supplied that `extra` on a bare direct link anyway, so they
+/// fall back to the same default destination they always would have
+/// without this mechanism. Shared between `app_router.dart` (which sets
+/// `from`) and `splash_screen.dart` (which reads it) to avoid a circular
+/// import between the two.
+const resumableAfterSplashPaths = {
+  RoutePaths.bienvenue,
+  RoutePaths.connexion,
+  RoutePaths.inscription,
+  RoutePaths.accueil,
+  RoutePaths.mesReservations,
+  RoutePaths.support,
+  RoutePaths.profil,
+  RoutePaths.changePassword,
+  RoutePaths.personnelHome,
+  RoutePaths.personnelIncomplet,
+};
