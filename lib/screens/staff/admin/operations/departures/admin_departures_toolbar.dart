@@ -133,14 +133,14 @@ class _AdminDeparturesToolbarState extends State<AdminDeparturesToolbar> {
             key: const Key('admin-departures-create'),
             onPressed: widget.onCreate,
             icon: const Icon(Icons.add),
-            label: const Text('Créer'),
+            label: const Text('Créer un départ'),
           ),
         if (widget.canManage)
           OutlinedButton.icon(
             key: const Key('admin-departures-generate'),
             onPressed: widget.onGenerate,
             icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Générer'),
+            label: const Text('Générer depuis un modèle'),
           ),
       ],
     );

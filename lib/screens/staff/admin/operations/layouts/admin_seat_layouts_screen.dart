@@ -485,7 +485,12 @@ class _LayoutDetail extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                _SeatPlanGrid(seats: seatsPage?.results ?? const []),
+                // Only render the grid (and its own "aucun siège" fallback)
+                // once loading has finished without error - otherwise a
+                // failed fetch renders as an empty-looking plan instead of
+                // surfacing as the error message shown above.
+                if (!isLoading && error == null)
+                  _SeatPlanGrid(seats: seatsPage?.results ?? const []),
               ],
             ),
     );
@@ -590,10 +595,21 @@ class _PaginationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tight, no-minimum-tap-target style: the default Material TextButton
+    // padding/minWidth was reserving more horizontal space than the visible
+    // "Précédent"/"Suivant" labels need, squeezing the count text into an
+    // ellipsis even when the row had visible room left.
+    const navButtonStyle = ButtonStyle(
+      padding: WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 8),
+      ),
+      minimumSize: WidgetStatePropertyAll(Size(0, 0)),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
+        Flexible(
           child: Text(
             '${page.results.length} plan(s) affiché(s) · ${page.count} au total',
             maxLines: 1,
@@ -603,11 +619,13 @@ class _PaginationBar extends StatelessWidget {
         Row(
           children: [
             TextButton(
+              style: navButtonStyle,
               onPressed: onPreviousPage,
               child: const Text('Précédent'),
             ),
             const SizedBox(width: 8),
             TextButton(
+              style: navButtonStyle,
               onPressed: onNextPage,
               child: const Text('Suivant'),
             ),
