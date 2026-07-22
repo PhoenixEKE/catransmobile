@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
+import 'package:catrans_app/screens/staff/admin/operations/departures/admin_seat_class_zones_dialog.dart';
+import 'package:catrans_app/services/api/staff/admin/admin_operations_api_service.dart';
 
 Future<void> showAdminDepartureGenerationDialog({
   required BuildContext context,
@@ -15,6 +17,7 @@ Future<void> showAdminDepartureGenerationDialog({
     AdminDepartureDatesRequest request,
   ) generateDepartures,
   required bool isSubmitting,
+  required AdminOperationsApiService apiService,
 }) {
   return showDialog<void>(
     context: context,
@@ -23,6 +26,7 @@ Future<void> showAdminDepartureGenerationDialog({
       templates: templates,
       previewGeneration: previewGeneration,
       generateDepartures: generateDepartures,
+      apiService: apiService,
     ),
   );
 }
@@ -37,11 +41,13 @@ class _AdminDepartureGenerationDialog extends StatefulWidget {
     String templateId,
     AdminDepartureDatesRequest request,
   ) generateDepartures;
+  final AdminOperationsApiService apiService;
 
   const _AdminDepartureGenerationDialog({
     required this.templates,
     required this.previewGeneration,
     required this.generateDepartures,
+    required this.apiService,
   });
 
   @override
@@ -124,6 +130,22 @@ class _AdminDepartureGenerationDialogState
                   onChanged: (_previewing || _generating)
                       ? null
                       : (value) => setState(() => _templateId = value),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _templateId == null
+                        ? null
+                        : () => _openSeatClassZones(_templateId!),
+                    icon: const Icon(Icons.event_seat_outlined),
+                    label: const Text('Zones de sièges (Prestige)'),
+                  ),
+                ),
+                const Text(
+                  "Uniquement modifiable tant qu'aucun départ n'a encore été "
+                  'généré pour ce template.',
+                  style: TextStyle(color: Color(0xFF667085), fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 if (compact)
@@ -229,6 +251,23 @@ class _AdminDepartureGenerationDialogState
         ),
       ),
     );
+  }
+
+  Future<void> _openSeatClassZones(String templateId) async {
+    final matches =
+        widget.templates.where((template) => template.id == templateId);
+    final label = matches.isEmpty ? null : _templateLabel(matches.first);
+    final saved = await showAdminSeatClassZonesDialog(
+      context: context,
+      departureTemplateId: templateId,
+      departureTemplateLabel: label,
+      apiService: widget.apiService,
+    );
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zones de sièges enregistrées.')),
+      );
+    }
   }
 
   Future<void> _preview() async {

@@ -1030,6 +1030,11 @@ class _DepartureCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _Badge(label: departure.statusLabel, color: statusColor),
+                if (departure.status == 'scheduled')
+                  const _Badge(
+                    label: 'Pas encore ouvert à la vente',
+                    color: _warning,
+                  ),
                 _Badge(
                   label: departure.displayServiceClass,
                   color: Colors.indigo,

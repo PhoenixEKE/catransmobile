@@ -3,6 +3,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/operations/seat_layout_seat.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
+import 'package:catrans_app/models/staff/admin/operations/admin_seat_class_zone_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/models/station/station_ticket_validation.dart';
 
@@ -82,6 +83,37 @@ class AdminOperationsApiService {
 
   Future<AdminOperationRecord> getDepartureTemplate(String id) =>
       _get('admin/operations/departure-templates/$id/');
+
+  Future<PagedResult<AdminSeatClassZone>> listSeatClassZones(
+    String templateId, {
+    bool? isActive,
+    String? ordering,
+    int page = 1,
+    int pageSize = 100,
+  }) async {
+    final response = await _apiClient.get(
+      'admin/operations/departure-templates/$templateId/seat-class-zones/',
+      queryParameters: buildAdminOperationsQueryParameters(
+        isActive: isActive,
+        ordering: ordering,
+        page: page,
+        pageSize: pageSize,
+      ),
+    );
+    return PagedResult.fromJson(response.data, AdminSeatClassZone.fromJson);
+  }
+
+  Future<List<AdminSeatClassZone>> replaceSeatClassZones(
+    String templateId,
+    List<AdminSeatClassZoneDraft> zones,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/departure-templates/$templateId/seat-class-zones/replace/',
+      data: AdminSeatClassZoneReplaceRequest(zones: zones).toJson(),
+    );
+    return PagedResult.fromJson(response.data, AdminSeatClassZone.fromJson)
+        .results;
+  }
 
   Future<PagedResult<AdminOperationRecord>> listDepartures({
     String? stationId,

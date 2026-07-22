@@ -85,6 +85,14 @@ class _AdminSeatLayoutsScreenState extends State<AdminSeatLayoutsScreen> {
           page: page,
           selectedLayoutId: _controller.selectedLayout?.id,
           canManage: widget.canManage,
+          // Non-compact: listPane sits in a height-bounded SizedBox (see the
+          // Row below), so the card list can safely use Expanded+ListView
+          // and keep the pagination bar fixed outside the scroll area.
+          // Compact: listPane is placed inside the outer SingleChildScrollView
+          // a few lines down, whose height is unbounded — Expanded would
+          // throw there, so it keeps rendering as a plain, non-scrolling
+          // Column and lets that outer scroll view handle overflow instead.
+          boundedHeight: !compact,
           onPreviousPage:
               _controller.hasPreviousPage ? _controller.previousPage : null,
           onNextPage: _controller.hasNextPage ? _controller.nextPage : null,
@@ -208,6 +216,7 @@ class _LayoutList extends StatelessWidget {
   final PagedResult<AdminOperationRecord> page;
   final String? selectedLayoutId;
   final bool canManage;
+  final bool boundedHeight;
   final VoidCallback? onPreviousPage;
   final VoidCallback? onNextPage;
   final ValueChanged<AdminOperationRecord> onSelect;
@@ -216,6 +225,7 @@ class _LayoutList extends StatelessWidget {
     required this.page,
     required this.selectedLayoutId,
     required this.canManage,
+    required this.boundedHeight,
     required this.onPreviousPage,
     required this.onNextPage,
     required this.onSelect,
@@ -223,6 +233,29 @@ class _LayoutList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final footer = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _PaginationBar(
+          page: page,
+          onPreviousPage: onPreviousPage,
+          onNextPage: onNextPage,
+        ),
+        if (!canManage) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Lecture seule: la gestion des plans reste limitée aux permissions admin complètes.',
+            style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+          ),
+        ],
+      ],
+    );
+
+    final title = Text(
+      'Plans disponibles',
+      style: Theme.of(context).textTheme.titleMedium,
+    );
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -230,37 +263,57 @@ class _LayoutList extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE4E7EF)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Plans disponibles',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          ...page.results.map((layout) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _LayoutCard(
-                  layout: layout,
-                  selected: layout.id == selectedLayoutId,
-                  onTap: () => onSelect(layout),
+      child: boundedHeight
+          // Height here comes from a bounded ancestor (the SizedBox in
+          // _buildContent's non-compact Row): the card list can safely be
+          // Expanded+ListView so it scrolls on its own, with the pagination
+          // bar kept fixed below instead of being pushed off-screen.
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                title,
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: page.results.length,
+                    itemBuilder: (context, index) {
+                      final layout = page.results[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _LayoutCard(
+                          layout: layout,
+                          selected: layout.id == selectedLayoutId,
+                          onTap: () => onSelect(layout),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              )),
-          const SizedBox(height: 8),
-          _PaginationBar(
-            page: page,
-            onPreviousPage: onPreviousPage,
-            onNextPage: onNextPage,
-          ),
-          if (!canManage) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'Lecture seule: la gestion des plans reste limitée aux permissions admin complètes.',
-              style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+                const SizedBox(height: 8),
+                footer,
+              ],
+            )
+          // Height here is unbounded (caller places this inside the
+          // compact branch's outer SingleChildScrollView): Expanded would
+          // throw, so this keeps the original plain, non-scrolling Column
+          // and lets that outer scroll view handle any overflow.
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                title,
+                const SizedBox(height: 12),
+                ...page.results.map((layout) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _LayoutCard(
+                        layout: layout,
+                        selected: layout.id == selectedLayoutId,
+                        onTap: () => onSelect(layout),
+                      ),
+                    )),
+                const SizedBox(height: 8),
+                footer,
+              ],
             ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -540,8 +593,13 @@ class _PaginationBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-            '${page.results.length} plan(s) affiché(s) · ${page.count} au total'),
+        Expanded(
+          child: Text(
+            '${page.results.length} plan(s) affiché(s) · ${page.count} au total',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         Row(
           children: [
             TextButton(
