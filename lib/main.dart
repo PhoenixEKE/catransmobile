@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:catrans_app/core/config/app_config.dart';
+import 'package:catrans_app/core/navigation/app_router.dart';
 import 'package:catrans_app/services/auth_service.dart';
-import 'package:catrans_app/screens/client/auth/splash_screen.dart';
-import 'package:catrans_app/screens/staff/auth/personnel_entry_screen.dart';
 
 void main() {
   // Serves clean paths (e.g. /personnel) instead of hash fragments on web.
@@ -13,21 +13,27 @@ void main() {
   // to fall back unknown paths to index.html (see LOT 6.8B1 report §2).
   usePathUrlStrategy();
   AppConfig.validateRuntimeConfiguration();
-  runApp(const MyApp());
+
+  // Built once, outside the widget tree, so the same instance can be
+  // handed both to the Provider (read by screens) and to GoRouter's
+  // `refreshListenable` (see lib/core/navigation/app_router.dart).
+  final authService = AuthService();
+  final router = buildAppRouter(authService);
+
+  runApp(MyApp(authService: authService, router: router));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final AuthService authService;
+  final GoRouter router;
+
+  const MyApp({super.key, required this.authService, required this.router});
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-      ],
-      child: MaterialApp(
+    return ChangeNotifierProvider<AuthService>.value(
+      value: authService,
+      child: MaterialApp.router(
         title: 'Catrans mobile',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -59,16 +65,7 @@ class MyApp extends StatelessWidget {
           Locale('fr', 'FR'),
           Locale('en', 'US'),
         ],
-        home: const SplashScreen(),
-        onGenerateRoute: (settings) {
-          if (settings.name == '/personnel') {
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const PersonnelEntryScreen(),
-            );
-          }
-          return null;
-        },
+        routerConfig: router,
       ),
     );
   }
