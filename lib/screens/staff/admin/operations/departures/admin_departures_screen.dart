@@ -161,6 +161,7 @@ class _AdminDeparturesScreenState extends State<AdminDeparturesScreen> {
       previewGeneration: _controller.previewGeneration,
       generateDepartures: _controller.generateDeparturesBatch,
       isSubmitting: _controller.isSubmitting,
+      apiService: _controller.apiService,
     );
   }
 

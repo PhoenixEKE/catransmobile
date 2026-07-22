@@ -116,6 +116,21 @@ class AuthApiService {
     return CustomerProfile.fromJson(_readObject(response.data));
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirm,
+  }) async {
+    await _apiClient.post(
+      'client/profile/change-password/',
+      data: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+        'new_password_confirm': newPasswordConfirm,
+      },
+    );
+  }
+
   Map<String, dynamic> _readObject(dynamic data) {
     if (data is Map<String, dynamic>) {
       return data;
