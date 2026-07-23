@@ -7,6 +7,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/payment/wave_payment_response.dart';
 import 'package:catrans_app/models/reservation/reservation_detail.dart';
 import 'package:catrans_app/services/api/payment_api_service.dart';
+import 'package:catrans_app/services/pending_wave_reservation_storage.dart';
 
 class PaiementScreen extends StatefulWidget {
   final ReservationDetail? reservationDetail;
@@ -61,6 +62,14 @@ class _PaiementScreenState extends State<PaiementScreen> {
     super.initState();
     _payment = widget.existingPayment;
     _canStartNewPayment = widget.canStartNewPayment;
+    _clearPendingWaveMarkerIfResolved();
+  }
+
+  void _clearPendingWaveMarkerIfResolved() {
+    final payment = _payment;
+    if (payment != null && payment.isTerminal) {
+      clearPendingWaveReservationId();
+    }
   }
 
   ReservationDetail? get _reservation => widget.reservationDetail;
@@ -181,6 +190,11 @@ class _PaiementScreenState extends State<PaiementScreen> {
       return;
     }
 
+    final reservationId = _reservation?.id;
+    if (reservationId != null && reservationId.trim().isNotEmpty) {
+      await savePendingWaveReservationId(reservationId);
+    }
+
     final opened = await launchUrl(
       uri,
       mode: LaunchMode.externalApplication,
@@ -221,6 +235,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
         _payment = updatedPayment;
         _isCheckingStatus = false;
       });
+      _clearPendingWaveMarkerIfResolved();
     } catch (error) {
       if (!mounted) return;
 

@@ -14,6 +14,7 @@ import 'package:catrans_app/screens/client/booking/choix_place_economie_screen.d
 import 'package:catrans_app/screens/client/booking/choix_place_prestige_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
+import 'package:catrans_app/screens/client/booking/paiement_retour_screen.dart';
 import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
 import 'package:catrans_app/screens/client/tickets/billet_screen.dart';
 import 'package:catrans_app/screens/client/support/support_screen.dart';
@@ -98,6 +99,16 @@ GoRouter buildAppRouter(AuthService authService) {
         builder: (context, state) => state.extra as PaiementScreen,
       ),
       GoRoute(
+        path: RoutePaths.paiementSucces,
+        builder: (context, state) =>
+            const PaiementRetourScreen(isSuccessRedirect: true),
+      ),
+      GoRoute(
+        path: RoutePaths.paiementErreur,
+        builder: (context, state) =>
+            const PaiementRetourScreen(isSuccessRedirect: false),
+      ),
+      GoRoute(
         path: RoutePaths.mesReservations,
         builder: (context, state) => const MesReservationsScreen(),
       ),
@@ -145,6 +156,8 @@ const _clientProtectedPaths = {
   RoutePaths.choixPlacePrestige,
   RoutePaths.recapitulatif,
   RoutePaths.paiement,
+  RoutePaths.paiementSucces,
+  RoutePaths.paiementErreur,
   RoutePaths.mesReservations,
   RoutePaths.billet,
   RoutePaths.support,

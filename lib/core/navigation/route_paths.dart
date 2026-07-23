@@ -19,6 +19,8 @@ class RoutePaths {
   static const String choixPlacePrestige = '/reservation/places-prestige';
   static const String recapitulatif = '/reservation/recapitulatif';
   static const String paiement = '/reservation/paiement';
+  static const String paiementSucces = '/paiement/succes';
+  static const String paiementErreur = '/paiement/erreur';
   static const String mesReservations = '/mes-reservations';
   static const String billet = '/billet';
   static const String support = '/support';
@@ -51,6 +53,8 @@ const resumableAfterSplashPaths = {
   RoutePaths.profil,
   RoutePaths.changePassword,
   RoutePaths.pointsFidelite,
+  RoutePaths.paiementSucces,
+  RoutePaths.paiementErreur,
   RoutePaths.personnelHome,
   RoutePaths.personnelIncomplet,
 };
