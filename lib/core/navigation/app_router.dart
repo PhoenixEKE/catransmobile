@@ -19,6 +19,7 @@ import 'package:catrans_app/screens/client/tickets/billet_screen.dart';
 import 'package:catrans_app/screens/client/support/support_screen.dart';
 import 'package:catrans_app/screens/client/profile/profil_screen.dart';
 import 'package:catrans_app/screens/client/profile/change_password_screen.dart';
+import 'package:catrans_app/screens/client/profile/points_fidelite_screen.dart';
 
 import 'package:catrans_app/screens/staff/auth/personnel_entry_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_profile_incomplete_page.dart';
@@ -117,6 +118,10 @@ GoRouter buildAppRouter(AuthService authService) {
         builder: (context, state) => const ChangePasswordScreen(),
       ),
       GoRoute(
+        path: RoutePaths.pointsFidelite,
+        builder: (context, state) => const PointsFideliteScreen(),
+      ),
+      GoRoute(
         path: RoutePaths.personnel,
         builder: (context, state) => const PersonnelEntryScreen(),
       ),
@@ -145,6 +150,7 @@ const _clientProtectedPaths = {
   RoutePaths.support,
   RoutePaths.profil,
   RoutePaths.changePassword,
+  RoutePaths.pointsFidelite,
 };
 
 const _guestOnlyPaths = {

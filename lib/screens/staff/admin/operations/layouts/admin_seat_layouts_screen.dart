@@ -103,6 +103,11 @@ class _AdminSeatLayoutsScreenState extends State<AdminSeatLayoutsScreen> {
           seatsPage: _controller.seatsPage,
           isLoading: _controller.isLoadingDetail,
           error: _controller.detailError,
+          // Same reasoning as listPane's boundedHeight above: non-compact
+          // puts this in a height-bounded Expanded, so the seat grid (whose
+          // height grows with seat count) can safely scroll in its own
+          // Expanded region instead of overflowing past the panel.
+          boundedHeight: !compact,
         );
 
         if (compact) {
@@ -390,12 +395,14 @@ class _LayoutDetail extends StatelessWidget {
   final PagedResult<SeatLayoutSeat>? seatsPage;
   final bool isLoading;
   final String? error;
+  final bool boundedHeight;
 
   const _LayoutDetail({
     required this.layout,
     required this.seatsPage,
     required this.isLoading,
     required this.error,
+    required this.boundedHeight,
   });
 
   @override
@@ -490,7 +497,25 @@ class _LayoutDetail extends StatelessWidget {
                 // failed fetch renders as an empty-looking plan instead of
                 // surfacing as the error message shown above.
                 if (!isLoading && error == null)
-                  _SeatPlanGrid(seats: seatsPage?.results ?? const []),
+                  if (boundedHeight)
+                    // Non-compact: this Column sits in a height-bounded
+                    // Expanded (see admin_seat_layouts_screen's LayoutBuilder),
+                    // so a layout with many seats can overflow past the panel
+                    // instead of just growing it. Give the grid its own
+                    // Expanded + scroll region instead, keeping the header/
+                    // metadata above always visible.
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: _SeatPlanGrid(
+                          seats: seatsPage?.results ?? const [],
+                        ),
+                      ),
+                    )
+                  else
+                    // Compact: sits inside the outer SingleChildScrollView,
+                    // whose height is unbounded - Expanded would throw, so
+                    // let that outer scroll view handle the grid's height.
+                    _SeatPlanGrid(seats: seatsPage?.results ?? const []),
               ],
             ),
     );

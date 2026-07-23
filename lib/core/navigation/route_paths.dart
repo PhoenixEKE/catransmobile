@@ -24,6 +24,7 @@ class RoutePaths {
   static const String support = '/support';
   static const String profil = '/profil';
   static const String changePassword = '/profil/mot-de-passe';
+  static const String pointsFidelite = '/profil/points-fidelite';
 
   static const String personnel = '/personnel';
   static const String personnelIncomplet = '/personnel/incomplet';
@@ -49,6 +50,7 @@ const resumableAfterSplashPaths = {
   RoutePaths.support,
   RoutePaths.profil,
   RoutePaths.changePassword,
+  RoutePaths.pointsFidelite,
   RoutePaths.personnelHome,
   RoutePaths.personnelIncomplet,
 };
