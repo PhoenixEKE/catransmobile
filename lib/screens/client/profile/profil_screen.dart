@@ -314,6 +314,28 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     color: const Color(0xFF0F056B).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
+                  child: const Icon(Icons.stars, color: Color(0xFF0F056B)),
+                ),
+                title: const Text('Mes points de fidélité',
+                    style: TextStyle(fontWeight: FontWeight.w500)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  context.push(RoutePaths.pointsFidelite);
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F056B).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child:
                       const Icon(Icons.lock_outline, color: Color(0xFF0F056B)),
                 ),

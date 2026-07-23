@@ -78,17 +78,23 @@ class AdminDeparturesList extends StatelessWidget {
                 DataCell(Text(departure.displayRoute)),
                 DataCell(Text(departure.displayStation)),
                 DataCell(Text(departure.displayClass)),
-                DataCell(Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                DataCell(Row(
+                  // DataTable rows have a fixed height: a Wrap that drops to
+                  // a second line here (as it did once both badges no longer
+                  // fit side by side) overflows past that fixed height and
+                  // paints over the row below. A Row never wraps - the
+                  // Statut column just grows wider instead, which is safe
+                  // since the whole table already scrolls horizontally.
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     AdminDepartureStatusBadge(
                       code: departure.status.code,
                       label: departure.status.label,
                     ),
-                    if (departure.status.code == 'scheduled')
+                    if (departure.status.code == 'scheduled') ...[
+                      const SizedBox(width: 6),
                       const AdminDepartureNotOpenBadge(),
+                    ],
                   ],
                 )),
                 DataCell(_Actions(

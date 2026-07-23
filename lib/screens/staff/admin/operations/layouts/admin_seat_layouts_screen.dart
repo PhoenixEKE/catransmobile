@@ -103,6 +103,11 @@ class _AdminSeatLayoutsScreenState extends State<AdminSeatLayoutsScreen> {
           seatsPage: _controller.seatsPage,
           isLoading: _controller.isLoadingDetail,
           error: _controller.detailError,
+          // Same reasoning as listPane's boundedHeight above: non-compact
+          // puts this in a height-bounded Expanded, so the seat grid (whose
+          // height grows with seat count) can safely scroll in its own
+          // Expanded region instead of overflowing past the panel.
+          boundedHeight: !compact,
         );
 
         if (compact) {
@@ -390,12 +395,14 @@ class _LayoutDetail extends StatelessWidget {
   final PagedResult<SeatLayoutSeat>? seatsPage;
   final bool isLoading;
   final String? error;
+  final bool boundedHeight;
 
   const _LayoutDetail({
     required this.layout,
     required this.seatsPage,
     required this.isLoading,
     required this.error,
+    required this.boundedHeight,
   });
 
   @override
@@ -485,7 +492,30 @@ class _LayoutDetail extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                _SeatPlanGrid(seats: seatsPage?.results ?? const []),
+                // Only render the grid (and its own "aucun siège" fallback)
+                // once loading has finished without error - otherwise a
+                // failed fetch renders as an empty-looking plan instead of
+                // surfacing as the error message shown above.
+                if (!isLoading && error == null)
+                  if (boundedHeight)
+                    // Non-compact: this Column sits in a height-bounded
+                    // Expanded (see admin_seat_layouts_screen's LayoutBuilder),
+                    // so a layout with many seats can overflow past the panel
+                    // instead of just growing it. Give the grid its own
+                    // Expanded + scroll region instead, keeping the header/
+                    // metadata above always visible.
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: _SeatPlanGrid(
+                          seats: seatsPage?.results ?? const [],
+                        ),
+                      ),
+                    )
+                  else
+                    // Compact: sits inside the outer SingleChildScrollView,
+                    // whose height is unbounded - Expanded would throw, so
+                    // let that outer scroll view handle the grid's height.
+                    _SeatPlanGrid(seats: seatsPage?.results ?? const []),
               ],
             ),
     );
@@ -590,10 +620,21 @@ class _PaginationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tight, no-minimum-tap-target style: the default Material TextButton
+    // padding/minWidth was reserving more horizontal space than the visible
+    // "Précédent"/"Suivant" labels need, squeezing the count text into an
+    // ellipsis even when the row had visible room left.
+    const navButtonStyle = ButtonStyle(
+      padding: WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 8),
+      ),
+      minimumSize: WidgetStatePropertyAll(Size(0, 0)),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
+        Flexible(
           child: Text(
             '${page.results.length} plan(s) affiché(s) · ${page.count} au total',
             maxLines: 1,
@@ -603,11 +644,13 @@ class _PaginationBar extends StatelessWidget {
         Row(
           children: [
             TextButton(
+              style: navButtonStyle,
               onPressed: onPreviousPage,
               child: const Text('Précédent'),
             ),
             const SizedBox(width: 8),
             TextButton(
+              style: navButtonStyle,
               onPressed: onNextPage,
               child: const Text('Suivant'),
             ),

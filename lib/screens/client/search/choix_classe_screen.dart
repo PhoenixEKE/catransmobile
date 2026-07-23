@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
 import 'package:catrans_app/screens/client/search/recherche_resultat_screen.dart';
+import 'package:catrans_app/services/api/loyalty_api_service.dart';
 
 class ChoixClasseScreen extends StatefulWidget {
   final String depart;
@@ -31,10 +32,38 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
     'prestige': 8000,
   };
 
-  static const Map<String, int> _pointsParClasse = {
+  // Fallback shown until (or unless) the real active LoyaltyRule values load
+  // - confirmed to match today (Économie 5 / Prestige 10) but kept dynamic
+  // so a future rule change doesn't silently go stale here.
+  final Map<String, int> _pointsParClasse = {
     'economie': 5,
     'prestige': 10,
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoyaltyRules();
+  }
+
+  Future<void> _loadLoyaltyRules() async {
+    try {
+      final account = await LoyaltyApiService().getAccount();
+      if (!mounted) return;
+      final updated = Map<String, int>.from(_pointsParClasse);
+      for (final rule in account.rules) {
+        if (!rule.isActive) continue;
+        final code = rule.serviceClass?.code;
+        if (code == 'ECONOMIE') updated['economie'] = rule.pointsPerTicket;
+        if (code == 'PRESTIGE') updated['prestige'] = rule.pointsPerTicket;
+      }
+      setState(() => _pointsParClasse
+        ..clear()
+        ..addAll(updated));
+    } catch (_) {
+      // Silently keep the fallback values.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +198,7 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
               avantages: [
                 'Attribution des places à la gare',
                 'Accès aux toilettes',
-                '+5 points de fidélité par billet',
+                '+${_pointsParClasse['economie']} points de fidélité par billet',
               ],
               couleur: Colors.blue,
               isSelected: _selectedClasse == 'economie',
@@ -186,7 +215,7 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                 'Collation incluse',
                 'Toilettes privées',
                 'Sans escale',
-                '+10 points de fidélité par billet',
+                '+${_pointsParClasse['prestige']} points de fidélité par billet',
               ],
               couleur: const Color(0xFFEFD807),
               isSelected: _selectedClasse == 'prestige',

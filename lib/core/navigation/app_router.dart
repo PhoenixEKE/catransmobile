@@ -14,11 +14,13 @@ import 'package:catrans_app/screens/client/booking/choix_place_economie_screen.d
 import 'package:catrans_app/screens/client/booking/choix_place_prestige_screen.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/screens/client/booking/paiement_screen.dart';
+import 'package:catrans_app/screens/client/booking/paiement_retour_screen.dart';
 import 'package:catrans_app/screens/client/tickets/mes_reservations_screen.dart';
 import 'package:catrans_app/screens/client/tickets/billet_screen.dart';
 import 'package:catrans_app/screens/client/support/support_screen.dart';
 import 'package:catrans_app/screens/client/profile/profil_screen.dart';
 import 'package:catrans_app/screens/client/profile/change_password_screen.dart';
+import 'package:catrans_app/screens/client/profile/points_fidelite_screen.dart';
 
 import 'package:catrans_app/screens/staff/auth/personnel_entry_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_profile_incomplete_page.dart';
@@ -97,6 +99,16 @@ GoRouter buildAppRouter(AuthService authService) {
         builder: (context, state) => state.extra as PaiementScreen,
       ),
       GoRoute(
+        path: RoutePaths.paiementSucces,
+        builder: (context, state) =>
+            const PaiementRetourScreen(isSuccessRedirect: true),
+      ),
+      GoRoute(
+        path: RoutePaths.paiementErreur,
+        builder: (context, state) =>
+            const PaiementRetourScreen(isSuccessRedirect: false),
+      ),
+      GoRoute(
         path: RoutePaths.mesReservations,
         builder: (context, state) => const MesReservationsScreen(),
       ),
@@ -115,6 +127,10 @@ GoRouter buildAppRouter(AuthService authService) {
       GoRoute(
         path: RoutePaths.changePassword,
         builder: (context, state) => const ChangePasswordScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.pointsFidelite,
+        builder: (context, state) => const PointsFideliteScreen(),
       ),
       GoRoute(
         path: RoutePaths.personnel,
@@ -140,11 +156,14 @@ const _clientProtectedPaths = {
   RoutePaths.choixPlacePrestige,
   RoutePaths.recapitulatif,
   RoutePaths.paiement,
+  RoutePaths.paiementSucces,
+  RoutePaths.paiementErreur,
   RoutePaths.mesReservations,
   RoutePaths.billet,
   RoutePaths.support,
   RoutePaths.profil,
   RoutePaths.changePassword,
+  RoutePaths.pointsFidelite,
 };
 
 const _guestOnlyPaths = {

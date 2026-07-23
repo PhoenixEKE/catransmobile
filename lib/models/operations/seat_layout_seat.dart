@@ -4,7 +4,7 @@ enum SeatType { standard, vip, driver, door, empty }
 
 class SeatLayoutSeat {
   final String id;
-  final SeatLayout seatLayout;
+  final SeatLayout? seatLayout;
   final int seatNumber;
   final String? label;
   final int rowNumber;
@@ -22,7 +22,7 @@ class SeatLayoutSeat {
 
   SeatLayoutSeat({
     required this.id,
-    required this.seatLayout,
+    this.seatLayout,
     required this.seatNumber,
     this.label,
     this.rowNumber = 1,
@@ -41,7 +41,7 @@ class SeatLayoutSeat {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'seat_layout': seatLayout.toJson(),
+    'seat_layout': seatLayout?.toJson(),
     'seat_number': seatNumber,
     'label': label,
     'row_number': rowNumber,
@@ -60,7 +60,14 @@ class SeatLayoutSeat {
 
   factory SeatLayoutSeat.fromJson(Map<String, dynamic> json) => SeatLayoutSeat(
     id: json['id'],
-    seatLayout: SeatLayout.fromJson(json['seat_layout']),
+    // The `admin/operations/seat-layouts/{id}/seats/` endpoint (the only
+    // one currently consumed) never embeds the parent layout on each seat
+    // row - the layout is already known from the request context - so this
+    // must stay optional rather than assume the key is always present.
+    seatLayout: json['seat_layout'] is Map
+        ? SeatLayout.fromJson(
+            Map<String, dynamic>.from(json['seat_layout'] as Map))
+        : null,
     seatNumber: json['seat_number'],
     label: json['label'],
     rowNumber: json['row_number'] ?? 1,

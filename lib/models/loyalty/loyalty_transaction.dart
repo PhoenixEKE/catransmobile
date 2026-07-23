@@ -1,64 +1,103 @@
-import 'package:catrans_app/models/loyalty/loyalty_account.dart';
-import 'package:catrans_app/models/booking/reservation_item.dart';
-import 'package:catrans_app/models/ticketing/ticket.dart';
-import 'package:catrans_app/models/transport/service_class.dart';
+typedef LoyaltyJson = Map<String, dynamic>;
 
-enum TransactionType { earned, spent, reversed, restored, adjustment }
+class LoyaltyTransactionTypeRef {
+  final String code;
+  final String label;
+
+  const LoyaltyTransactionTypeRef({required this.code, required this.label});
+
+  factory LoyaltyTransactionTypeRef.fromJson(dynamic json) {
+    final map = json is Map ? LoyaltyJson.from(json) : const <String, dynamic>{};
+    return LoyaltyTransactionTypeRef(
+      code: map['code']?.toString() ?? '',
+      label: map['label']?.toString() ?? '',
+    );
+  }
+}
+
+class LoyaltyTransactionRelatedRef {
+  final String id;
+  final String reference;
+
+  const LoyaltyTransactionRelatedRef({
+    required this.id,
+    required this.reference,
+  });
+
+  static LoyaltyTransactionRelatedRef? fromJsonOrNull(dynamic json) {
+    if (json == null) return null;
+    final map = json is Map ? LoyaltyJson.from(json) : const <String, dynamic>{};
+    return LoyaltyTransactionRelatedRef(
+      id: map['id']?.toString() ?? '',
+      reference: map['reference']?.toString() ?? '',
+    );
+  }
+}
 
 class LoyaltyTransaction {
   final String id;
-  final LoyaltyAccount account;
-  final Reservation? reservation;
-  final Ticket? ticket;
-  final ServiceClass? serviceClass;
-  final TransactionType transactionType;
+  final LoyaltyTransactionTypeRef transactionType;
   final int points;
-  final int balanceAfter;
-  final Map<String, dynamic>? metadata;
-  final DateTime createdAt;
+  final LoyaltyTransactionTypeRef sourceServiceClass;
+  final String? description;
+  final LoyaltyTransactionRelatedRef? reservation;
+  final LoyaltyTransactionRelatedRef? ticket;
+  final String sourceKey;
+  final String? createdAt;
 
-  LoyaltyTransaction({
+  const LoyaltyTransaction({
     required this.id,
-    required this.account,
-    this.reservation,
-    this.ticket,
-    this.serviceClass,
     required this.transactionType,
     required this.points,
-    required this.balanceAfter,
-    this.metadata,
-    required this.createdAt,
+    required this.sourceServiceClass,
+    this.description,
+    this.reservation,
+    this.ticket,
+    required this.sourceKey,
+    this.createdAt,
   });
 
-  bool get isEarn => transactionType == TransactionType.earned;
-  bool get isSpent => transactionType == TransactionType.spent;
+  bool get isPositive => points >= 0;
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'account': account.toJson(),
-    'reservation': reservation?.toJson(),
-    'ticket': ticket?.toJson(),
-    'service_class': serviceClass?.toJson(),
-    'transaction_type': transactionType.name,
-    'points': points,
-    'balance_after': balanceAfter,
-    'metadata': metadata,
-    'created_at': createdAt.toIso8601String(),
-  };
+  factory LoyaltyTransaction.fromJson(LoyaltyJson json) {
+    return LoyaltyTransaction(
+      id: json['id']?.toString() ?? '',
+      transactionType: LoyaltyTransactionTypeRef.fromJson(json['transaction_type']),
+      points: _readInt(json['points']) ?? 0,
+      sourceServiceClass: LoyaltyTransactionTypeRef.fromJson(json['source_service_class']),
+      description: json['description']?.toString(),
+      reservation: LoyaltyTransactionRelatedRef.fromJsonOrNull(json['reservation']),
+      ticket: LoyaltyTransactionRelatedRef.fromJsonOrNull(json['ticket']),
+      sourceKey: json['source_key']?.toString() ?? '',
+      createdAt: json['created_at']?.toString(),
+    );
+  }
+}
 
-  factory LoyaltyTransaction.fromJson(Map<String, dynamic> json) => LoyaltyTransaction(
-    id: json['id'],
-    account: LoyaltyAccount.fromJson(json['account']),
-    reservation: json['reservation'] != null ? Reservation.fromJson(json['reservation']) : null,
-    ticket: json['ticket'] != null ? Ticket.fromJson(json['ticket']) : null,
-    serviceClass: json['service_class'] != null ? ServiceClass.fromJson(json['service_class']) : null,
-    transactionType: TransactionType.values.firstWhere(
-      (e) => e.name == json['transaction_type'],
-      orElse: () => TransactionType.adjustment,
-    ),
-    points: json['points'],
-    balanceAfter: json['balance_after'],
-    metadata: json['metadata'],
-    createdAt: DateTime.parse(json['created_at']),
-  );
+class LoyaltyTransactionsPage {
+  final int count;
+  final List<LoyaltyTransaction> results;
+
+  const LoyaltyTransactionsPage({required this.count, required this.results});
+
+  factory LoyaltyTransactionsPage.fromJson(LoyaltyJson json) {
+    final rawResults = json['results'];
+    final results = rawResults is List
+        ? rawResults
+            .whereType<Map>()
+            .map((item) => LoyaltyTransaction.fromJson(LoyaltyJson.from(item)))
+            .toList()
+        : <LoyaltyTransaction>[];
+    return LoyaltyTransactionsPage(
+      count: _readInt(json['count']) ?? results.length,
+      results: results,
+    );
+  }
+}
+
+int? _readInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
 }
