@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/selected_departure_context.dart';
+import 'package:catrans_app/models/loyalty/loyalty_account.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/models/reservation/reservation_create_item.dart';
+import 'package:catrans_app/services/api/loyalty_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
@@ -41,7 +43,11 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
   final List<TextEditingController> _prenomControllers = [];
   final List<TextEditingController> _phoneControllers = [];
   final ReservationApiService _reservationApiService = ReservationApiService();
+  final LoyaltyApiService _loyaltyApiService = LoyaltyApiService();
   bool _isCreatingReservation = false;
+
+  LoyaltyAccount? _loyaltyAccount;
+  bool _useLoyaltyPoints = false;
 
   @override
   void initState() {
@@ -58,7 +64,23 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
         text: i == 0 ? currentUser?.phoneNumber ?? '' : '',
       ));
     }
+    _loadLoyaltyAccount();
   }
+
+  /// Best-effort: the redemption toggle simply stays disabled if this fails
+  /// or is still loading, it never blocks the passenger-info/confirm flow.
+  Future<void> _loadLoyaltyAccount() async {
+    try {
+      final account = await _loyaltyApiService.getAccount();
+      if (!mounted) return;
+      setState(() => _loyaltyAccount = account);
+    } catch (_) {
+      // Silently unavailable: toggle stays disabled, nothing else changes.
+    }
+  }
+
+  bool get _canRedeemLoyaltyPoints =>
+      _loyaltyAccount?.redemption.economie.canRedeem ?? false;
 
   @override
   void dispose() {
@@ -109,9 +131,9 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
     return List.generate(widget.nombrePassagers, (index) {
       final isCurrentCustomer = index == 0 && hasCurrentUser;
       if (isCurrentCustomer) {
-        return const ReservationCreateItem(
+        return ReservationCreateItem(
           isForCustomer: true,
-          useLoyaltyPoints: false,
+          useLoyaltyPoints: _useLoyaltyPoints && _canRedeemLoyaltyPoints,
         );
       }
 
@@ -452,6 +474,8 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            _buildLoyaltyToggle(),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -500,6 +524,67 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Renders nothing while the loyalty account hasn't loaded yet (best
+  /// effort, see `_loadLoyaltyAccount`) rather than a disabled control with
+  /// no context. Eligibility and the missing-points figure both come from
+  /// the account's real `redemption` status, not a local guess.
+  Widget _buildLoyaltyToggle() {
+    final account = _loyaltyAccount;
+    if (account == null) return const SizedBox.shrink();
+
+    final eligibility = account.redemption.economie;
+    final canRedeem = eligibility.canRedeem;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars, color: Color(0xFFEFD807)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Utiliser mes points de fidélité',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Switch(
+                value: _useLoyaltyPoints && canRedeem,
+                onChanged: canRedeem
+                    ? (value) => setState(() => _useLoyaltyPoints = value)
+                    : null,
+                activeThumbColor: const Color(0xFF0F056B),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            canRedeem
+                ? 'Solde : ${account.pointsBalance} pts. Rend ce billet gratuit (${eligibility.rule}).'
+                : 'Solde : ${account.pointsBalance} pts. Il vous manque ${eligibility.missingTotalPoints} pts (${eligibility.rule}).',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          if (_useLoyaltyPoints && canRedeem) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Vos points seront débités dès la confirmation de la réservation.',
+              style: TextStyle(fontSize: 12, color: Color(0xFFB54708)),
+            ),
+          ],
+        ],
       ),
     );
   }

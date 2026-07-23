@@ -8,9 +8,11 @@ import 'package:catrans_app/models/booking/seat_hold_response.dart';
 import 'package:catrans_app/models/booking/seat_map_response.dart';
 import 'package:catrans_app/models/booking/seat_map_seat.dart';
 import 'package:catrans_app/models/catalog/selected_departure_context.dart';
+import 'package:catrans_app/models/loyalty/loyalty_account.dart';
 import 'package:catrans_app/models/reservation/reservation_create_item.dart';
 import 'package:catrans_app/screens/client/booking/recapitulatif_screen.dart';
 import 'package:catrans_app/services/api/booking_api_service.dart';
+import 'package:catrans_app/services/api/loyalty_api_service.dart';
 import 'package:catrans_app/services/api/reservation_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 
@@ -48,12 +50,16 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   final List<SeatMapSeat> _selectedSeats = [];
   final BookingApiService _bookingApiService = BookingApiService();
   final ReservationApiService _reservationApiService = ReservationApiService();
+  final LoyaltyApiService _loyaltyApiService = LoyaltyApiService();
 
   SeatMapResponse? _seatMap;
   String? _seatMapError;
   int _passagerEnCours = 0;
   bool _isLoadingSeatMap = true;
   bool _isCreatingReservation = false;
+
+  LoyaltyAccount? _loyaltyAccount;
+  bool _useLoyaltyPoints = false;
 
   @override
   void initState() {
@@ -71,7 +77,23 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
       ));
     }
     _loadSeatMap();
+    _loadLoyaltyAccount();
   }
+
+  /// Best-effort: the redemption toggle simply stays disabled if this fails
+  /// or is still loading, it never blocks seat selection or confirmation.
+  Future<void> _loadLoyaltyAccount() async {
+    try {
+      final account = await _loyaltyApiService.getAccount();
+      if (!mounted) return;
+      setState(() => _loyaltyAccount = account);
+    } catch (_) {
+      // Silently unavailable: toggle stays disabled, nothing else changes.
+    }
+  }
+
+  bool get _canRedeemLoyaltyPoints =>
+      _loyaltyAccount?.redemption.prestige.canRedeem ?? false;
 
   @override
   void dispose() {
@@ -190,7 +212,7 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
         return ReservationCreateItem(
           seatHoldId: hold.id,
           isForCustomer: true,
-          useLoyaltyPoints: false,
+          useLoyaltyPoints: _useLoyaltyPoints && _canRedeemLoyaltyPoints,
         );
       }
 
@@ -416,6 +438,8 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             _buildSeatMapCard(),
             const SizedBox(height: 12),
             _buildSummary(total),
+            const SizedBox(height: 16),
+            _buildLoyaltyToggle(),
             const SizedBox(height: 16),
             _buildConfirmButton(passagerActuel),
           ],
@@ -836,6 +860,75 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Renders nothing while the loyalty account hasn't loaded yet (best
+  /// effort, see `_loadLoyaltyAccount`) rather than a disabled control with
+  /// no context. Eligibility and the missing-points figures both come from
+  /// the account's real `redemption` status, not a local guess - Prestige's
+  /// rule is composite (total points AND a minimum earned via Prestige
+  /// tickets specifically), so only the clause(s) actually unmet are shown.
+  Widget _buildLoyaltyToggle() {
+    final account = _loyaltyAccount;
+    if (account == null) return const SizedBox.shrink();
+
+    final eligibility = account.redemption.prestige;
+    final canRedeem = eligibility.canRedeem;
+    final missingParts = <String>[
+      if (eligibility.missingTotalPoints > 0)
+        '${eligibility.missingTotalPoints} pts au total',
+      if ((eligibility.missingPrestigePoints ?? 0) > 0)
+        '${eligibility.missingPrestigePoints} pts issus de Prestige',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.stars, color: Color(0xFFEFD807)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Utiliser mes points de fidélité',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Switch(
+                value: _useLoyaltyPoints && canRedeem,
+                onChanged: canRedeem
+                    ? (value) => setState(() => _useLoyaltyPoints = value)
+                    : null,
+                activeThumbColor: const Color(0xFF0F056B),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            canRedeem
+                ? 'Solde : ${account.pointsBalance} pts. Rend ce billet gratuit (${eligibility.rule}).'
+                : 'Solde : ${account.pointsBalance} pts. Il vous manque ${missingParts.join(' et ')} (${eligibility.rule}).',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          if (_useLoyaltyPoints && canRedeem) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Vos points seront débités dès la confirmation de la réservation.',
+              style: TextStyle(fontSize: 12, color: Color(0xFFB54708)),
+            ),
+          ],
         ],
       ),
     );
