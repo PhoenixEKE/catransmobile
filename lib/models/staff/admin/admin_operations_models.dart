@@ -58,3 +58,37 @@ class AdminOperationActionResponse {
     );
   }
 }
+
+class AdminSeatLayoutWriteRequest {
+  final String name;
+  final String? description;
+  final int? capacity;
+
+  const AdminSeatLayoutWriteRequest({
+    required this.name,
+    this.description,
+    this.capacity,
+  });
+
+  JsonMap toJson() => {
+        'name': name.trim(),
+        if (description != null && description!.trim().isNotEmpty)
+          'description': description!.trim(),
+        if (capacity != null) 'capacity': capacity,
+      };
+}
+
+class AdminDepartureTemplateWriteRequest {
+  final String scheduleId;
+  final String seatLayoutId;
+
+  const AdminDepartureTemplateWriteRequest({
+    required this.scheduleId,
+    required this.seatLayoutId,
+  });
+
+  JsonMap toJson() => {
+        'schedule_id': scheduleId.trim(),
+        'seat_layout_id': seatLayoutId.trim(),
+      };
+}

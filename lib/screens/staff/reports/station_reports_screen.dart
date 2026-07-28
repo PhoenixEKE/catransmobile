@@ -29,8 +29,13 @@ enum _ReportsTab { changes, cancellations }
 
 class StationReportsScreen extends StatefulWidget {
   final User user;
+  final String? stationId;
 
-  const StationReportsScreen({super.key, required this.user});
+  const StationReportsScreen({
+    super.key,
+    required this.user,
+    this.stationId,
+  });
 
   @override
   State<StationReportsScreen> createState() => _StationReportsScreenState();
@@ -170,7 +175,9 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
       };
 
   bool _canReadReports(User user) {
-    return user.isSuperuser || user.scopes.contains('station.reports.manage');
+    return user.isSuperuser ||
+        user.scopes.contains('station.reports.manage') ||
+        user.scopes.contains('station.all.read');
   }
 
   Future<void> _refreshCurrentTab() async {
@@ -213,6 +220,7 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
         search: _changesSearchController.text,
         dateFrom: _changesDateFrom,
         dateTo: _changesDateTo,
+        stationId: widget.stationId,
       );
       if (!mounted) return;
       setState(() {
@@ -253,6 +261,7 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
         search: _cancellationsSearchController.text,
         dateFrom: _cancellationsDateFrom,
         dateTo: _cancellationsDateTo,
+        stationId: widget.stationId,
       );
       if (!mounted) return;
       setState(() {

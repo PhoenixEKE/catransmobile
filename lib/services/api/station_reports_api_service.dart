@@ -17,6 +17,7 @@ class StationReportsApiService {
     String? search,
     DateTime? dateFrom,
     DateTime? dateTo,
+    String? stationId,
   }) async {
     final response = await _apiClient.get(
       'station/reservation-changes/',
@@ -27,6 +28,7 @@ class StationReportsApiService {
         search: search,
         dateFrom: dateFrom,
         dateTo: dateTo,
+        stationId: stationId,
       ),
     );
 
@@ -91,6 +93,7 @@ class StationReportsApiService {
     String? search,
     DateTime? dateFrom,
     DateTime? dateTo,
+    String? stationId,
   }) async {
     final response = await _apiClient.get(
       'station/cancellations/',
@@ -101,6 +104,7 @@ class StationReportsApiService {
         search: search,
         dateFrom: dateFrom,
         dateTo: dateTo,
+        stationId: stationId,
       ),
     );
 
@@ -215,6 +219,7 @@ Map<String, dynamic> buildStationReportsQueryParameters({
   String? search,
   DateTime? dateFrom,
   DateTime? dateTo,
+  String? stationId,
 }) {
   final safePage = page < 1 ? 1 : page;
   final safePageSize = pageSize.clamp(1, 100).toInt();
@@ -240,6 +245,10 @@ Map<String, dynamic> buildStationReportsQueryParameters({
   }
   if (dateTo != null) {
     queryParameters['date_to'] = _formatDate(dateTo);
+  }
+  final normalizedStationId = stationId?.trim();
+  if (normalizedStationId != null && normalizedStationId.isNotEmpty) {
+    queryParameters['station_id'] = normalizedStationId;
   }
 
   return queryParameters;

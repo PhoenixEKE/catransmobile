@@ -24,11 +24,13 @@ const _warning = Color(0xFFB8860B);
 const _danger = Color(0xFFB42318);
 
 class BoardingScreen extends StatefulWidget {
+  final String? stationId;
   final String? initialDepartureId;
   final VoidCallback? onInitialDepartureConsumed;
 
   const BoardingScreen({
     super.key,
+    this.stationId,
     this.initialDepartureId,
     this.onInitialDepartureConsumed,
   });
@@ -133,7 +135,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
 
   bool _canAccessBoarding(User user) {
     final scopes = user.scopes.toSet();
-    return scopes.contains('station.departures.read') ||
+    return user.isSuperuser ||
+        scopes.contains('station.all.read') ||
+        scopes.contains('station.departures.read') ||
         scopes.contains('boarding.manifest.read') ||
         scopes.contains('boarding.validate') ||
         scopes.contains('boarding.summary.read');
@@ -146,7 +150,9 @@ class _BoardingScreenState extends State<BoardingScreen> {
     });
 
     try {
-      final departures = await _apiService.getTodayDepartures();
+      final departures = await _apiService.getTodayDepartures(
+        stationId: widget.stationId,
+      );
       if (!mounted) return;
       setState(() => _departures = departures);
       WidgetsBinding.instance.addPostFrameCallback((_) {

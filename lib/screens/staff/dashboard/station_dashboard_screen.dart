@@ -10,11 +10,13 @@ import 'package:catrans_app/widgets/staff/staff_metric_card.dart';
 
 class StationDashboardScreen extends StatefulWidget {
   final User user;
+  final String? stationId;
   final ValueChanged<StaffNavigationRequest> onNavigate;
 
   const StationDashboardScreen({
     super.key,
     required this.user,
+    this.stationId,
     required this.onNavigate,
   });
 
@@ -102,7 +104,9 @@ class _StationDashboardScreenState extends State<StationDashboardScreen> {
     });
 
     try {
-      final overview = await _apiService.getOverview();
+      final overview = await _apiService.getOverview(
+        stationId: widget.stationId,
+      );
       if (!mounted) return;
       setState(() => _overview = overview);
     } catch (error) {
@@ -122,7 +126,10 @@ class _StationDashboardScreenState extends State<StationDashboardScreen> {
     });
 
     try {
-      final overview = await _apiService.getOverview(date: _overview?.date);
+      final overview = await _apiService.getOverview(
+        date: _overview?.date,
+        stationId: widget.stationId,
+      );
       if (!mounted) return;
       setState(() => _overview = overview);
     } catch (error) {

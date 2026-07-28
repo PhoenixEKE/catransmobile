@@ -29,7 +29,8 @@ Future<bool?> showAdminSeatClassZonesDialog({
         departureTemplateId: departureTemplateId,
         departureTemplateLabel: departureTemplateLabel,
         apiService: apiService,
-        transportApiService: transportApiService ?? AdminTransportBaseApiService(),
+        transportApiService:
+            transportApiService ?? AdminTransportBaseApiService(),
       );
       if (size.width < 640) {
         return Dialog.fullscreen(child: SafeArea(child: content));
@@ -79,6 +80,18 @@ class _ZoneRow {
   });
 }
 
+class _LoadedZoneRange {
+  final String serviceClassId;
+  final int start;
+  final int end;
+
+  const _LoadedZoneRange({
+    required this.serviceClassId,
+    required this.start,
+    required this.end,
+  });
+}
+
 class _AdminSeatClassZonesDialogState
     extends State<_AdminSeatClassZonesDialog> {
   bool _loading = true;
@@ -88,6 +101,7 @@ class _AdminSeatClassZonesDialogState
   StructuredApiError? _saveError;
 
   List<AdminServiceClass> _serviceClasses = const [];
+  List<_LoadedZoneRange> _loadedRanges = const [];
   final List<_ZoneRow> _rows = [];
   int _nextLocalId = 0;
 
@@ -119,6 +133,13 @@ class _AdminSeatClassZonesDialogState
       if (!mounted) return;
       setState(() {
         _serviceClasses = serviceClasses;
+        _loadedRanges = zones
+            .map((zone) => _LoadedZoneRange(
+                  serviceClassId: zone.serviceClass.id,
+                  start: zone.seatNumberStart,
+                  end: zone.seatNumberEnd,
+                ))
+            .toList();
         _rows
           ..clear()
           ..addAll(zones.map((zone) => _ZoneRow(
@@ -185,6 +206,51 @@ class _AdminSeatClassZonesDialogState
       }
     }
     return null;
+  }
+
+  Set<int> _numbersInRange(int start, int end) {
+    return {
+      for (var number = start; number <= end; number++) number,
+    };
+  }
+
+  Set<int> _removedSeatNumbers() {
+    final currentByClass = <String, Set<int>>{};
+    for (final range in _loadedRanges) {
+      currentByClass
+          .putIfAbsent(range.serviceClassId, () => <int>{})
+          .addAll(_numbersInRange(range.start, range.end));
+    }
+
+    final nextByClass = <String, Set<int>>{};
+    for (final row in _rows) {
+      final serviceClassId = row.serviceClassId;
+      final start = int.tryParse(row.startText.trim());
+      final end = int.tryParse(row.endText.trim());
+      if (serviceClassId == null ||
+          serviceClassId.isEmpty ||
+          start == null ||
+          end == null ||
+          start < 1 ||
+          end < start) {
+        continue;
+      }
+      nextByClass
+          .putIfAbsent(serviceClassId, () => <int>{})
+          .addAll(_numbersInRange(start, end));
+    }
+
+    final removed = <int>{};
+    for (final entry in currentByClass.entries) {
+      removed.addAll(entry.value.difference(nextByClass[entry.key] ?? <int>{}));
+    }
+    return removed;
+  }
+
+  String _formatNumbers(Set<int> numbers) {
+    final sorted = numbers.toList()..sort();
+    if (sorted.length <= 12) return sorted.join(', ');
+    return '${sorted.take(12).join(', ')}...';
   }
 
   Future<void> _save() async {
@@ -271,6 +337,7 @@ class _AdminSeatClassZonesDialogState
     if (_loadError != null) {
       return StaffErrorState(message: _loadError!, onRetry: _load);
     }
+    final removedSeats = _removedSeatNumbers();
     return Column(
       children: [
         Expanded(
@@ -297,6 +364,28 @@ class _AdminSeatClassZonesDialogState
                   ),
                 ),
               ),
+              if (removedSeats.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4E5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFB54708).withValues(alpha: 0.24),
+                    ),
+                  ),
+                  child: Text(
+                    'Cette modification réduit la plage: siège(s) retiré(s) ${_formatNumbers(removedSeats)}. '
+                    'Le backend refusera si une réservation active existe sur ces sièges pour un départ encore vendable.',
+                    style: const TextStyle(
+                      color: Color(0xFFB54708),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               if (_rows.isEmpty)
                 const Text(
@@ -381,7 +470,11 @@ class _AdminSeatClassZonesDialogState
                   .toList(),
               onChanged: _saving
                   ? null
-                  : (value) => setState(() => row.serviceClassId = value),
+                  : (value) => setState(() {
+                        row.serviceClassId = value;
+                        _validationError = null;
+                        _saveError = null;
+                      }),
             ),
           ),
           const SizedBox(width: 8),
@@ -395,7 +488,11 @@ class _AdminSeatClassZonesDialogState
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (value) => row.startText = value,
+              onChanged: (value) => setState(() {
+                row.startText = value;
+                _validationError = null;
+                _saveError = null;
+              }),
             ),
           ),
           const SizedBox(width: 8),
@@ -409,7 +506,11 @@ class _AdminSeatClassZonesDialogState
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (value) => row.endText = value,
+              onChanged: (value) => setState(() {
+                row.endText = value;
+                _validationError = null;
+                _saveError = null;
+              }),
             ),
           ),
           IconButton(

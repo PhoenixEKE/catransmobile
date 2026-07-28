@@ -8,6 +8,7 @@ class StaffMenuItem {
   final String id;
   final String title;
   final IconData icon;
+  final String section;
   final String moduleDescription;
   final String nextStep;
   final List<String> usefulScopes;
@@ -17,6 +18,7 @@ class StaffMenuItem {
     required this.id,
     required this.title,
     required this.icon,
+    this.section = '',
     required this.moduleDescription,
     required this.nextStep,
     this.usefulScopes = const [],
@@ -26,109 +28,104 @@ class StaffMenuItem {
   static List<StaffMenuItem> forUser(User user) {
     final role = user.internalProfile?.role;
     final scopes = user.scopes.toSet();
+    final isTechnicalSuperuser = user.isSuperuser;
 
-    final roleItems = switch (role) {
-      InternalRole.admin => [
-          _home('Tableau de bord'),
-          _adminDashboard(),
-          _adminUsers(),
-          _adminTransport(),
-          _adminOperations(),
-        ],
-      InternalRole.director => [
-          _home('Pilotage'),
-          _adminDashboard(),
-          _adminUsers(),
-          _adminTransport(),
-          _adminOperations(),
-        ],
-      InternalRole.station_manager => [
-          _home('Tableau de bord gare'),
-          _item(
-            id: 'departures',
-            title: 'Départs du jour',
-            icon: Icons.directions_bus,
-            description: 'Suivi opérationnel des départs de la gare.',
-            nextStep:
-                'Consultez et pilotez les départs du jour depuis cet espace.',
-            scopes: ['station.departures.read', 'station.departures.manage'],
-          ),
-          _item(
-            id: 'station_reservations',
-            title: 'Réservations gare',
-            icon: Icons.confirmation_number,
-            description: 'Consultation des réservations liées à la gare.',
-            nextStep: 'Recherchez et consultez les réservations de la gare.',
-            scopes: ['station.reservations.read'],
-          ),
-          _item(
-            id: 'boarding',
-            title: 'Embarquement',
-            icon: Icons.how_to_reg,
-            description: 'Suivi du manifeste et validations embarquement.',
-            nextStep:
-                'Ouvrez les départs du jour, consultez le manifeste et validez les billets.',
-            scopes: [
-              'boarding.manifest.read',
-              'boarding.summary.read',
-            ],
-          ),
-          _item(
-            id: 'reports',
-            title: 'Reports / annulations',
-            icon: Icons.edit_calendar,
-            description: 'Traitement des demandes de report et annulation.',
-            nextStep:
-                'Traitez les demandes de report et d’annulation depuis cet espace.',
-            scopes: ['station.reports.manage'],
-          ),
-        ],
-      InternalRole.cashier => [
-          _home('Guichet'),
-          _item(
-            id: 'reservation_search',
-            title: 'Réservations & tickets',
-            icon: Icons.confirmation_number,
-            description: 'Recherche, consultation et impression des tickets.',
-            nextStep:
-                'Retrouvez une réservation, consultez le détail et ouvrez les tickets.',
-            scopes: ['station.reservations.search', 'station.tickets.print'],
-          ),
-        ],
-      InternalRole.station_agent => [
-          _home('Embarquement'),
-          _item(
-            id: 'boarding',
-            title: 'Embarquement',
-            icon: Icons.how_to_reg,
-            description: 'Départs du jour, manifeste et validation billet.',
-            nextStep:
-                'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
-            scopes: [
-              'boarding.manifest.read',
-              'boarding.validate',
-              'boarding.summary.read',
-            ],
-          ),
-        ],
-      InternalRole.support => [
-          _home('Support'),
-        ],
-      InternalRole.accounting => [
-          _home('Comptabilité'),
-        ],
-      InternalRole.marketing => [
-          _home('Marketing'),
-        ],
-      InternalRole.legacy_unknown || null => const <StaffMenuItem>[],
-    };
+    final roleItems = role == null && isTechnicalSuperuser
+        ? [
+            _home('Tableau de bord'),
+            _adminDashboard(),
+            _adminUsers(),
+            _adminTransport(),
+            _adminOperations(),
+            _stationDashboard(),
+            _stationDepartures(),
+            _stationReservations(),
+            _stationBoarding(),
+            _stationReports(),
+          ]
+        : switch (role) {
+            InternalRole.admin => [
+                _home('Tableau de bord'),
+                _adminDashboard(),
+                _adminUsers(),
+                _adminTransport(),
+                _adminOperations(),
+                _stationDashboard(),
+                _stationDepartures(),
+                _stationReservations(),
+                _stationBoarding(),
+                _stationReports(),
+              ],
+            InternalRole.director => [
+                _home('Pilotage'),
+                _adminDashboard(),
+                _adminUsers(),
+                _adminTransport(),
+                _adminOperations(),
+              ],
+            InternalRole.station_manager => [
+                _home('Tableau de bord gare'),
+                _stationDepartures(),
+                _stationReservations(),
+                _stationBoarding(),
+                _stationReports(),
+              ],
+            InternalRole.cashier => [
+                _stationDashboard(),
+                _stationDepartures(),
+                _stationReservations(),
+                _stationBoarding(),
+              ],
+            InternalRole.station_agent => [
+                _home('Embarquement'),
+                _item(
+                  id: 'boarding',
+                  title: 'Embarquement',
+                  icon: Icons.how_to_reg,
+                  description:
+                      'Départs du jour, manifeste et validation billet.',
+                  nextStep:
+                      'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
+                  scopes: [
+                    'boarding.manifest.read',
+                    'boarding.validate',
+                    'boarding.summary.read',
+                  ],
+                ),
+              ],
+            InternalRole.support => [
+                _home('Support'),
+              ],
+            InternalRole.accounting => [
+                _home('Comptabilité'),
+              ],
+            InternalRole.marketing => [
+                _home('Marketing'),
+              ],
+            InternalRole.legacy_unknown || null => const <StaffMenuItem>[],
+          };
 
-    final roleScopedItems = roleItems.where((item) {
-      if (item.usefulScopes.isEmpty || scopes.isEmpty) return true;
-      return item.usefulScopes.any(scopes.contains);
-    }).toList(growable: false);
+    if (scopes.isEmpty && !isTechnicalSuperuser) {
+      return roleItems;
+    }
+
+    final roleScopedItems = roleItems
+        .where((item) => item.usefulScopes.isNotEmpty)
+        .where((item) => _matchesItemScopes(
+              item,
+              scopes,
+              isTechnicalSuperuser: isTechnicalSuperuser,
+            ))
+        .toList(growable: false);
 
     if (roleScopedItems.isNotEmpty) {
+      if (_shouldKeepRoleHome(role, roleScopedItems)) {
+        return [
+          if (roleItems.isNotEmpty && roleItems.first.id == 'home')
+            roleItems.first,
+          ...roleScopedItems,
+        ];
+      }
       return roleScopedItems;
     }
 
@@ -166,105 +163,46 @@ class StaffMenuItem {
       items.add(_adminOperations());
     }
 
-    if (_hasAnyScope(scopes, const ['station.dashboard.read'])) {
-      items.add(
-        _home(
-          'Tableau de bord gare',
-          scopes: const ['station.dashboard.read'],
-        ),
-      );
+    if (_hasAnyScope(scopes, const [
+      StaffPermissions.stationDashboardRead,
+      StaffPermissions.stationAllRead,
+    ])) {
+      items.add(_stationDashboard(id: 'home'));
     }
 
     if (_hasAnyScope(scopes, const [
-      'station.departures.read',
-      'station.departures.manage',
+      StaffPermissions.stationDeparturesRead,
+      StaffPermissions.stationDeparturesManage,
+      StaffPermissions.stationAllRead,
     ])) {
-      items.add(
-        _item(
-          id: 'departures',
-          title: 'Départs du jour',
-          icon: Icons.directions_bus,
-          description: 'Suivi opérationnel des départs de la gare.',
-          nextStep:
-              'Consultez et pilotez les départs du jour depuis cet espace.',
-          scopes: const [
-            'station.departures.read',
-            'station.departures.manage'
-          ],
-        ),
-      );
+      items.add(_stationDepartures());
     }
 
     if (_hasAnyScope(scopes, const [
-      'station.reservations.search',
-      'station.tickets.print',
-      'station.tickets.read',
+      StaffPermissions.stationReservationsRead,
+      StaffPermissions.stationReservationsSearch,
+      StaffPermissions.stationTicketsPrint,
+      StaffPermissions.stationTicketsRead,
+      StaffPermissions.stationSalesCash,
+      StaffPermissions.stationAllRead,
     ])) {
-      items.add(
-        _item(
-          id: 'reservation_search',
-          title: 'Réservations & tickets',
-          icon: Icons.confirmation_number,
-          description: 'Recherche, consultation et impression des tickets.',
-          nextStep:
-              'Retrouvez une réservation, consultez le détail et ouvrez les tickets disponibles.',
-          scopes: const [
-            'station.reservations.search',
-            'station.tickets.print',
-            'station.tickets.read',
-          ],
-        ),
-      );
-    }
-
-    if (_hasAnyScope(scopes, const ['station.reservations.read'])) {
-      items.add(
-        _item(
-          id: 'station_reservations',
-          title: 'Réservations gare',
-          icon: Icons.confirmation_number,
-          description: 'Consultation des réservations liées à la gare.',
-          nextStep:
-              'Recherche et consultation des réservations gare disponibles.',
-          scopes: const ['station.reservations.read'],
-        ),
-      );
+      items.add(_stationReservations());
     }
 
     if (_hasAnyScope(scopes, const [
-      'boarding.manifest.read',
-      'boarding.validate',
-      'boarding.summary.read',
+      StaffPermissions.boardingManifestRead,
+      StaffPermissions.boardingValidate,
+      StaffPermissions.boardingSummaryRead,
+      StaffPermissions.stationAllRead,
     ])) {
-      items.add(
-        _item(
-          id: 'boarding',
-          title: 'Embarquement',
-          icon: Icons.how_to_reg,
-          description: 'Départs du jour, manifeste et validation billet.',
-          nextStep:
-              'Ouvrez un départ, contrôlez le manifeste et validez les billets.',
-          scopes: const [
-            'boarding.manifest.read',
-            'boarding.validate',
-            'boarding.summary.read',
-          ],
-        ),
-      );
+      items.add(_stationBoarding());
     }
 
-    if (_hasAnyScope(scopes, const ['station.reports.manage'])) {
-      items.add(
-        _item(
-          id: 'reports',
-          title: 'Reports / annulations',
-          icon: Icons.edit_calendar,
-          description: 'Traitement des demandes de report et annulation.',
-          nextStep:
-              'Traitez les demandes de report et d’annulation depuis cet espace.',
-          scopes: const ['station.reports.manage'],
-        ),
-      );
+    if (_hasAnyScope(scopes, const [
+      StaffPermissions.stationReportsManage,
+      StaffPermissions.stationAllRead,
+    ])) {
+      items.add(_stationReports());
     }
 
     return items;
@@ -274,11 +212,33 @@ class StaffMenuItem {
     return expectedScopes.any(scopes.contains);
   }
 
+  static bool _matchesItemScopes(
+    StaffMenuItem item,
+    Set<String> scopes, {
+    required bool isTechnicalSuperuser,
+  }) {
+    if (isTechnicalSuperuser) return true;
+    return item.usefulScopes.any(scopes.contains);
+  }
+
+  static bool _shouldKeepRoleHome(
+    InternalRole? role,
+    List<StaffMenuItem> scopedItems,
+  ) {
+    if (role == InternalRole.admin) {
+      return scopedItems.any((item) => item.id.startsWith('admin_'));
+    }
+    return role == InternalRole.station_manager ||
+        role == InternalRole.cashier ||
+        role == InternalRole.station_agent;
+  }
+
   static StaffMenuItem _adminDashboard() {
     return _item(
       id: 'admin_dashboard',
       title: 'Tableau admin',
       icon: Icons.query_stats,
+      section: 'Administration',
       description: 'Vue consolidée des indicateurs métier CA TRANS.',
       nextStep: 'Suivez les indicateurs clés par date pour piloter l’activité.',
       scopes: const [StaffPermissions.adminDashboardRead],
@@ -290,6 +250,7 @@ class StaffMenuItem {
       id: 'admin_users',
       title: 'Utilisateurs internes',
       icon: Icons.manage_accounts,
+      section: 'Administration',
       description: 'Gestion des comptes personnel, rôles, gares et guichets.',
       nextStep:
           'Consultez, créez et mettez à jour les comptes internes autorisés.',
@@ -305,6 +266,7 @@ class StaffMenuItem {
       id: 'admin_transport',
       title: 'Transport',
       icon: Icons.route,
+      section: 'Administration',
       description: 'Référentiels transport, lignes, horaires et tarifs.',
       nextStep: 'Accédez aux référentiels transport déjà disponibles.',
       scopes: const [
@@ -319,6 +281,7 @@ class StaffMenuItem {
       id: 'admin_operations',
       title: 'Opérations admin',
       icon: Icons.event_seat,
+      section: 'Administration',
       description: 'Layouts, templates, départs et sièges côté admin.',
       nextStep: 'Accédez aux opérations admin déjà disponibles.',
       scopes: const [
@@ -340,10 +303,95 @@ class StaffMenuItem {
     );
   }
 
+  static StaffMenuItem _stationDashboard({String id = 'station_dashboard'}) {
+    return _item(
+      id: id,
+      title: 'Tableau gare',
+      icon: Icons.dashboard_outlined,
+      section: 'Opérations gare',
+      description: 'Vue opérationnelle des ventes, recettes et alertes gare.',
+      nextStep: 'Suivez les indicateurs opérationnels de la gare sélectionnée.',
+      scopes: const [
+        StaffPermissions.stationDashboardRead,
+        StaffPermissions.stationAllRead,
+      ],
+    );
+  }
+
+  static StaffMenuItem _stationDepartures() {
+    return _item(
+      id: 'departures',
+      title: 'Départs du jour',
+      icon: Icons.directions_bus,
+      section: 'Opérations gare',
+      description: 'Suivi opérationnel des départs de la gare.',
+      nextStep: 'Consultez et pilotez les départs du jour depuis cet espace.',
+      scopes: const [
+        StaffPermissions.stationDeparturesRead,
+        StaffPermissions.stationDeparturesManage,
+        StaffPermissions.stationAllRead,
+      ],
+    );
+  }
+
+  static StaffMenuItem _stationReservations() {
+    return _item(
+      id: 'station_reservations',
+      title: 'Réservations',
+      icon: Icons.confirmation_number,
+      section: 'Opérations gare',
+      description: 'Recherche, consultation, tickets et vente cash gare.',
+      nextStep: 'Recherchez une réservation ou créez une vente cash.',
+      scopes: const [
+        StaffPermissions.stationReservationsRead,
+        StaffPermissions.stationReservationsSearch,
+        StaffPermissions.stationTicketsPrint,
+        StaffPermissions.stationTicketsRead,
+        StaffPermissions.stationSalesCash,
+        StaffPermissions.stationAllRead,
+      ],
+    );
+  }
+
+  static StaffMenuItem _stationBoarding() {
+    return _item(
+      id: 'boarding',
+      title: 'Embarquement',
+      icon: Icons.how_to_reg,
+      section: 'Opérations gare',
+      description: 'Suivi du manifeste et validations embarquement.',
+      nextStep:
+          'Ouvrez les départs du jour, consultez le manifeste et validez les billets.',
+      scopes: const [
+        StaffPermissions.boardingManifestRead,
+        StaffPermissions.boardingValidate,
+        StaffPermissions.boardingSummaryRead,
+        StaffPermissions.stationAllRead,
+      ],
+    );
+  }
+
+  static StaffMenuItem _stationReports() {
+    return _item(
+      id: 'reports',
+      title: 'Reports / annulations',
+      icon: Icons.edit_calendar,
+      section: 'Opérations gare',
+      description: 'Traitement des demandes de report et annulation.',
+      nextStep:
+          'Traitez les demandes de report et d’annulation depuis cet espace.',
+      scopes: const [
+        StaffPermissions.stationReportsManage,
+        StaffPermissions.stationAllRead,
+      ],
+    );
+  }
+
   static StaffMenuItem _item({
     required String id,
     required String title,
     required IconData icon,
+    String section = '',
     required String description,
     required String nextStep,
     List<String> scopes = const [],
@@ -353,6 +401,7 @@ class StaffMenuItem {
       id: id,
       title: title,
       icon: icon,
+      section: section,
       moduleDescription: description,
       nextStep: nextStep,
       usefulScopes: scopes,
@@ -370,7 +419,7 @@ String? resolveInitialStaffMenuId({
 
   final rolePreferredId = switch (role) {
     InternalRole.station_manager => 'home',
-    InternalRole.cashier => 'reservation_search',
+    InternalRole.cashier => 'station_dashboard',
     InternalRole.station_agent => 'boarding',
     _ => null,
   };
@@ -386,6 +435,7 @@ String? resolveInitialStaffMenuId({
       'admin_users',
       'admin_transport',
       'admin_operations',
+      'station_dashboard',
       'home',
       'departures',
       'reservation_search',

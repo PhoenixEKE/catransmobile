@@ -18,18 +18,25 @@ void main() {
         roleLabel: 'Caissier',
       ),
       scopes: const [
+        'station.dashboard.read',
         'station.reservations.search',
         'station.tickets.print',
         'station.sales.cash',
         'station.departures.read',
+        'station.departures.depart',
+        'boarding.manifest.read',
+        'boarding.validate',
+        'boarding.summary.read',
       ],
     );
 
     final items = StaffMenuItem.forUser(user);
 
     expect(items.map((item) => item.id).toList(), [
+      'station_dashboard',
       'departures',
-      'reservation_search',
+      'station_reservations',
+      'boarding',
     ]);
     expect(items.any((item) => item.id == 'counter_reports'), isFalse);
     expect(
@@ -38,7 +45,7 @@ void main() {
         scopes: user.scopes.toSet(),
         role: user.internalProfile?.role,
       ),
-      'reservation_search',
+      'station_dashboard',
     );
   });
 }

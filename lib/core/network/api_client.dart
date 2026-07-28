@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:catrans_app/core/config/app_config.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
@@ -65,25 +66,60 @@ class ApiClient {
     Map<String, dynamic>? queryParameters,
     Options? options,
   }) {
+    final normalizedPath = _normalizePath(path);
     return _guard(
+      'GET',
+      normalizedPath,
       () => _dio.get<dynamic>(
-        _normalizePath(path),
+        normalizedPath,
         queryParameters: queryParameters,
+        options: options,
+      ),
+      queryParameters: queryParameters,
+    );
+  }
+
+  Future<Response<dynamic>> post(
+    String path, {
+    dynamic data,
+    Options? options,
+  }) {
+    final normalizedPath = _normalizePath(path);
+    return _guard(
+      'POST',
+      normalizedPath,
+      () => _dio.post<dynamic>(
+        normalizedPath,
+        data: data,
         options: options,
       ),
     );
   }
 
-  Future<Response<dynamic>> post(String path, {dynamic data}) {
-    return _guard(() => _dio.post<dynamic>(_normalizePath(path), data: data));
-  }
-
-  Future<Response<dynamic>> patch(String path, {dynamic data}) {
-    return _guard(() => _dio.patch<dynamic>(_normalizePath(path), data: data));
+  Future<Response<dynamic>> patch(
+    String path, {
+    dynamic data,
+    Options? options,
+  }) {
+    final normalizedPath = _normalizePath(path);
+    return _guard(
+      'PATCH',
+      normalizedPath,
+      () => _dio.patch<dynamic>(
+        normalizedPath,
+        data: data,
+        options: options,
+      ),
+    );
   }
 
   Future<Response<dynamic>> delete(String path, {dynamic data}) {
-    return _guard(() => _dio.delete<dynamic>(_normalizePath(path), data: data));
+    final normalizedPath = _normalizePath(path);
+    return _guard(
+      'DELETE',
+      normalizedPath,
+      () => _dio.delete<dynamic>(normalizedPath, data: data),
+    );
   }
 
   static String _normalizeBaseUrl(String baseUrl) {
@@ -99,13 +135,58 @@ class ApiClient {
   }
 
   Future<Response<dynamic>> _guard(
-    Future<Response<dynamic>> Function() request,
-  ) async {
+    String method,
+    String path,
+    Future<Response<dynamic>> Function() request, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    _logRequestStart(method, path, queryParameters);
     try {
-      return await request();
+      final response = await request();
+      _logResponse(method, path, response.statusCode);
+      return response;
     } on DioException catch (error) {
-      throw _toApiException(error);
+      final apiException = _toApiException(error);
+      _logApiException(method, path, apiException);
+      throw apiException;
+    } catch (error) {
+      _logUnexpectedError(method, path, error);
+      rethrow;
     }
+  }
+
+  void _logRequestStart(
+    String method,
+    String path,
+    Map<String, dynamic>? queryParameters,
+  ) {
+    if (!kDebugMode) return;
+    final query = queryParameters == null || queryParameters.isEmpty
+        ? ''
+        : ' query=$queryParameters';
+    debugPrint('[ApiClient] $method $path start$query');
+  }
+
+  void _logResponse(String method, String path, int? statusCode) {
+    if (!kDebugMode) return;
+    debugPrint('[ApiClient] $method $path response status=$statusCode');
+  }
+
+  void _logApiException(
+    String method,
+    String path,
+    ApiException error,
+  ) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[ApiClient] $method $path ApiException status=${error.statusCode} '
+      'message=${error.message}',
+    );
+  }
+
+  void _logUnexpectedError(String method, String path, Object error) {
+    if (!kDebugMode) return;
+    debugPrint('[ApiClient] $method $path errorType=${error.runtimeType}');
   }
 
   bool _canAttemptRefresh(DioException error) {

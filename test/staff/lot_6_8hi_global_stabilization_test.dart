@@ -9,6 +9,11 @@ import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_route_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_schedule_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_service_class_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_station_models.dart';
+import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/screens/client/auth/splash_screen.dart';
 import 'package:catrans_app/screens/client/home/accueil_screen.dart';
 import 'package:catrans_app/screens/staff/auth/personnel_entry_screen.dart';
@@ -17,6 +22,7 @@ import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
 import 'package:catrans_app/screens/staff/shell/staff_shell_screen.dart';
 import 'package:catrans_app/services/api/staff/admin/admin_operations_api_service.dart';
+import 'package:catrans_app/services/api/staff/admin/transport/admin_transport_base_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
 import 'package:catrans_app/widgets/staff/staff_sidebar.dart';
 
@@ -37,7 +43,8 @@ void main() {
       expect(find.text('Espace personnel CA TRANS'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, 'Email professionnel'),
           findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Mot de passe'), findsOneWidget);
+      expect(
+          find.widgetWithText(TextFormField, 'Mot de passe'), findsOneWidget);
     });
 
     testWidgets('/personnel blocks a customer account cleanly', (tester) async {
@@ -68,11 +75,13 @@ void main() {
 
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(resolveInitialStaffMenuId(
-        menuItems: menuItems,
-        scopes: user.scopes.toSet(),
-        role: user.internalProfile?.role,
-      ), 'admin_dashboard');
+      expect(
+          resolveInitialStaffMenuId(
+            menuItems: menuItems,
+            scopes: user.scopes.toSet(),
+            role: user.internalProfile?.role,
+          ),
+          'admin_dashboard');
     });
 
     test('station_manager initial menu resolves to the home dashboard', () {
@@ -89,11 +98,13 @@ void main() {
 
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(resolveInitialStaffMenuId(
-        menuItems: menuItems,
-        scopes: user.scopes.toSet(),
-        role: user.internalProfile?.role,
-      ), 'home');
+      expect(
+          resolveInitialStaffMenuId(
+            menuItems: menuItems,
+            scopes: user.scopes.toSet(),
+            role: user.internalProfile?.role,
+          ),
+          'home');
     });
 
     test('station_agent initial menu resolves to boarding', () {
@@ -109,30 +120,39 @@ void main() {
 
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(resolveInitialStaffMenuId(
-        menuItems: menuItems,
-        scopes: user.scopes.toSet(),
-        role: user.internalProfile?.role,
-      ), 'boarding');
+      expect(
+          resolveInitialStaffMenuId(
+            menuItems: menuItems,
+            scopes: user.scopes.toSet(),
+            role: user.internalProfile?.role,
+          ),
+          'boarding');
     });
 
-    test('cashier initial menu resolves to reservation search', () {
+    test('cashier initial menu resolves to station dashboard', () {
       final user = _internalUser(
         role: InternalRole.cashier,
         scopes: const [
+          'station.dashboard.read',
           'station.reservations.search',
           'station.tickets.print',
           'station.departures.read',
+          'station.departures.depart',
+          'boarding.manifest.read',
+          'boarding.validate',
+          'boarding.summary.read',
         ],
       );
 
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(resolveInitialStaffMenuId(
-        menuItems: menuItems,
-        scopes: user.scopes.toSet(),
-        role: user.internalProfile?.role,
-      ), 'reservation_search');
+      expect(
+          resolveInitialStaffMenuId(
+            menuItems: menuItems,
+            scopes: user.scopes.toSet(),
+            role: user.internalProfile?.role,
+          ),
+          'station_dashboard');
     });
 
     test('admin menu exposes the expected internal modules', () {
@@ -153,6 +173,41 @@ void main() {
         'admin_transport',
         'admin_operations',
       ]);
+    });
+
+    test('admin menu adds a distinct station operations section', () {
+      final user = _internalUser(
+        role: InternalRole.admin,
+        scopes: const [
+          StaffPermissions.adminDashboardRead,
+          StaffPermissions.adminUsersRead,
+          StaffPermissions.adminTransportRead,
+          StaffPermissions.adminOperationsRead,
+          StaffPermissions.stationAllRead,
+        ],
+      );
+
+      final menuItems = StaffMenuItem.forUser(user);
+
+      expect(_ids(menuItems), const [
+        'home',
+        'admin_dashboard',
+        'admin_users',
+        'admin_transport',
+        'admin_operations',
+        'station_dashboard',
+        'departures',
+        'station_reservations',
+        'boarding',
+        'reports',
+      ]);
+      expect(
+        menuItems
+            .where((item) => item.id != 'home')
+            .map((item) => item.section)
+            .toSet(),
+        containsAll(const ['Administration', 'Opérations gare']),
+      );
     });
 
     test('station_manager menu exposes the operational modules', () {
@@ -193,20 +248,27 @@ void main() {
       ]);
     });
 
-    test('cashier menu exposes the cash workflow only', () {
+    test('cashier menu exposes the complete station portal', () {
       final user = _internalUser(
         role: InternalRole.cashier,
         scopes: const [
+          'station.dashboard.read',
           'station.reservations.search',
           'station.tickets.print',
           'station.sales.cash',
           'station.departures.read',
+          'station.departures.depart',
+          'boarding.manifest.read',
+          'boarding.validate',
+          'boarding.summary.read',
         ],
       );
 
       expect(_ids(StaffMenuItem.forUser(user)), const [
-        'home',
-        'reservation_search',
+        'station_dashboard',
+        'departures',
+        'station_reservations',
+        'boarding',
       ]);
     });
 
@@ -348,13 +410,8 @@ void main() {
                           );
                         },
                         isSubmitting: false,
-                        apiService: AdminOperationsApiService(
-                          apiClient: ApiClient(
-                            dio: Dio(BaseOptions(
-                              baseUrl: 'http://localhost/api/v1/',
-                            )),
-                          ),
-                        ),
+                        apiService: _DialogSmokeOperationsService(),
+                        transportApiService: _DialogSmokeTransportService(),
                       );
                     },
                     child: const Text('Open dialog'),
@@ -374,7 +431,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Générer des départs'), findsOneWidget);
+      expect(find.text('Nouveau départ'), findsOneWidget);
 
       await tester.ensureVisible(find.text('Prévisualiser'));
       await tester.tap(find.text('Prévisualiser'));
@@ -395,7 +452,8 @@ void main() {
       ));
 
       final copy = menuItems
-          .map((item) => '${item.title} ${item.moduleDescription} ${item.nextStep}')
+          .map((item) =>
+              '${item.title} ${item.moduleDescription} ${item.nextStep}')
           .join(' ')
           .toLowerCase();
 
@@ -487,5 +545,110 @@ User _customerUser() {
     phoneNumber: '+2250101010103',
     userType: UserType.customer,
     scopes: const [],
+  );
+}
+
+class _DialogSmokeOperationsService extends AdminOperationsApiService {
+  _DialogSmokeOperationsService() : super(apiClient: _testApiClient());
+
+  @override
+  Future<PagedResult<AdminOperationRecord>> listSeatLayouts({
+    String? query,
+    bool? isActive,
+    String? ordering,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
+}
+
+class _DialogSmokeTransportService extends AdminTransportBaseApiService {
+  _DialogSmokeTransportService() : super(apiClient: _testApiClient());
+
+  @override
+  Future<PagedResult<AdminStation>> listStations({
+    String? query,
+    String? companyId,
+    String? cityId,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) async {
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
+
+  @override
+  Future<PagedResult<AdminRoute>> listRoutes({
+    String? query,
+    String? companyId,
+    String? departureStationId,
+    String? departureCityId,
+    String? destinationCityId,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) async {
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
+
+  @override
+  Future<PagedResult<AdminServiceClass>> listServiceClasses({
+    String? query,
+    bool? allowsSeatSelection,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) async {
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
+
+  @override
+  Future<PagedResult<AdminSchedule>> listSchedules({
+    String? query,
+    String? stationId,
+    String? routeId,
+    String? serviceClassId,
+    String? departureTime,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) async {
+    return const PagedResult(
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    );
+  }
+}
+
+ApiClient _testApiClient() {
+  return ApiClient(
+    dio: Dio(BaseOptions(baseUrl: 'https://test.invalid/api/v1/')),
   );
 }

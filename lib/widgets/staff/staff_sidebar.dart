@@ -131,57 +131,79 @@ class StaffSidebar extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final item = items[index];
                   final isSelected = selectedId == item.id;
+                  final showSection = item.section.isNotEmpty &&
+                      (index == 0 || items[index - 1].section != item.section);
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Ink(
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.transparent,
-                          borderRadius:
-                              BorderRadius.circular(PersonnelRadius.sm),
-                          border: Border(
-                            left: BorderSide(
-                              color: isSelected
-                                  ? PersonnelColors.brandAccent
-                                  : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                        ),
-                        child: ListTile(
-                          key: Key('staff-sidebar-item-${item.id}'),
-                          leading: Icon(
-                            item.icon,
-                            color: isSelected
-                                ? PersonnelColors.brandAccent
-                                : Colors.white70,
-                          ),
-                          title: Text(
-                            item.title,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showSection)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                          child: Text(
+                            item.section,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: isSelected
-                                  ? PersonnelColors.brandAccent
-                                  : Colors.white,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.56),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
                             ),
                           ),
-                          selected: isSelected,
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(PersonnelRadius.sm),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.transparent,
+                              borderRadius:
+                                  BorderRadius.circular(PersonnelRadius.sm),
+                              border: Border(
+                                left: BorderSide(
+                                  color: isSelected
+                                      ? PersonnelColors.brandAccent
+                                      : Colors.transparent,
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                            child: ListTile(
+                              key: Key('staff-sidebar-item-${item.id}'),
+                              leading: Icon(
+                                item.icon,
+                                color: isSelected
+                                    ? PersonnelColors.brandAccent
+                                    : Colors.white70,
+                              ),
+                              title: Text(
+                                item.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? PersonnelColors.brandAccent
+                                      : Colors.white,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              selected: isSelected,
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(PersonnelRadius.sm),
+                              ),
+                              onTap: () => onSelected(item.id),
+                            ),
                           ),
-                          onTap: () => onSelected(item.id),
                         ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),

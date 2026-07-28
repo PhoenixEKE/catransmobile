@@ -109,6 +109,18 @@ class StationReservationItemDetail {
   final String? ticketId;
   final String? ticketReference;
   final String? ticketStatus;
+  final String? ticketStatusLabel;
+  final DateTime? ticketUsedAt;
+  final DateTime? ticketSuspendedUntil;
+  final bool canEdit;
+  final bool canSuspend;
+  final bool canReactivate;
+  final String? departureDate;
+  final String? departureTime;
+  final String? stationName;
+  final String? destinationName;
+  final String? serviceClassName;
+  final String? serviceClassCode;
   final DateTime? createdAt;
 
   const StationReservationItemDetail({
@@ -126,6 +138,18 @@ class StationReservationItemDetail {
     this.ticketId,
     this.ticketReference,
     this.ticketStatus,
+    this.ticketStatusLabel,
+    this.ticketUsedAt,
+    this.ticketSuspendedUntil,
+    this.canEdit = false,
+    this.canSuspend = false,
+    this.canReactivate = false,
+    this.departureDate,
+    this.departureTime,
+    this.stationName,
+    this.destinationName,
+    this.serviceClassName,
+    this.serviceClassCode,
     this.createdAt,
   });
 
@@ -139,6 +163,16 @@ class StationReservationItemDetail {
   String get seatLabel =>
       seatNumber == null ? 'Placement gare' : 'Siège $seatNumber';
   bool get hasTicket => ticketId != null && ticketId!.isNotEmpty;
+  bool get isBoarded => ticketStatus == 'used';
+  bool get isSuspended => ticketSuspendedUntil != null;
+  bool get usesManualSeat => seatNumber != null;
+
+  String get tripLabel {
+    final route = [stationName, destinationName]
+        .where((part) => part != null && part.trim().isNotEmpty)
+        .join(' → ');
+    return route.isEmpty ? '-' : route;
+  }
 
   StationTicketSummary get ticketSummary => StationTicketSummary(
         id: ticketId,
@@ -162,7 +196,62 @@ class StationReservationItemDetail {
       ticketId: _readNullableString(json['ticket_id']),
       ticketReference: _readNullableString(json['ticket_reference']),
       ticketStatus: _readNullableString(json['ticket_status']),
+      ticketStatusLabel: _readNullableString(json['ticket_status_label']),
+      ticketUsedAt: _parseDateTime(json['ticket_used_at']),
+      ticketSuspendedUntil: _parseDateTime(json['ticket_suspended_until']),
+      canEdit: json['can_edit'] == true,
+      canSuspend: json['can_suspend'] == true,
+      canReactivate: json['can_reactivate'] == true,
+      departureDate: _readNullableString(json['departure_date']),
+      departureTime: _readNullableString(json['departure_time']),
+      stationName: _readNullableString(json['station_name']),
+      destinationName: _readNullableString(json['destination_name']),
+      serviceClassName: _readNullableString(json['service_class_name']),
+      serviceClassCode: _readNullableString(json['service_class_code']),
       createdAt: _parseDateTime(json['created_at']),
+    );
+  }
+}
+
+class StationReservationItemEditResponse {
+  final String message;
+  final StationReservationDetail reservation;
+  final Map<String, dynamic> change;
+
+  const StationReservationItemEditResponse({
+    required this.message,
+    required this.reservation,
+    required this.change,
+  });
+
+  factory StationReservationItemEditResponse.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return StationReservationItemEditResponse(
+      message: _readString(json['message']),
+      reservation: StationReservationDetail.fromJson(
+        _readObject(json['reservation']),
+      ),
+      change: _readObject(json['change']),
+    );
+  }
+}
+
+class StationTicketActionResponse {
+  final String message;
+  final StationReservationDetail reservation;
+
+  const StationTicketActionResponse({
+    required this.message,
+    required this.reservation,
+  });
+
+  factory StationTicketActionResponse.fromJson(Map<String, dynamic> json) {
+    return StationTicketActionResponse(
+      message: _readString(json['message']),
+      reservation: StationReservationDetail.fromJson(
+        _readObject(json['reservation']),
+      ),
     );
   }
 }

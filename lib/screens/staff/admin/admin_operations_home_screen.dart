@@ -7,6 +7,7 @@ import 'package:catrans_app/screens/staff/admin/operations/admin_operations_navi
 import 'package:catrans_app/screens/staff/admin/operations/boarding/admin_boarding_screen.dart';
 import 'package:catrans_app/screens/staff/admin/operations/departures/admin_departures_screen.dart';
 import 'package:catrans_app/screens/staff/admin/operations/layouts/admin_seat_layouts_screen.dart';
+import 'package:catrans_app/screens/staff/admin/operations/promotions/admin_promotions_screen.dart';
 import 'package:catrans_app/screens/staff/admin/operations/seats/admin_departure_seats_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
 import 'package:catrans_app/widgets/staff/staff_module_header.dart';
@@ -43,6 +44,11 @@ class _AdminOperationsHomeScreenState extends State<AdminOperationsHomeScreen> {
       id: 'boarding',
       label: 'Embarquement',
       icon: Icons.qr_code_scanner,
+    ),
+    AdminOperationsSection(
+      id: 'promotions',
+      label: 'Promotions',
+      icon: Icons.campaign_outlined,
     ),
   ];
 
@@ -110,6 +116,10 @@ class _AdminOperationsHomeScreenState extends State<AdminOperationsHomeScreen> {
           departure: _selectedDeparture,
           canReadManifest: permissions.canReadBoardingManifest,
           canValidate: permissions.canValidateBoarding,
+        );
+      case 'promotions':
+        return AdminPromotionsScreen(
+          canManage: permissions.canManageAdminOperations,
         );
       default:
         return AdminDeparturesScreen(

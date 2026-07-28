@@ -25,8 +25,8 @@ void main() {
       );
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(_ids(menuItems), const ['reservation_search']);
-      expect(_initialId(user, menuItems), 'reservation_search');
+      expect(_ids(menuItems), const ['station_reservations']);
+      expect(_initialId(user, menuItems), 'station_reservations');
     });
 
     test('admin role with reports scope only gets reports module', () {
@@ -52,6 +52,37 @@ void main() {
       expect(_initialId(user, menuItems), 'home');
     });
 
+    test('cashier role with portal scopes gets the complete station portal', () {
+      final user = _internalUser(
+        role: InternalRole.cashier,
+        scopes: const [
+          'station.dashboard.read',
+          'station.departures.read',
+          'station.departures.depart',
+          'station.reservations.search',
+          'station.reservations.read',
+          'station.sales.cash',
+          'station.tickets.print',
+          'station.tickets.read',
+          'boarding.manifest.read',
+          'boarding.validate',
+          'boarding.summary.read',
+        ],
+      );
+      final menuItems = StaffMenuItem.forUser(user);
+
+      expect(
+        _ids(menuItems),
+        const [
+          'station_dashboard',
+          'departures',
+          'station_reservations',
+          'boarding',
+        ],
+      );
+      expect(_initialId(user, menuItems), 'station_dashboard');
+    });
+
     test('unrecognized scopes with legacy cashier role use role fallback', () {
       final user = _internalUser(
         role: InternalRole.cashier,
@@ -61,9 +92,14 @@ void main() {
 
       expect(
         _ids(menuItems),
-        const ['home', 'reservation_search', 'counter_reports'],
+        const [
+          'station_dashboard',
+          'departures',
+          'station_reservations',
+          'boarding',
+        ],
       );
-      expect(_initialId(user, menuItems), 'reservation_search');
+      expect(_initialId(user, menuItems), 'station_dashboard');
     });
 
     test(

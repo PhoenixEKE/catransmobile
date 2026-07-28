@@ -70,8 +70,7 @@ class _AdminDeparturesScreenState extends State<AdminDeparturesScreen> {
             onDateRangeChanged: (from, to) =>
                 _controller.setDateRange(from: from, to: to),
             onRefresh: _controller.refresh,
-            onCreate: _openCreateForm,
-            onGenerate: _openGenerationDialog,
+            onNewDeparture: _openGenerationDialog,
           ),
           const SizedBox(height: 12),
           _SelectedDepartureBanner(departure: widget.selectedDeparture),
@@ -146,11 +145,6 @@ class _AdminDeparturesScreenState extends State<AdminDeparturesScreen> {
   void _openBoarding(AdminDeparture departure) {
     widget.onDepartureSelected(departure);
     widget.onOpenBoarding(departure);
-  }
-
-  Future<void> _openCreateForm() async {
-    if (!widget.canManage) return;
-    await _handleFormLoop(initialDeparture: null);
   }
 
   Future<void> _openGenerationDialog() async {

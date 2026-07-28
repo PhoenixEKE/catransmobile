@@ -119,6 +119,7 @@ const recognizedStaffApiErrorCodes = <String>{
   'operations_invalid_status_transition',
   'operations_departure_has_active_holds',
   'operations_departure_has_active_bookings',
+  'operations_zone_reduction_has_active_bookings',
 };
 
 class _DrfFieldError {

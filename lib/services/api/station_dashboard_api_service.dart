@@ -8,11 +8,16 @@ class StationDashboardApiService {
   StationDashboardApiService({ApiClient? apiClient})
       : _apiClient = apiClient ?? ApiClient();
 
-  Future<StationDashboardOverview> getOverview({DateTime? date}) async {
+  Future<StationDashboardOverview> getOverview({
+    DateTime? date,
+    String? stationId,
+  }) async {
     final response = await _apiClient.get(
       'station/dashboard/overview/',
       queryParameters: {
         if (date != null) 'date': _formatDate(date),
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
       },
     );
 

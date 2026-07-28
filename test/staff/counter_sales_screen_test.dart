@@ -7,12 +7,16 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/staff/admin/station_cash_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_counter_models.dart';
+import 'package:catrans_app/models/staff/admin/transport/admin_transport_refs.dart';
+import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
 import 'package:catrans_app/models/station/station_departure.dart';
 import 'package:catrans_app/screens/staff/counter/counter_sales_screen.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
 import 'package:catrans_app/services/api/station_operational_departures_api_service.dart';
+import 'package:catrans_app/services/api/staff/admin/transport/admin_transport_base_api_service.dart';
 
 void main() {
   testWidgets('manual UUID departure field is removed', (tester) async {
@@ -51,6 +55,121 @@ void main() {
       operationalApiService: deniedApi,
     );
     expect(deniedApi.callCount, 0);
+  });
+
+  testWidgets('cashier does not see or load admin counter selector',
+      (tester) async {
+    final transportApi = _FakeAdminTransportApiService();
+
+    await _pumpSalesScreen(
+      tester,
+      user: _cashierWithDepartureReadUser,
+      stationId: 'station-yop',
+      adminTransportApiService: transportApi,
+      operationalApiService: _FakeOperationalApiService(
+        plans: [_OperationalPlan.response(_responseWithMixedStatuses)],
+      ),
+    );
+
+    expect(
+        find.byKey(const Key('counter-sales-counter-selector')), findsNothing);
+    expect(transportApi.callCount, 0);
+  });
+
+  testWidgets('admin selects a counter and sends it to create and confirm',
+      (tester) async {
+    final counterApi = _FakeCounterApiService();
+    final transportApi = _FakeAdminTransportApiService();
+
+    await _pumpSalesScreen(
+      tester,
+      user: _adminSalesUser,
+      stationId: 'station-yop',
+      counterApiService: counterApi,
+      adminTransportApiService: transportApi,
+      operationalApiService: _FakeOperationalApiService(
+        plans: [_OperationalPlan.response(_responseEconomyOnly)],
+      ),
+      boardingApiService: _FakeBoardingApiService(
+        serviceClassByDepartureId: const {
+          'cccccccc-cccc-4ccc-8ccc-cccccccccccc': 'ECONOMIE',
+        },
+      ),
+    );
+
+    expect(transportApi.callCount, 1);
+    expect(transportApi.lastStationId, 'station-yop');
+    expect(transportApi.lastIsActive, isTrue);
+    expect(find.byKey(const Key('counter-sales-counter-selector')),
+        findsOneWidget);
+
+    await _selectCounter(tester, 'A-G02 · Guichet Bravo');
+    await _ensureVisibleAndEnterText(
+      tester,
+      find.byKey(const Key('counter-sales-customer-id-field')),
+      '11111111-1111-4111-8111-111111111111',
+    );
+    await _addSecondTravelerWithIdentity(tester);
+
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key('counter-sales-create-reservation')),
+    );
+
+    expect(counterApi.createCalls, 1);
+    expect(counterApi.lastCreateRequest?.stationId, 'station-yop');
+    expect(counterApi.lastCreateRequest?.counterId, 'counter-bravo');
+
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key('counter-sales-confirm-cash')),
+    );
+    await tester.pumpAndSettle();
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key('counter-sales-cash-confirm-dialog-submit')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(counterApi.confirmCalls, 1);
+    expect(counterApi.lastConfirmStationId, 'station-yop');
+    expect(counterApi.lastConfirmCounterId, 'counter-bravo');
+  });
+
+  testWidgets('admin must choose a counter before creating a cash sale',
+      (tester) async {
+    final counterApi = _FakeCounterApiService();
+
+    await _pumpSalesScreen(
+      tester,
+      user: _adminSalesUser,
+      stationId: 'station-yop',
+      counterApiService: counterApi,
+      adminTransportApiService: _FakeAdminTransportApiService(),
+      operationalApiService: _FakeOperationalApiService(
+        plans: [_OperationalPlan.response(_responseEconomyOnly)],
+      ),
+      boardingApiService: _FakeBoardingApiService(
+        serviceClassByDepartureId: const {
+          'cccccccc-cccc-4ccc-8ccc-cccccccccccc': 'ECONOMIE',
+        },
+      ),
+    );
+
+    await _ensureVisibleAndEnterText(
+      tester,
+      find.byKey(const Key('counter-sales-customer-id-field')),
+      '11111111-1111-4111-8111-111111111111',
+    );
+    await _addSecondTravelerWithIdentity(tester);
+
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key('counter-sales-create-reservation')),
+    );
+
+    expect(counterApi.createCalls, 0);
+    expect(find.text('Sélectionnez un guichet actif.'), findsOneWidget);
   });
 
   testWidgets('displays human-readable departure information', (tester) async {
@@ -485,26 +604,41 @@ void main() {
 Future<void> _pumpSalesScreen(
   WidgetTester tester, {
   required User user,
+  String? stationId,
   StationCounterApiService? counterApiService,
   StationOperationalDeparturesApiService? operationalApiService,
   StationBoardingApiService? boardingApiService,
+  AdminTransportBaseApiService? adminTransportApiService,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: CounterSalesScreen(
           user: user,
+          stationId: stationId,
           counterApiService: counterApiService ?? _FakeCounterApiService(),
           operationalApiService:
               operationalApiService ?? _FakeOperationalApiService(),
           stationBoardingApiService:
               boardingApiService ?? _FakeBoardingApiService(),
+          adminTransportApiService: adminTransportApiService,
         ),
       ),
     ),
   );
   await tester.pump();
   await tester.pump();
+}
+
+Future<void> _selectCounter(WidgetTester tester, String label) async {
+  await tester.ensureVisible(
+    find.byKey(const Key('counter-sales-counter-selector')),
+  );
+  await tester.pump();
+  await tester.tap(find.byKey(const Key('counter-sales-counter-selector')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _addSecondTravelerWithIdentity(WidgetTester tester) async {
@@ -555,6 +689,8 @@ class _FakeCounterApiService extends StationCounterApiService {
   int confirmCalls = 0;
   StationCashSaleCreateRequest? lastCreateRequest;
   String? lastConfirmedReservationId;
+  String? lastConfirmStationId;
+  String? lastConfirmCounterId;
 
   _FakeCounterApiService() : super(apiClient: _buildTestApiClient());
 
@@ -577,10 +713,14 @@ class _FakeCounterApiService extends StationCounterApiService {
   @override
   Future<StationCashConfirmResponse> confirmCashPayment(
     String reservationId, {
+    String? stationId,
+    String? counterId,
     String? note,
   }) async {
     confirmCalls += 1;
     lastConfirmedReservationId = reservationId;
+    lastConfirmStationId = stationId;
+    lastConfirmCounterId = counterId;
     return StationCashConfirmResponse.fromJson({
       'already_paid': false,
       'reservation': _reservationJson,
@@ -603,6 +743,40 @@ class _FakeCounterApiService extends StationCounterApiService {
         },
       ],
     });
+  }
+}
+
+class _FakeAdminTransportApiService extends AdminTransportBaseApiService {
+  final List<AdminStationCounter> counters;
+  final Object? error;
+  int callCount = 0;
+  String? lastStationId;
+  bool? lastIsActive;
+
+  _FakeAdminTransportApiService({
+    this.counters = _counterChoices,
+    this.error,
+  }) : super(apiClient: _buildTestApiClient());
+
+  @override
+  Future<PagedResult<AdminStationCounter>> listCounters({
+    required String stationId,
+    String? query,
+    bool? isActive,
+    String? ordering,
+    int? page,
+    int? pageSize,
+  }) async {
+    callCount += 1;
+    lastStationId = stationId;
+    lastIsActive = isActive;
+    if (error != null) throw error!;
+    return PagedResult<AdminStationCounter>(
+      count: counters.length,
+      next: null,
+      previous: null,
+      results: counters,
+    );
   }
 }
 
@@ -634,6 +808,7 @@ class _FakeOperationalApiService
     List<String>? statuses,
     String? serviceClassId,
     String? search,
+    String? stationId,
   }) async {
     callCount += 1;
     final index = callCount - 1;
@@ -734,6 +909,57 @@ final _cashierWithoutDepartureReadUser = User(
     'station.tickets.print',
   ],
 );
+
+final _adminSalesUser = User(
+  id: 'staff-admin',
+  lastname: 'Admin',
+  firstname: 'User',
+  phoneNumber: '+2250700000002',
+  userType: UserType.staff,
+  internalProfile: const InternalProfile(
+    id: 'profile-admin',
+    role: InternalRole.admin,
+    roleLabel: 'Admin',
+  ),
+  scopes: [
+    'station.all.read',
+    'station.departures.read',
+    'station.reservations.search',
+    'station.reservations.read',
+    'station.sales.cash',
+    'station.tickets.read',
+    'station.tickets.print',
+  ],
+);
+
+const _counterStationRef = AdminTransportStationRef(
+  id: 'station-yop',
+  name: 'Gare Yopougon',
+  code: 'YOP',
+  cityName: 'Abidjan',
+  isActive: true,
+);
+
+const _counterChoices = [
+  AdminStationCounter(
+    id: 'counter-alpha',
+    station: _counterStationRef,
+    code: 'A-G01',
+    label: 'Guichet Alpha',
+    isActive: true,
+    createdAt: '2026-07-21T08:00:00Z',
+    updatedAt: '2026-07-21T08:00:00Z',
+  ),
+  AdminStationCounter(
+    id: 'counter-bravo',
+    station: _counterStationRef,
+    code: 'A-G02',
+    label: 'Guichet Bravo',
+    isActive: true,
+    createdAt: '2026-07-21T08:00:00Z',
+    updatedAt: '2026-07-21T08:00:00Z',
+  ),
+];
 
 final _responseWithMixedStatuses = StationOperationalDeparturesResponse(
   date: null,
