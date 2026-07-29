@@ -1,6 +1,6 @@
-import 'dart:typed_data';
-
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:catrans_app/core/network/api_exception.dart';
@@ -34,9 +34,22 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
   bool _isSaving = false;
   bool _isReordering = false;
   bool _isActiveDraft = true;
+  bool _isDraggingOverImage = false;
   bool? _isActiveFilter;
   String? _error;
   int _pageIndex = 1;
+
+  bool get _supportsDragAndDrop {
+    if (kIsWeb) return true;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return true;
+      default:
+        return false;
+    }
+  }
 
   @override
   void initState() {
@@ -102,14 +115,38 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
   }
 
   Future<void> _pickImage() async {
-    final file = await FilePicker.pickFile(type: FileType.image);
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    setState(() {
-      _pickedImageBytes = bytes;
-      _pickedImageName = file.name;
-    });
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+      final file = result?.files.single;
+      if (file?.bytes == null) return;
+      if (!mounted) return;
+      setState(() {
+        _pickedImageBytes = file!.bytes;
+        _pickedImageName = file.name;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage("Impossible de sélectionner l'image. Réessayez.");
+    }
+  }
+
+  Future<void> _handleDragDone(DropDoneDetails details) async {
+    if (details.files.isEmpty) return;
+    final file = details.files.first;
+    try {
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _pickedImageBytes = bytes;
+        _pickedImageName = file.name;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage("Impossible de lire l'image déposée. Réessayez.");
+    }
   }
 
   void _clearPickedImage() {
@@ -260,6 +297,11 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
           isActive: _isActiveDraft,
           isSaving: _isSaving,
           canManage: widget.canManage,
+          enableDragDrop: _supportsDragAndDrop,
+          isDragActive: _isDraggingOverImage,
+          onDragActiveChanged: (value) =>
+              setState(() => _isDraggingOverImage = value),
+          onDragDone: _handleDragDone,
           onActiveChanged: (value) => setState(() => _isActiveDraft = value),
           onPickImage: _pickImage,
           onClearPickedImage: _clearPickedImage,
@@ -498,6 +540,10 @@ class _PromotionForm extends StatelessWidget {
   final bool isActive;
   final bool isSaving;
   final bool canManage;
+  final bool enableDragDrop;
+  final bool isDragActive;
+  final ValueChanged<bool> onDragActiveChanged;
+  final OnDragDoneCallback onDragDone;
   final ValueChanged<bool> onActiveChanged;
   final VoidCallback onPickImage;
   final VoidCallback onClearPickedImage;
@@ -512,6 +558,10 @@ class _PromotionForm extends StatelessWidget {
     required this.isActive,
     required this.isSaving,
     required this.canManage,
+    required this.enableDragDrop,
+    required this.isDragActive,
+    required this.onDragActiveChanged,
+    required this.onDragDone,
     required this.onActiveChanged,
     required this.onPickImage,
     required this.onClearPickedImage,
@@ -549,29 +599,46 @@ class _PromotionForm extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: AspectRatio(
-                  aspectRatio: 16 / 7,
-                  child: pickedBytes != null
-                      ? Image.memory(pickedBytes, fit: BoxFit.cover)
-                      : hasExistingImage
-                          ? Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFFE9ECF4),
-                                child:
-                                    const Icon(Icons.broken_image_outlined),
-                              ),
-                            )
-                          : Container(
-                              color: const Color(0xFFE9ECF4),
-                              child: const Icon(
-                                Icons.image_outlined,
-                                color: Color(0xFF687083),
-                              ),
-                            ),
+              DropTarget(
+                enable: enableDragDrop && enabled,
+                onDragEntered: (_) => onDragActiveChanged(true),
+                onDragExited: (_) => onDragActiveChanged(false),
+                onDragDone: onDragDone,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: isDragActive
+                        ? Border.all(color: const Color(0xFF0F056B), width: 2)
+                        : null,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 7,
+                      child: pickedBytes != null
+                          ? Image.memory(pickedBytes, fit: BoxFit.cover)
+                          : hasExistingImage
+                              ? Image.network(
+                                  imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: const Color(0xFFE9ECF4),
+                                    child: const Icon(
+                                        Icons.broken_image_outlined),
+                                  ),
+                                )
+                              : Container(
+                                  color: isDragActive
+                                      ? const Color(0xFFE3E6FF)
+                                      : const Color(0xFFE9ECF4),
+                                  child: const Icon(
+                                    Icons.image_outlined,
+                                    color: Color(0xFF687083),
+                                  ),
+                                ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -595,6 +662,18 @@ class _PromotionForm extends StatelessWidget {
                   ],
                 ],
               ),
+              if (enableDragDrop) ...[
+                const SizedBox(height: 4),
+                Text(
+                  isDragActive
+                      ? 'Déposez le fichier ici...'
+                      : 'ou glissez-déposez une image ici',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF687083),
+                  ),
+                ),
+              ],
               if (pickedImageName != null) ...[
                 const SizedBox(height: 4),
                 Text(

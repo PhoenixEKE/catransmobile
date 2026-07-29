@@ -132,8 +132,19 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     });
 
     try {
-      final seatMap = await _bookingApiService.getSeatMap(
+      final rawSeatMap = await _bookingApiService.getSeatMap(
         departureId: departureContext.departureId,
+      );
+      // Le client ne doit voir que les sièges de la plage Prestige, pas
+      // l'ensemble du bus avec les sièges hors plage grisés.
+      final seatMap = SeatMapResponse(
+        departure: rawSeatMap.departure,
+        seatSelection: rawSeatMap.seatSelection,
+        layout: rawSeatMap.layout,
+        counts: rawSeatMap.counts,
+        seats: rawSeatMap.seats
+            .where((seat) => seat.isInServiceClassZone)
+            .toList(),
       );
 
       if (!mounted) return;
