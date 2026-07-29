@@ -225,6 +225,14 @@ class AdminTransportBaseApiService {
     );
   }
 
+  Future<(AdminStation, String?)> deactivateStationCascade(String id) {
+    return _actionCascade(
+      'admin/transport/stations/$id/deactivate/',
+      AdminStation.fromJson,
+      cascade: true,
+    );
+  }
+
   Future<PagedResult<AdminStationCounter>> listCounters({
     required String stationId,
     String? query,
@@ -349,6 +357,16 @@ class AdminTransportBaseApiService {
     );
   }
 
+  Future<(AdminServiceClass, String?)> deactivateServiceClassCascade(
+    String id,
+  ) {
+    return _actionCascade(
+      'admin/transport/service-classes/$id/deactivate/',
+      AdminServiceClass.fromJson,
+      cascade: true,
+    );
+  }
+
   Future<PagedResult<AdminRoute>> listRoutes({
     String? query,
     String? companyId,
@@ -398,6 +416,14 @@ class AdminTransportBaseApiService {
   Future<AdminRoute> deactivateRoute(String id) {
     return _action(
         'admin/transport/routes/$id/deactivate/', AdminRoute.fromJson);
+  }
+
+  Future<(AdminRoute, String?)> deactivateRouteCascade(String id) {
+    return _actionCascade(
+      'admin/transport/routes/$id/deactivate/',
+      AdminRoute.fromJson,
+      cascade: true,
+    );
   }
 
   Future<PagedResult<AdminFare>> listFares({
@@ -576,6 +602,23 @@ class AdminTransportBaseApiService {
     final data = await _transport.post(path);
     final map = _readMap(data);
     return fromJson(_readMap(map['object'] ?? map));
+  }
+
+  /// Same as [_action] but also returns the informative message the backend
+  /// sends back when a cascade deactivation actually deactivated/closed
+  /// dependent records.
+  Future<(T, String?)> _actionCascade<T>(
+    String path,
+    T Function(AdminTransportJson json) fromJson, {
+    required bool cascade,
+  }) async {
+    final data = await _transport.post(
+      path,
+      data: {'cascade': cascade},
+    );
+    final map = _readMap(data);
+    final object = fromJson(_readMap(map['object'] ?? map));
+    return (object, map['message'] as String?);
   }
 }
 

@@ -136,6 +136,26 @@ class AdminStationsController extends ChangeNotifier {
     return _submit(() => apiService.deactivateStation(id));
   }
 
+  Future<String?> deactivateStationCascade(String id) async {
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    formError = null;
+    structuredFormError = null;
+    notifyListeners();
+    try {
+      final (_, message) = await apiService.deactivateStationCascade(id);
+      await loadStations();
+      return message ?? 'Gare désactivée.';
+    } catch (error) {
+      structuredFormError = _structuredError(error);
+      formError = structuredFormError?.userMessage ?? _messageFromError(error);
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> _submit(Future<AdminStation> Function() action) async {
     if (isSubmitting) return false;
     isSubmitting = true;

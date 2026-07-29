@@ -97,7 +97,24 @@ class _AdminStationsScreenState extends State<AdminStationsScreen> {
     if (confirmed != true) return;
     final success = await _controller.deactivateStation(station.id);
     if (!mounted) return;
-    _showSnackBar(success ? 'Gare désactivée.' : _controller.formError ?? 'Désactivation impossible.');
+    if (success) { _showSnackBar('Gare désactivée.'); return; }
+    if (_controller.structuredFormError?.code != 'transport_station_has_active_dependencies') {
+      _showSnackBar(_controller.formError ?? 'Désactivation impossible.');
+      return;
+    }
+    final cascadeConfirmed = await _confirmAction(
+      title: 'Dépendances actives',
+      message: '${_controller.formError}\n\nDésactiver quand même ? Les guichets, lignes, '
+          'horaires et gabarits actifs de cette gare seront désactivés, et ses départs '
+          'futurs sans réservation seront fermés à la vente. Le personnel rattaché reste '
+          'actif (à réaffecter/désactiver séparément si besoin).',
+      actionLabel: 'Désactiver quand même',
+      destructive: true,
+    );
+    if (cascadeConfirmed != true || !mounted) return;
+    final message = await _controller.deactivateStationCascade(station.id);
+    if (!mounted) return;
+    _showSnackBar(message ?? _controller.formError ?? 'Désactivation impossible.');
   }
 
   Future<bool?> _confirmAction({required String title, required String message, required String actionLabel, bool destructive = false}) => showDialog<bool>(context: context, barrierDismissible: !_controller.isSubmitting, builder: (dialogContext) => AlertDialog(key: Key(destructive ? 'admin-station-deactivate-confirm-dialog' : 'admin-station-activate-confirm-dialog'), title: Text(title), content: Text(message), actions: [TextButton(onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, false), child: const Text('Annuler')), ElevatedButton(key: Key(destructive ? 'admin-station-deactivate-confirm' : 'admin-station-activate-confirm'), style: destructive ? ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB42318), foregroundColor: Colors.white) : null, onPressed: _controller.isSubmitting ? null : () => Navigator.pop(dialogContext, true), child: Text(actionLabel))]));

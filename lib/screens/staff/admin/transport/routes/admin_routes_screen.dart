@@ -230,9 +230,32 @@ class _AdminRoutesScreenState extends State<AdminRoutesScreen> {
     if (!mounted) {
       return;
     }
-    _showSnackBar(success
-        ? 'Route désactivée.'
-        : _controller.formError ?? 'Désactivation impossible.');
+    if (success) {
+      _showSnackBar('Route désactivée.');
+      return;
+    }
+    if (_controller.structuredFormError?.code !=
+        'transport_route_has_active_dependencies') {
+      _showSnackBar(_controller.formError ?? 'Désactivation impossible.');
+      return;
+    }
+    final cascadeConfirmed = await _confirmAction(
+      title: 'Dépendances actives',
+      message:
+          '${_controller.formError}\n\nDésactiver quand même ? Les tarifs, '
+          'horaires et gabarits actifs de cette route seront désactivés, et '
+          'ses départs futurs sans réservation seront fermés à la vente.',
+      actionLabel: 'Désactiver quand même',
+      destructive: true,
+    );
+    if (cascadeConfirmed != true || !mounted) {
+      return;
+    }
+    final message = await _controller.deactivateRouteCascade(route.id);
+    if (!mounted) {
+      return;
+    }
+    _showSnackBar(message ?? _controller.formError ?? 'Désactivation impossible.');
   }
 
   Future<bool?> _confirmAction(

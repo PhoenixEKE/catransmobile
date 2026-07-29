@@ -152,6 +152,26 @@ class AdminRoutesController extends ChangeNotifier {
   Future<bool> deactivateRoute(String id) =>
       _submit(() => apiService.deactivateRoute(id));
 
+  Future<String?> deactivateRouteCascade(String id) async {
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    formError = null;
+    structuredFormError = null;
+    notifyListeners();
+    try {
+      final (_, message) = await apiService.deactivateRouteCascade(id);
+      await loadRoutes();
+      return message ?? 'Route désactivée.';
+    } catch (error) {
+      structuredFormError = _structuredError(error);
+      formError = structuredFormError?.userMessage ?? _messageFromError(error);
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> _submit(Future<AdminRoute> Function() action) async {
     if (isSubmitting) {
       return false;

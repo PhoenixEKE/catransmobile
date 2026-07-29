@@ -220,9 +220,28 @@ class _AdminServiceClassesScreenState extends State<AdminServiceClassesScreen> {
     if (confirmed != true) return;
     final success = await _controller.deactivateServiceClass(serviceClass.id);
     if (!mounted) return;
-    _showSnackBar(success
-        ? 'Classe désactivée.'
-        : _controller.formError ?? 'Désactivation impossible.');
+    if (success) {
+      _showSnackBar('Classe désactivée.');
+      return;
+    }
+    if (_controller.structuredFormError?.code !=
+        'transport_service_class_has_active_dependencies') {
+      _showSnackBar(_controller.formError ?? 'Désactivation impossible.');
+      return;
+    }
+    final cascadeConfirmed = await _confirmAction(
+      title: 'Dépendances actives',
+      message: '${_controller.formError}\n\nDésactiver quand même ? Les tarifs, '
+          'horaires et gabarits actifs de cette classe seront désactivés, et ses '
+          'départs futurs sans réservation seront fermés à la vente.',
+      actionLabel: 'Désactiver quand même',
+      destructive: true,
+    );
+    if (cascadeConfirmed != true || !mounted) return;
+    final message =
+        await _controller.deactivateServiceClassCascade(serviceClass.id);
+    if (!mounted) return;
+    _showSnackBar(message ?? _controller.formError ?? 'Désactivation impossible.');
   }
 
   Future<bool?> _confirmAction({

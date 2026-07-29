@@ -109,6 +109,26 @@ class AdminServiceClassesController extends ChangeNotifier {
     return _submit(() => apiService.deactivateServiceClass(id));
   }
 
+  Future<String?> deactivateServiceClassCascade(String id) async {
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    formError = null;
+    structuredFormError = null;
+    notifyListeners();
+    try {
+      final (_, message) = await apiService.deactivateServiceClassCascade(id);
+      await loadServiceClasses();
+      return message ?? 'Classe de service désactivée.';
+    } catch (error) {
+      structuredFormError = _structuredError(error);
+      formError = structuredFormError?.userMessage ?? _messageFromError(error);
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> _submit(Future<AdminServiceClass> Function() action) async {
     if (isSubmitting) return false;
     isSubmitting = true;
