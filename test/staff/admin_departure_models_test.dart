@@ -16,6 +16,15 @@ void main() {
     expect(departure.canOpen, isFalse);
   });
 
+  test('a closed departure can be reopened or rescheduled', () {
+    final departure = AdminDeparture.fromJson(_departureJson(status: 'closed'));
+
+    expect(departure.canOpen, isTrue);
+    expect(departure.canDepart, isTrue);
+    expect(departure.canReschedule, isTrue);
+    expect(departure.canClose, isFalse);
+  });
+
   test('departure create and date update payloads send only supported fields',
       () {
     const create = AdminDepartureCreateRequest(
@@ -25,6 +34,10 @@ void main() {
     const update = AdminDepartureDateUpdateRequest(
       departureDate: '2026-07-23',
     );
+    const updateWithTime = AdminDepartureDateUpdateRequest(
+      departureDate: '2026-07-23',
+      departureTime: '09:30',
+    );
 
     expect(create.toJson(), {
       'departure_template_id': 'template-1',
@@ -32,6 +45,10 @@ void main() {
     });
     expect(create.toJson().containsKey('status'), isFalse);
     expect(update.toJson(), {'departure_date': '2026-07-23'});
+    expect(updateWithTime.toJson(), {
+      'departure_date': '2026-07-23',
+      'departure_time': '09:30',
+    });
   });
 
   test('parses departure seats response and action payload', () {

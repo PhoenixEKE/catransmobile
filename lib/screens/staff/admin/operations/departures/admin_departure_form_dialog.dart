@@ -51,6 +51,7 @@ class _AdminDepartureFormDialog extends StatefulWidget {
 class _AdminDepartureFormDialogState extends State<_AdminDepartureFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _dateController;
+  late final TextEditingController _timeController;
   String? _templateId;
 
   bool get _isEdit => widget.initialDeparture != null;
@@ -61,12 +62,16 @@ class _AdminDepartureFormDialogState extends State<_AdminDepartureFormDialog> {
     _dateController = TextEditingController(
       text: widget.initialDeparture?.departureDate ?? '',
     );
+    _timeController = TextEditingController(
+      text: widget.initialDeparture?.departureTime ?? '',
+    );
     _templateId = widget.initialDeparture?.departureTemplateId;
   }
 
   @override
   void dispose() {
     _dateController.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
@@ -127,6 +132,24 @@ class _AdminDepartureFormDialogState extends State<_AdminDepartureFormDialog> {
                   },
                   enabled: !widget.isSubmitting,
                 ),
+                if (_isEdit) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const Key('admin-departure-time-field'),
+                    controller: _timeController,
+                    decoration:
+                        const InputDecoration(labelText: 'Heure HH:MM'),
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.isEmpty) return "L'heure est obligatoire.";
+                      if (!RegExp(r'^\d{2}:\d{2}$').hasMatch(text)) {
+                        return 'Format attendu : HH:MM.';
+                      }
+                      return null;
+                    },
+                    enabled: !widget.isSubmitting,
+                  ),
+                ],
                 if (widget.error != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -167,7 +190,10 @@ class _AdminDepartureFormDialogState extends State<_AdminDepartureFormDialog> {
       Navigator.pop(
         context,
         AdminDepartureFormResult(
-          updateRequest: AdminDepartureDateUpdateRequest(departureDate: date),
+          updateRequest: AdminDepartureDateUpdateRequest(
+            departureDate: date,
+            departureTime: _timeController.text.trim(),
+          ),
         ),
       );
       return;

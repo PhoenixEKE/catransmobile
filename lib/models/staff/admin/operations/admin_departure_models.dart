@@ -117,11 +117,11 @@ class AdminDeparture {
       : '$departureDate à $departureTime';
 
   bool get canGenerateSeats => status.code == 'scheduled';
-  bool get canOpen => status.code == 'scheduled';
+  bool get canOpen => status.code == 'scheduled' || status.code == 'closed';
   bool get canClose => status.code == 'open';
   bool get canDepart => status.code == 'closed';
   bool get canCancel => status.code != 'departed' && status.code != 'cancelled';
-  bool get canReschedule => status.code == 'scheduled';
+  bool get canReschedule => status.code == 'scheduled' || status.code == 'closed';
 }
 
 class AdminDepartureCreateRequest {
@@ -141,10 +141,18 @@ class AdminDepartureCreateRequest {
 
 class AdminDepartureDateUpdateRequest {
   final String departureDate;
+  final String? departureTime;
 
-  const AdminDepartureDateUpdateRequest({required this.departureDate});
+  const AdminDepartureDateUpdateRequest({
+    required this.departureDate,
+    this.departureTime,
+  });
 
-  JsonMap toJson() => {'departure_date': departureDate};
+  JsonMap toJson() => {
+        'departure_date': departureDate,
+        if (departureTime != null && departureTime!.isNotEmpty)
+          'departure_time': departureTime,
+      };
 }
 
 class AdminDepartureCreateResult {

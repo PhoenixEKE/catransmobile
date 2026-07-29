@@ -12,6 +12,7 @@ import 'package:catrans_app/models/staff/admin/transport/admin_transport_refs.da
 import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
 import 'package:catrans_app/models/station/station_departure.dart';
+import 'package:catrans_app/models/station/station_search_result.dart';
 import 'package:catrans_app/screens/staff/counter/counter_sales_screen.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
@@ -104,11 +105,7 @@ void main() {
         findsOneWidget);
 
     await _selectCounter(tester, 'A-G02 · Guichet Bravo');
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
 
     await _ensureVisibleAndTap(
@@ -156,11 +153,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
 
     await _ensureVisibleAndTap(
@@ -200,11 +193,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
 
     await _ensureVisibleAndTap(
       tester,
@@ -234,6 +223,53 @@ void main() {
       counterApi.lastCreateRequest?.departureId,
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     );
+    expect(
+      counterApi.lastCreateRequest?.customerId,
+      '11111111-1111-4111-8111-111111111111',
+    );
+  });
+
+  testWidgets(
+      'customer search never exposes a raw UUID field to the cashier',
+      (tester) async {
+    final counterApi = _FakeCounterApiService();
+
+    await _pumpSalesScreen(
+      tester,
+      user: _cashierWithDepartureReadUser,
+      counterApiService: counterApi,
+      operationalApiService: _FakeOperationalApiService(
+        plans: [_OperationalPlan.response(_responseWithMixedStatuses)],
+      ),
+    );
+
+    expect(find.textContaining('UUID'), findsNothing);
+    expect(find.byKey(const Key('counter-sales-customer-search-field')),
+        findsOneWidget);
+
+    await _ensureVisibleAndEnterText(
+      tester,
+      find.byKey(const Key('counter-sales-customer-search-field')),
+      'Awa',
+    );
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key('counter-sales-customer-search-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Awa Client · 0700000000'), findsOneWidget);
+
+    await _ensureVisibleAndTap(
+      tester,
+      find.byKey(const Key(
+          'counter-sales-customer-result-11111111-1111-4111-8111-111111111111')),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('counter-sales-customer-selected')),
+        findsOneWidget);
+    expect(find.text('Awa Client · 0700000000'), findsOneWidget);
   });
 
   testWidgets('without station.departures.read scope sale is blocked',
@@ -252,11 +288,7 @@ void main() {
     expect(find.byKey(const Key('counter-sales-departure-scope-blocked')),
         findsOneWidget);
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     final createReservationButton =
         find.byKey(const Key('counter-sales-create-reservation'));
     expect(createReservationButton, findsOneWidget);
@@ -354,11 +386,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
 
     await _ensureVisibleAndTap(
       tester,
@@ -414,11 +442,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
 
     await _ensureVisibleAndTap(
@@ -463,7 +487,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const Key('counter-sales-customer-id-field')),
+    expect(find.byKey(const Key('counter-sales-customer-search-field')),
         findsOneWidget);
     expect(find.byKey(const Key('counter-sales-create-reservation')),
         findsOneWidget);
@@ -486,11 +510,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
     await _ensureVisibleAndEnterText(
       tester,
@@ -531,11 +551,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
 
     await _ensureVisibleAndTap(
@@ -567,11 +583,7 @@ void main() {
       ),
     );
 
-    await _ensureVisibleAndEnterText(
-      tester,
-      find.byKey(const Key('counter-sales-customer-id-field')),
-      '11111111-1111-4111-8111-111111111111',
-    );
+    await _selectCustomer(tester);
     await _addSecondTravelerWithIdentity(tester);
 
     await _ensureVisibleAndTap(
@@ -641,6 +653,28 @@ Future<void> _selectCounter(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectCustomer(
+  WidgetTester tester, {
+  String query = 'Awa',
+  String customerId = '11111111-1111-4111-8111-111111111111',
+}) async {
+  await _ensureVisibleAndEnterText(
+    tester,
+    find.byKey(const Key('counter-sales-customer-search-field')),
+    query,
+  );
+  await _ensureVisibleAndTap(
+    tester,
+    find.byKey(const Key('counter-sales-customer-search-button')),
+  );
+  await tester.pumpAndSettle();
+  await _ensureVisibleAndTap(
+    tester,
+    find.byKey(Key('counter-sales-customer-result-$customerId')),
+  );
+  await tester.pump();
+}
+
 Future<void> _addSecondTravelerWithIdentity(WidgetTester tester) async {
   await _ensureVisibleAndTap(
     tester,
@@ -691,8 +725,24 @@ class _FakeCounterApiService extends StationCounterApiService {
   String? lastConfirmedReservationId;
   String? lastConfirmStationId;
   String? lastConfirmCounterId;
+  List<StationCustomerSearchResult> customerSearchResults = const [
+    StationCustomerSearchResult(
+      customerId: '11111111-1111-4111-8111-111111111111',
+      phoneNumber: '0700000000',
+      firstname: 'Awa',
+      lastname: 'Client',
+      displayName: 'Awa Client · 0700000000',
+    ),
+  ];
 
   _FakeCounterApiService() : super(apiClient: _buildTestApiClient());
+
+  @override
+  Future<List<StationCustomerSearchResult>> searchCustomers(
+    String query,
+  ) async {
+    return customerSearchResults;
+  }
 
   @override
   Future<StationCashSaleCreateResponse> createCashReservation(

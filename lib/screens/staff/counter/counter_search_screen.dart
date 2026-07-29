@@ -50,6 +50,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   void initState() {
     super.initState();
     _apiService = widget.apiService ?? StationCounterApiService();
+    _departureDate = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadReservations();
     });

@@ -8,6 +8,7 @@ import 'package:catrans_app/models/staff/admin/station_cash_models.dart';
 import 'package:catrans_app/models/staff/admin/transport/admin_counter_models.dart';
 import 'package:catrans_app/models/staff/structured_api_error.dart';
 import 'package:catrans_app/models/station/operational_departures/station_operational_departures.dart';
+import 'package:catrans_app/models/station/station_search_result.dart';
 import 'package:catrans_app/screens/staff/counter/counter_permissions.dart';
 import 'package:catrans_app/services/api/station_boarding_api_service.dart';
 import 'package:catrans_app/services/api/station_counter_api_service.dart';
@@ -43,7 +44,11 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
   AdminTransportBaseApiService? _adminTransportApiService;
 
   final _formKey = GlobalKey<FormState>();
-  final _customerIdController = TextEditingController();
+  final _customerQueryController = TextEditingController();
+  List<StationCustomerSearchResult> _customerResults = const [];
+  StationCustomerSearchResult? _selectedCustomer;
+  bool _isSearchingCustomer = false;
+  String? _customerSearchError;
 
   final List<_TravelerDraft> _travelers = [];
 
@@ -127,7 +132,7 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
 
   @override
   void dispose() {
-    _customerIdController.dispose();
+    _customerQueryController.dispose();
     for (final traveler in _travelers) {
       traveler.dispose();
     }
@@ -486,20 +491,7 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 10),
-            TextFormField(
-              key: const Key('counter-sales-customer-id-field'),
-              controller: _customerIdController,
-              enabled: _canSubmitReservation,
-              decoration: const InputDecoration(
-                labelText: 'Customer ID (UUID)',
-              ),
-              validator: (value) {
-                final text = (value ?? '').trim();
-                if (text.isEmpty) return 'Le customer_id est obligatoire.';
-                if (!_isUuid(text)) return 'Format UUID invalide.';
-                return null;
-              },
-            ),
+            _buildCustomerSelector(),
             const SizedBox(height: 12),
             ..._travelers.asMap().entries.map((entry) {
               final index = entry.key;
@@ -548,6 +540,147 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCustomerSelector() {
+    final selected = _selectedCustomer;
+    if (selected != null) {
+      return Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          key: const Key('counter-sales-customer-selected'),
+          leading: const Icon(Icons.person_outline),
+          title: Text(selected.displayName),
+          trailing: TextButton(
+            key: const Key('counter-sales-customer-change'),
+            onPressed: _canSubmitReservation ? _clearSelectedCustomer : null,
+            child: const Text('Changer'),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: const Key('counter-sales-customer-search-field'),
+                controller: _customerQueryController,
+                enabled: _canSubmitReservation && !_isSearchingCustomer,
+                decoration: const InputDecoration(
+                  labelText: 'Rechercher le client (téléphone ou nom)',
+                ),
+                onFieldSubmitted: (_) => _searchCustomer(),
+                validator: (value) {
+                  return _selectedCustomer == null
+                      ? 'Sélectionnez le client payeur.'
+                      : null;
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              key: const Key('counter-sales-customer-search-button'),
+              tooltip: 'Rechercher',
+              onPressed: _canSubmitReservation && !_isSearchingCustomer
+                  ? _searchCustomer
+                  : null,
+              icon: _isSearchingCustomer
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.search),
+            ),
+          ],
+        ),
+        if (_customerSearchError != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _customerSearchError!,
+            style: const TextStyle(color: Color(0xFFB42318)),
+          ),
+        ],
+        if (_customerResults.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _customerResults
+                  .map(
+                    (result) => ListTile(
+                      key: Key(
+                          'counter-sales-customer-result-${result.customerId}'),
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(result.displayName),
+                      onTap: () => _selectCustomer(result),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _searchCustomer() async {
+    final query = _customerQueryController.text.trim();
+    if (query.length < 3) {
+      setState(() {
+        _customerSearchError = 'Entrez au moins 3 caractères.';
+        _customerResults = const [];
+      });
+      return;
+    }
+    setState(() {
+      _isSearchingCustomer = true;
+      _customerSearchError = null;
+    });
+    try {
+      final results = await _counterApiService.searchCustomers(query);
+      if (!mounted) return;
+      setState(() {
+        _customerResults = results;
+        if (results.isEmpty) {
+          _customerSearchError = 'Aucun client trouvé pour cette recherche.';
+        }
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      final structured = StructuredApiError.fromException(error);
+      setState(() {
+        _customerSearchError = structured.userMessage;
+        _customerResults = const [];
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isSearchingCustomer = false);
+      }
+    }
+  }
+
+  void _selectCustomer(StationCustomerSearchResult result) {
+    setState(() {
+      _selectedCustomer = result;
+      _customerResults = const [];
+      _customerSearchError = null;
+    });
+  }
+
+  void _clearSelectedCustomer() {
+    setState(() {
+      _selectedCustomer = null;
+      _customerQueryController.clear();
+      _customerResults = const [];
+      _customerSearchError = null;
+    });
   }
 
   Future<void> _loadCounters() async {
@@ -759,6 +892,11 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       setState(() => _formError = 'Sélectionnez un guichet actif.');
       return;
     }
+    final selectedCustomer = _selectedCustomer;
+    if (selectedCustomer == null) {
+      setState(() => _formError = 'Sélectionnez le client payeur.');
+      return;
+    }
 
     final isForCustomerCount =
         _travelers.where((traveler) => traveler.isForCustomer).length;
@@ -821,7 +959,7 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
         StationCashSaleCreateRequest(
           departureId: departureId,
           serviceClassCode: serviceClassCode,
-          customerId: _customerIdController.text.trim(),
+          customerId: selectedCustomer.customerId,
           stationId: widget.stationId,
           counterId: _effectiveCounterId,
           items: items,
@@ -908,7 +1046,10 @@ class _CounterSalesScreenState extends State<CounterSalesScreen> {
       _travelers
         ..clear()
         ..add(_TravelerDraft(isForCustomer: true));
-      _customerIdController.clear();
+      _selectedCustomer = null;
+      _customerQueryController.clear();
+      _customerResults = const [];
+      _customerSearchError = null;
       _formError = null;
       _pendingSale = null;
       _confirmedSale = null;

@@ -70,6 +70,36 @@ class StationCounterApiService {
     );
   }
 
+  Future<List<StationCustomerSearchResult>> searchCustomers(
+    String query,
+  ) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.length < 3) {
+      throw ApiException(message: 'Entrez au moins 3 caractères.');
+    }
+
+    final response = await _apiClient.get(
+      'station/customers/search/',
+      queryParameters: {'q': trimmedQuery},
+    );
+
+    final data = response.data;
+    if (data is List) {
+      return data
+          .map((item) => StationCustomerSearchResult.fromJson(
+                item is Map<String, dynamic>
+                    ? item
+                    : Map<String, dynamic>.from(item as Map),
+              ))
+          .toList();
+    }
+
+    throw ApiException(
+      message: 'Réponse recherche client invalide.',
+      details: data,
+    );
+  }
+
   Future<StationSearchResponse> searchReservations({
     required String query,
     String? stationId,
