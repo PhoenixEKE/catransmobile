@@ -1,6 +1,10 @@
 /// Numbering rules for the fixed 2 + 2 Prestige coach layout.
 class PrestigeSeatLayout {
-  static const hiddenSeatNumbers = <int>{10, 29, 30, 31, 32};
+  /// Seats kept visible in the coach plan but reserved for operational use.
+  static const lockedSeatNumbers = <int>{10, 29, 30, 31, 32};
+
+  static bool isLocked(int seatNumber) =>
+      lockedSeatNumbers.contains(seatNumber);
 
   /// Returns the four seat numbers from left window to right window.
   ///
@@ -30,9 +34,7 @@ class PrestigeSeatLayout {
         ];
         rows.add([
           for (final number in orderedNumbers)
-            numbers.contains(number) && !hiddenSeatNumbers.contains(number)
-                ? number
-                : null,
+            numbers.contains(number) ? number : null,
         ]);
       }
     }
