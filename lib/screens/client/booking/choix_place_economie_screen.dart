@@ -96,24 +96,6 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
     super.dispose();
   }
 
-  bool _arePassengerFieldsFilled() {
-    final hasCurrentUser = context.read<AuthService>().currentUser != null;
-
-    for (int i = 0; i < widget.nombrePassagers; i++) {
-      final isCurrentCustomer = i == 0 && hasCurrentUser;
-      if (_nomControllers[i].text.trim().isEmpty ||
-          _prenomControllers[i].text.trim().isEmpty) {
-        return false;
-      }
-
-      if (!isCurrentCustomer && _phoneControllers[i].text.trim().isEmpty) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   List<Map<String, dynamic>> _buildPassengers() {
     return List.generate(widget.nombrePassagers, (index) {
       return {
@@ -179,16 +161,6 @@ class _ChoixPlaceEconomieScreenState extends State<ChoixPlaceEconomieScreen> {
   }
 
   Future<void> _confirmReservation() async {
-    if (!_arePassengerFieldsFilled()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez remplir tous les champs'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     final departureContext = widget.selectedDepartureContext;
     if (departureContext == null) {
       _showError(

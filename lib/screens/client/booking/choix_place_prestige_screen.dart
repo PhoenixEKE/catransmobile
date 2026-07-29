@@ -172,24 +172,6 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     }
   }
 
-  bool _arePassengerFieldsFilled() {
-    final hasCurrentUser = context.read<AuthService>().currentUser != null;
-
-    for (int i = 0; i < widget.nombrePassagers; i++) {
-      final isCurrentCustomer = i == 0 && hasCurrentUser;
-      if (_nomControllers[i].text.trim().isEmpty ||
-          _prenomControllers[i].text.trim().isEmpty) {
-        return false;
-      }
-
-      if (!isCurrentCustomer && _phoneControllers[i].text.trim().isEmpty) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   List<Map<String, dynamic>> _buildPassengers({
     required List<int> seatNumbers,
   }) {
@@ -275,11 +257,6 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   }
 
   Future<void> _confirmPrestigeReservation() async {
-    if (!_arePassengerFieldsFilled()) {
-      _showMessage('Veuillez remplir tous les champs des passagers.');
-      return;
-    }
-
     final departureContext = widget.selectedDepartureContext;
     if (departureContext == null) {
       _showMessage(
