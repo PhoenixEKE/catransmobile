@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
@@ -46,7 +48,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('2026-07-21 à 08:00'), findsOneWidget);
-    expect(find.byKey(const Key('admin-departures-create')), findsNothing);
+    expect(find.byKey(const Key('admin-departures-new')), findsNothing);
+    expect(find.byKey(const Key('admin-departures-generate')), findsNothing);
     expect(find.byKey(const Key('admin-departure-open-departure-1')),
         findsNothing);
   });
@@ -103,7 +106,8 @@ class _FakeOperationsService extends AdminOperationsApiService {
   final Completer<void>? departuresStarted;
   final Completer<PagedResult<AdminDeparture>>? departuresCompleter;
 
-  _FakeOperationsService({this.departuresStarted, this.departuresCompleter});
+  _FakeOperationsService({this.departuresStarted, this.departuresCompleter})
+      : super(apiClient: _testApiClient());
 
   @override
   Future<PagedResult<AdminOperationRecord>> listDepartureTemplates({
@@ -151,6 +155,12 @@ class _FakeOperationsService extends AdminOperationsApiService {
       results: [_departure],
     );
   }
+}
+
+ApiClient _testApiClient() {
+  return ApiClient(
+    dio: Dio(BaseOptions(baseUrl: 'https://test.invalid/api/v1/')),
+  );
 }
 
 final _departure = AdminDeparture.fromJson({

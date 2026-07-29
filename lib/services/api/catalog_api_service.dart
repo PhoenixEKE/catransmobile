@@ -2,6 +2,8 @@ import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/catalog_departure_list_response.dart';
 import 'package:catrans_app/models/catalog/catalog_destination.dart';
+import 'package:catrans_app/models/catalog/catalog_popular_route.dart';
+import 'package:catrans_app/models/catalog/catalog_promotion.dart';
 import 'package:catrans_app/models/catalog/catalog_station.dart';
 import 'package:catrans_app/models/catalog/catalog_travel_date.dart';
 
@@ -70,6 +72,27 @@ class CatalogApiService {
     );
 
     return CatalogDepartureListResponse.fromJson(_readEnvelope(response.data));
+  }
+
+  Future<List<CatalogPopularRoute>> getPopularRoutes({int limit = 10}) async {
+    final response = await _apiClient.get(
+      'client/catalog/popular-routes/',
+      queryParameters: {'limit': limit},
+    );
+    final results = _readResults(response.data);
+
+    return results
+        .map((item) => CatalogPopularRoute.fromJson(_readObject(item)))
+        .toList();
+  }
+
+  Future<List<CatalogPromotion>> getPromotions() async {
+    final response = await _apiClient.get('client/catalog/promotions/');
+    final results = _readResults(response.data);
+
+    return results
+        .map((item) => CatalogPromotion.fromJson(_readObject(item)))
+        .toList();
   }
 
   String _formatDate(DateTime date) {

@@ -24,6 +24,7 @@ class StationCounterApiService {
     String? dateFrom,
     String? dateTo,
     String? serviceClass,
+    String? stationId,
     int page = 1,
     int pageSize = 20,
   }) async {
@@ -46,6 +47,7 @@ class StationCounterApiService {
     addIfPresent('date_from', dateFrom);
     addIfPresent('date_to', dateTo);
     addIfPresent('service_class', serviceClass);
+    addIfPresent('station_id', stationId);
 
     final response = await _apiClient.get(
       'station/reservations/',
@@ -68,8 +70,39 @@ class StationCounterApiService {
     );
   }
 
+  Future<List<StationCustomerSearchResult>> searchCustomers(
+    String query,
+  ) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.length < 3) {
+      throw ApiException(message: 'Entrez au moins 3 caractères.');
+    }
+
+    final response = await _apiClient.get(
+      'station/customers/search/',
+      queryParameters: {'q': trimmedQuery},
+    );
+
+    final data = response.data;
+    if (data is List) {
+      return data
+          .map((item) => StationCustomerSearchResult.fromJson(
+                item is Map<String, dynamic>
+                    ? item
+                    : Map<String, dynamic>.from(item as Map),
+              ))
+          .toList();
+    }
+
+    throw ApiException(
+      message: 'Réponse recherche client invalide.',
+      details: data,
+    );
+  }
+
   Future<StationSearchResponse> searchReservations({
     required String query,
+    String? stationId,
   }) async {
     final trimmedQuery = query.trim();
     if (trimmedQuery.length < 2) {
@@ -78,7 +111,11 @@ class StationCounterApiService {
 
     final response = await _apiClient.get(
       'station/search/',
-      queryParameters: {'q': trimmedQuery},
+      queryParameters: {
+        'q': trimmedQuery,
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
+      },
     );
 
     final data = response.data;
@@ -112,6 +149,113 @@ class StationCounterApiService {
 
     throw ApiException(
       message: 'Réponse détail réservation invalide.',
+      details: data,
+    );
+  }
+
+  Future<StationReservationItemEditResponse> editReservationItem({
+    required String reservationId,
+    required String itemId,
+    String? travelerLastname,
+    String? travelerFirstname,
+    String? travelerPhone,
+    String? newDepartureId,
+    String? newDepartureSeatId,
+    String? stationId,
+    String? notes,
+  }) async {
+    final response = await _apiClient.post(
+      'station/reservations/$reservationId/items/$itemId/edit/',
+      data: {
+        if (travelerLastname != null)
+          'traveler_lastname': travelerLastname.trim(),
+        if (travelerFirstname != null)
+          'traveler_firstname': travelerFirstname.trim(),
+        if (travelerPhone != null) 'traveler_phone': travelerPhone.trim(),
+        if (newDepartureId != null && newDepartureId.trim().isNotEmpty)
+          'new_departure_id': newDepartureId.trim(),
+        if (newDepartureSeatId != null && newDepartureSeatId.trim().isNotEmpty)
+          'new_departure_seat_id': newDepartureSeatId.trim(),
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return StationReservationItemEditResponse.fromJson(data);
+    }
+    if (data is Map) {
+      return StationReservationItemEditResponse.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+
+    throw ApiException(
+      message: 'Réponse modification voyageur invalide.',
+      details: data,
+    );
+  }
+
+  Future<StationTicketActionResponse> suspendReservationItemTicket({
+    required String reservationId,
+    required String itemId,
+    required DateTime suspendedUntil,
+    String? stationId,
+    String? notes,
+  }) async {
+    final response = await _apiClient.post(
+      'station/reservations/$reservationId/items/$itemId/ticket/suspend/',
+      data: {
+        'suspended_until': suspendedUntil.toUtc().toIso8601String(),
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return StationTicketActionResponse.fromJson(data);
+    }
+    if (data is Map) {
+      return StationTicketActionResponse.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+
+    throw ApiException(
+      message: 'Réponse suspension ticket invalide.',
+      details: data,
+    );
+  }
+
+  Future<StationTicketActionResponse> reactivateReservationItemTicket({
+    required String reservationId,
+    required String itemId,
+    String? stationId,
+  }) async {
+    final response = await _apiClient.post(
+      'station/reservations/$reservationId/items/$itemId/ticket/reactivate/',
+      data: {
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
+      },
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return StationTicketActionResponse.fromJson(data);
+    }
+    if (data is Map) {
+      return StationTicketActionResponse.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+
+    throw ApiException(
+      message: 'Réponse réactivation ticket invalide.',
       details: data,
     );
   }
@@ -180,11 +324,17 @@ class StationCounterApiService {
 
   Future<StationCashConfirmResponse> confirmCashPayment(
     String reservationId, {
+    String? stationId,
+    String? counterId,
     String? note,
   }) async {
     final response = await _apiClient.post(
       'station/reservations/$reservationId/confirm-cash/',
       data: {
+        if (stationId != null && stationId.trim().isNotEmpty)
+          'station_id': stationId.trim(),
+        if (counterId != null && counterId.trim().isNotEmpty)
+          'counter_id': counterId.trim(),
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
     );

@@ -31,7 +31,7 @@ void main() {
               width: 320,
               child: StaffTopbar(
                 user: user,
-                title: 'Tableau de bord gare',
+                title: 'Tableau gare',
                 onLogout: () {},
                 onOpenMenu: () {},
               ),
@@ -42,7 +42,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       // Title/subtitle never disappear, even when the identity block hides.
-      expect(find.text('Tableau de bord gare'), findsOneWidget);
+      expect(find.text('Tableau gare'), findsOneWidget);
       // Avatar (initials) and logout stay reachable.
       expect(find.text('JO'), findsOneWidget);
       expect(find.byTooltip('Déconnexion'), findsOneWidget);

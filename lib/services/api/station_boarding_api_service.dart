@@ -14,10 +14,15 @@ class StationBoardingApiService {
   StationBoardingApiService({ApiClient? apiClient})
       : _apiClient = apiClient ?? ApiClient();
 
-  Future<List<StationDeparture>> getTodayDepartures({DateTime? date}) async {
+  Future<List<StationDeparture>> getTodayDepartures({
+    DateTime? date,
+    String? stationId,
+  }) async {
     const path = 'station/departures/today/';
     final queryParameters = {
       if (date != null) 'date': _formatDate(date),
+      if (stationId != null && stationId.trim().isNotEmpty)
+        'station_id': stationId.trim(),
     };
 
     if (kDebugMode) {

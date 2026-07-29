@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
-import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
+import 'package:catrans_app/screens/staff/shell/staff_module_registry.dart';
 
 void main() {
   group('staff menu routing', () {
@@ -25,19 +25,19 @@ void main() {
       );
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(_ids(menuItems), const ['reservation_search']);
-      expect(_initialId(user, menuItems), 'reservation_search');
+      expect(_ids(menuItems), const ['station_reservations']);
+      expect(_initialId(user, menuItems), 'station_reservations');
     });
 
-    test('admin role with reports scope only gets reports module', () {
+    test('admin role with reports scope only gets traveler requests module', () {
       final user = _internalUser(
         role: InternalRole.admin,
         scopes: const ['station.reports.manage'],
       );
       final menuItems = StaffMenuItem.forUser(user);
 
-      expect(_ids(menuItems), const ['reports']);
-      expect(_initialId(user, menuItems), 'reports');
+      expect(_ids(menuItems), const ['traveler_requests']);
+      expect(_initialId(user, menuItems), 'traveler_requests');
     });
 
     test('dashboard and departures scopes build deterministic scope-only menu',
@@ -52,6 +52,37 @@ void main() {
       expect(_initialId(user, menuItems), 'home');
     });
 
+    test('cashier role with portal scopes gets the complete station portal', () {
+      final user = _internalUser(
+        role: InternalRole.cashier,
+        scopes: const [
+          'station.dashboard.read',
+          'station.departures.read',
+          'station.departures.depart',
+          'station.reservations.search',
+          'station.reservations.read',
+          'station.sales.cash',
+          'station.tickets.print',
+          'station.tickets.read',
+          'boarding.manifest.read',
+          'boarding.validate',
+          'boarding.summary.read',
+        ],
+      );
+      final menuItems = StaffMenuItem.forUser(user);
+
+      expect(
+        _ids(menuItems),
+        const [
+          'station_dashboard',
+          'departures',
+          'station_reservations',
+          'boarding',
+        ],
+      );
+      expect(_initialId(user, menuItems), 'station_dashboard');
+    });
+
     test('unrecognized scopes with legacy cashier role use role fallback', () {
       final user = _internalUser(
         role: InternalRole.cashier,
@@ -61,9 +92,14 @@ void main() {
 
       expect(
         _ids(menuItems),
-        const ['home', 'reservation_search', 'counter_reports'],
+        const [
+          'station_dashboard',
+          'departures',
+          'station_reservations',
+          'boarding',
+        ],
       );
-      expect(_initialId(user, menuItems), 'reservation_search');
+      expect(_initialId(user, menuItems), 'station_dashboard');
     });
 
     test(
@@ -74,6 +110,34 @@ void main() {
 
       expect(menuItems, isEmpty);
       expect(_initialId(user, menuItems), isNull);
+    });
+
+    test('scope-only staff user can receive a module without role fallback', () {
+      final user = _staffUserWithoutInternalProfile(
+        scopes: const ['admin.transport.read'],
+      );
+      final menuItems = StaffMenuItem.forUser(user);
+
+      expect(_ids(menuItems), const ['admin_transport']);
+      expect(_initialId(user, menuItems), 'admin_transport');
+    });
+
+    test('station dashboard home alias keeps station scoped metadata', () {
+      final user = _staffUserWithoutInternalProfile(
+        scopes: const ['station.dashboard.read'],
+      );
+      final menuItems = StaffMenuItem.forUser(user);
+
+      expect(_ids(menuItems), const ['home']);
+      expect(_initialId(user, menuItems), 'home');
+      expect(StaffModuleRegistry.isStationScoped(menuItems.single), isTrue);
+    });
+
+    test('legacy reports id remains compatible during migration', () {
+      expect(
+        StaffModuleRegistry.canonicalMenuId('reports'),
+        'traveler_requests',
+      );
     });
   });
 }
@@ -110,7 +174,9 @@ User _internalUser({
   );
 }
 
-User _staffUserWithoutInternalProfile() {
+User _staffUserWithoutInternalProfile({
+  List<String> scopes = const [],
+}) {
   return User(
     id: 'user-no-profile',
     lastname: 'Test',
@@ -118,6 +184,6 @@ User _staffUserWithoutInternalProfile() {
     phoneNumber: '+2250101010101',
     userType: UserType.staff,
     isStaff: true,
-    scopes: [],
+    scopes: scopes,
   );
 }

@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:catrans_app/core/navigation/route_paths.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/catalog/catalog_destination.dart';
+import 'package:catrans_app/models/catalog/catalog_popular_route.dart';
+import 'package:catrans_app/models/catalog/catalog_promotion.dart';
 import 'package:catrans_app/models/catalog/catalog_search_criteria.dart';
 import 'package:catrans_app/models/catalog/catalog_station.dart';
 import 'package:catrans_app/models/catalog/catalog_travel_date.dart';
@@ -29,6 +31,8 @@ class _AccueilScreenState extends State<AccueilScreen> {
   List<CatalogStation> _stations = [];
   List<CatalogDestination> _destinations = [];
   List<CatalogTravelDate> _travelDates = [];
+  List<CatalogPromotion> _promotions = [];
+  List<CatalogPopularRoute> _popularRoutes = [];
 
   CatalogStation? _selectedStation;
   CatalogDestination? _selectedDestination;
@@ -37,59 +41,28 @@ class _AccueilScreenState extends State<AccueilScreen> {
   bool _isLoadingStations = false;
   bool _isLoadingDestinations = false;
   bool _isLoadingDates = false;
+  bool _isLoadingPromotions = false;
+  bool _isLoadingPopularRoutes = false;
 
   String? _stationsError;
   String? _destinationsError;
   String? _datesError;
-
-  late PageController _pageController;
-  int _currentPage = 0;
-
-  final List<Map<String, dynamic>> _promotions = [
-    {'title': 'Promotion Été', 'subtitle': '-20% sur tous les trajets'},
-    {
-      'title': 'Offre Famille',
-      'subtitle': 'Achetez 3 billets, le 4ème gratuit'
-    },
-    {'title': 'Student Discount', 'subtitle': '10% pour les étudiants'},
-  ];
-
-  final List<Map<String, dynamic>> _trajetsPopulaires = [
-    {'depart': 'Dakar', 'arrivee': 'Thiès', 'prix': 1500, 'duree': '1h30'},
-    {'depart': 'Dakar', 'arrivee': 'Saint-Louis', 'prix': 3500, 'duree': '3h'},
-    {'depart': 'Thiès', 'arrivee': 'Mbour', 'prix': 2000, 'duree': '2h'},
-    {'depart': 'Dakar', 'arrivee': 'Kaolack', 'prix': 4000, 'duree': '3h30'},
-    {'depart': 'Dakar', 'arrivee': 'Ziguinchor', 'prix': 8000, 'duree': '6h'},
-  ];
+  String? _promotionsError;
+  String? _popularRoutesError;
 
   bool _showAllTrajets = false;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     _loadStations();
-    Future.delayed(const Duration(seconds: 3), _autoScroll);
+    _loadPromotions();
+    _loadPopularRoutes();
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
     super.dispose();
-  }
-
-  void _autoScroll() {
-    if (!mounted) return;
-
-    if (_pageController.hasClients) {
-      final nextPage = (_currentPage + 1) % _promotions.length;
-      _pageController.animateToPage(
-        nextPage,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
-    }
-    Future.delayed(const Duration(seconds: 3), _autoScroll);
   }
 
   String _formatDate(DateTime date) {
@@ -184,6 +157,52 @@ class _AccueilScreenState extends State<AccueilScreen> {
         _selectedTravelDate = null;
         _isLoadingDates = false;
         _datesError = _readableErrorMessage(error);
+      });
+    }
+  }
+
+  Future<void> _loadPromotions() async {
+    setState(() {
+      _isLoadingPromotions = true;
+      _promotionsError = null;
+    });
+
+    try {
+      final promotions = await _catalogApiService.getPromotions();
+      if (!mounted) return;
+      setState(() {
+        _promotions = promotions;
+        _isLoadingPromotions = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _promotions = [];
+        _isLoadingPromotions = false;
+        _promotionsError = _readableErrorMessage(error);
+      });
+    }
+  }
+
+  Future<void> _loadPopularRoutes() async {
+    setState(() {
+      _isLoadingPopularRoutes = true;
+      _popularRoutesError = null;
+    });
+
+    try {
+      final routes = await _catalogApiService.getPopularRoutes(limit: 10);
+      if (!mounted) return;
+      setState(() {
+        _popularRoutes = routes;
+        _isLoadingPopularRoutes = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _popularRoutes = [];
+        _isLoadingPopularRoutes = false;
+        _popularRoutesError = _readableErrorMessage(error);
       });
     }
   }
@@ -384,6 +403,41 @@ class _AccueilScreenState extends State<AccueilScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPopularRoutes() {
+    if (_isLoadingPopularRoutes) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_popularRoutesError != null) {
+      return _buildInlineStatus(
+        message: _popularRoutesError!,
+        isError: true,
+        onRetry: _loadPopularRoutes,
+      );
+    }
+
+    if (_popularRoutes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final visibleRoutes =
+        _showAllTrajets ? _popularRoutes : _popularRoutes.take(3).toList();
+
+    return Column(
+      children: visibleRoutes
+          .map((route) => TrajetPopulaire(
+                depart: route.departureStationName,
+                arrivee: route.destinationName,
+                prix: route.fareAmount,
+                detail: '${route.popularityCount} réservations',
+              ))
+          .toList(),
     );
   }
 
@@ -716,8 +770,11 @@ class _AccueilScreenState extends State<AccueilScreen> {
               ),
               const SizedBox(height: 15),
 
-              // HeroPromo
-              const HeroPromo(),
+              HeroPromo(
+                promotions: _promotions,
+                isLoading: _isLoadingPromotions,
+                error: _promotionsError,
+              ),
 
               const SizedBox(height: 30),
 
@@ -734,11 +791,13 @@ class _AccueilScreenState extends State<AccueilScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _showAllTrajets = !_showAllTrajets;
-                      });
-                    },
+                    onPressed: _popularRoutes.length <= 3
+                        ? null
+                        : () {
+                            setState(() {
+                              _showAllTrajets = !_showAllTrajets;
+                            });
+                          },
                     child: Text(
                       _showAllTrajets ? 'VOIR MOINS' : 'VOIR TOUT',
                       style: TextStyle(
@@ -752,19 +811,7 @@ class _AccueilScreenState extends State<AccueilScreen> {
               ),
               const SizedBox(height: 15),
 
-              // Liste des trajets populaires
-              Column(
-                children: (_showAllTrajets
-                        ? _trajetsPopulaires
-                        : _trajetsPopulaires.take(3).toList())
-                    .map((trajet) => TrajetPopulaire(
-                          depart: trajet['depart'] as String,
-                          arrivee: trajet['arrivee'] as String,
-                          prix: (trajet['prix'] as num).toDouble(),
-                          duree: trajet['duree'] as String,
-                        ))
-                    .toList(),
-              ),
+              _buildPopularRoutes(),
 
               const SizedBox(height: 80),
             ],

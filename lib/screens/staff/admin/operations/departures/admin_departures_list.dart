@@ -224,7 +224,7 @@ class _Actions extends StatelessWidget {
           if (departure.canReschedule)
             IconButton(
               key: Key('admin-departure-edit-${departure.id}'),
-              tooltip: 'Déplacer la date',
+              tooltip: 'Déplacer la date/heure',
               onPressed: () => onEditDate(departure),
               icon: const Icon(Icons.edit_calendar_outlined),
             ),

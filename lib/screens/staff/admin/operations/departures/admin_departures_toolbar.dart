@@ -10,8 +10,7 @@ class AdminDeparturesToolbar extends StatefulWidget {
   final ValueChanged<String?> onOrderingChanged;
   final void Function(String? from, String? to) onDateRangeChanged;
   final VoidCallback onRefresh;
-  final VoidCallback onCreate;
-  final VoidCallback onGenerate;
+  final VoidCallback onNewDeparture;
 
   const AdminDeparturesToolbar({
     super.key,
@@ -24,8 +23,7 @@ class AdminDeparturesToolbar extends StatefulWidget {
     required this.onOrderingChanged,
     required this.onDateRangeChanged,
     required this.onRefresh,
-    required this.onCreate,
-    required this.onGenerate,
+    required this.onNewDeparture,
   });
 
   @override
@@ -130,17 +128,10 @@ class _AdminDeparturesToolbarState extends State<AdminDeparturesToolbar> {
         ),
         if (widget.canManage)
           ElevatedButton.icon(
-            key: const Key('admin-departures-create'),
-            onPressed: widget.onCreate,
-            icon: const Icon(Icons.add),
-            label: const Text('Créer un départ'),
-          ),
-        if (widget.canManage)
-          OutlinedButton.icon(
-            key: const Key('admin-departures-generate'),
-            onPressed: widget.onGenerate,
+            key: const Key('admin-departures-new'),
+            onPressed: widget.onNewDeparture,
             icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Générer depuis un modèle'),
+            label: const Text('Nouveau départ'),
           ),
       ],
     );

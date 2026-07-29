@@ -148,6 +148,32 @@ class StationSearchTicket {
   }
 }
 
+class StationCustomerSearchResult {
+  final String customerId;
+  final String phoneNumber;
+  final String firstname;
+  final String lastname;
+  final String displayName;
+
+  const StationCustomerSearchResult({
+    required this.customerId,
+    required this.phoneNumber,
+    required this.firstname,
+    required this.lastname,
+    required this.displayName,
+  });
+
+  factory StationCustomerSearchResult.fromJson(Map<String, dynamic> json) {
+    return StationCustomerSearchResult(
+      customerId: _readString(json['customer_id']),
+      phoneNumber: _readString(json['phone_number']),
+      firstname: _readString(json['firstname']),
+      lastname: _readString(json['lastname']),
+      displayName: _readString(json['display_name']),
+    );
+  }
+}
+
 List<dynamic> _readList(dynamic value) => value is List ? value : const [];
 
 Map<String, dynamic> _readObject(dynamic value) {

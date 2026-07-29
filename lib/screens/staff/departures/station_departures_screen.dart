@@ -19,6 +19,7 @@ const _danger = Color(0xFFB42318);
 
 class StationDeparturesScreen extends StatefulWidget {
   final User user;
+  final String? stationId;
   final String? initialDepartureId;
   final VoidCallback? onInitialDepartureConsumed;
   final ValueChanged<StaffNavigationRequest> onNavigate;
@@ -27,6 +28,7 @@ class StationDeparturesScreen extends StatefulWidget {
     super.key,
     required this.user,
     required this.onNavigate,
+    this.stationId,
     this.initialDepartureId,
     this.onInitialDepartureConsumed,
   });
@@ -139,7 +141,9 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
   }
 
   bool _canReadDepartures(User user) {
-    return user.scopes.contains('station.departures.read');
+    return user.isSuperuser ||
+        user.scopes.contains('station.departures.read') ||
+        user.scopes.contains('station.all.read');
   }
 
   Future<void> _loadDepartures({bool keepData = false}) async {
@@ -161,6 +165,7 @@ class _StationDeparturesScreenState extends State<StationDeparturesScreen> {
         statuses: _selectedStatus == 'all' ? null : [_selectedStatus],
         serviceClassId: _selectedServiceClassId,
         search: _searchController.text,
+        stationId: widget.stationId,
       );
       if (!mounted) return;
       setState(() => _response = response);

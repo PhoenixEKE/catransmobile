@@ -15,6 +15,7 @@ class StationOperationalDeparturesApiService {
     List<String>? statuses,
     String? serviceClassId,
     String? search,
+    String? stationId,
   }) async {
     final statusValue = statuses
         ?.map((status) => status.trim())
@@ -28,6 +29,8 @@ class StationOperationalDeparturesApiService {
       if (serviceClassId != null && serviceClassId.trim().isNotEmpty)
         'service_class_id': serviceClassId.trim(),
       if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      if (stationId != null && stationId.trim().isNotEmpty)
+        'station_id': stationId.trim(),
     };
 
     final response = await _apiClient.get(

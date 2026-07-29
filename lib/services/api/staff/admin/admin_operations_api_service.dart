@@ -1,8 +1,11 @@
+import 'package:dio/dio.dart';
+
 import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/operations/seat_layout_seat.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
+import 'package:catrans_app/models/staff/admin/operations/admin_promotion_models.dart';
 import 'package:catrans_app/models/staff/admin/operations/admin_seat_class_zone_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/models/station/station_ticket_validation.dart';
@@ -29,6 +32,16 @@ class AdminOperationsApiService {
 
   Future<AdminOperationRecord> getSeatLayout(String id) =>
       _get('admin/operations/seat-layouts/$id/');
+
+  Future<AdminOperationRecord> createSeatLayout(
+    AdminSeatLayoutWriteRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/seat-layouts/',
+      data: request.toJson(),
+    );
+    return AdminOperationRecord.fromJson(_readMap(response.data));
+  }
 
   Future<PagedResult<SeatLayoutSeat>> listSeatLayoutSeats(
     String seatLayoutId, {
@@ -83,6 +96,16 @@ class AdminOperationsApiService {
 
   Future<AdminOperationRecord> getDepartureTemplate(String id) =>
       _get('admin/operations/departure-templates/$id/');
+
+  Future<AdminOperationRecord> createDepartureTemplate(
+    AdminDepartureTemplateWriteRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/departure-templates/',
+      data: request.toJson(),
+    );
+    return AdminOperationRecord.fromJson(_readMap(response.data));
+  }
 
   Future<PagedResult<AdminSeatClassZone>> listSeatClassZones(
     String templateId, {
@@ -315,6 +338,75 @@ class AdminOperationsApiService {
   Future<AdminDepartureActionResponse> cancelDeparture(String departureId) =>
       _departureAction(departureId, 'cancel');
 
+  Future<PagedResult<AdminPromotion>> listPromotions({
+    String? query,
+    bool? isActive,
+    String? ordering,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final response = await _apiClient.get(
+      'admin/operations/promotions/',
+      queryParameters: buildAdminOperationsQueryParameters(
+        query: query,
+        isActive: isActive,
+        ordering: ordering,
+        page: page,
+        pageSize: pageSize,
+      ),
+    );
+    return PagedResult.fromJson(response.data, AdminPromotion.fromJson);
+  }
+
+  Future<AdminPromotion> createPromotion(
+    AdminPromotionWriteRequest request,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/promotions/',
+      data: _promotionFormData(request, includeImage: true),
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return AdminPromotion.fromJson(_readMap(response.data));
+  }
+
+  Future<AdminPromotion> updatePromotion(
+    String promotionId,
+    AdminPromotionWriteRequest request,
+  ) async {
+    final response = await _apiClient.patch(
+      'admin/operations/promotions/$promotionId/',
+      data: _promotionFormData(request, includeImage: false),
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return AdminPromotion.fromJson(_readMap(response.data));
+  }
+
+  Future<AdminPromotion> activatePromotion(String promotionId) async {
+    final response = await _apiClient
+        .post('admin/operations/promotions/$promotionId/activate/');
+    return AdminPromotion.fromJson(
+        _readActionObject(response.data, 'promotion'));
+  }
+
+  Future<AdminPromotion> deactivatePromotion(String promotionId) async {
+    final response = await _apiClient
+        .post('admin/operations/promotions/$promotionId/deactivate/');
+    return AdminPromotion.fromJson(
+        _readActionObject(response.data, 'promotion'));
+  }
+
+  Future<AdminPromotion> movePromotion(
+    String promotionId,
+    String direction,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/promotions/$promotionId/move/',
+      data: {'direction': direction},
+    );
+    return AdminPromotion.fromJson(
+        _readActionObject(response.data, 'promotion'));
+  }
+
   Future<StationTicketValidation> validateTicket({
     required String validationToken,
     required String departureId,
@@ -385,6 +477,27 @@ class AdminOperationsApiService {
     final response = await _apiClient.get(path);
     return AdminOperationRecord.fromJson(_readMap(response.data));
   }
+
+  FormData _promotionFormData(
+    AdminPromotionWriteRequest request, {
+    required bool includeImage,
+  }) {
+    final fields = <String, dynamic>{
+      'title': request.title.trim(),
+      'text': request.text.trim(),
+      'is_active': request.isActive,
+    };
+    final imageBytes = request.imageBytes;
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      fields['image'] = MultipartFile.fromBytes(
+        imageBytes,
+        filename: request.imageFileName ?? 'promotion.jpg',
+      );
+    } else if (includeImage) {
+      fields['image'] = '';
+    }
+    return FormData.fromMap(fields);
+  }
 }
 
 Map<String, dynamic> buildAdminOperationsQueryParameters({
@@ -417,4 +530,12 @@ Map<String, dynamic> _readMap(dynamic data) {
   if (data is Map) return Map<String, dynamic>.from(data);
   throw ApiException(
       message: 'Réponse opérations admin invalide.', details: data);
+}
+
+Map<String, dynamic> _readActionObject(dynamic data, String key) {
+  final map = _readMap(data);
+  final value = map[key];
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return map;
 }

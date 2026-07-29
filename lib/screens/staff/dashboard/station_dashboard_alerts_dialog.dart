@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:catrans_app/models/station/dashboard/station_dashboard_overview.dart';
+import 'package:catrans_app/screens/staff/shell/staff_module_registry.dart';
 import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 
 const _brandPurple = Color(0xFF0F056B);
@@ -101,7 +102,9 @@ class StationDashboardAlertsDialog extends StatelessWidget {
       case 'departures':
         return capabilities.canReadDepartures ? 'departures' : null;
       case 'reports':
-        return capabilities.canManageReports ? 'reports' : null;
+        return capabilities.canManageReports
+            ? StaffModuleRegistry.reportsId
+            : null;
     }
     return null;
   }
@@ -384,7 +387,7 @@ String? _actionLabel(String? actionId) {
     case 'departures':
       return 'Voir les départs';
     case 'reports':
-      return 'Voir les reports';
+      return 'Voir les demandes';
   }
   return null;
 }

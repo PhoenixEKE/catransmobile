@@ -14,8 +14,15 @@ import 'package:catrans_app/services/auth_service.dart';
 
 class CounterSearchScreen extends StatefulWidget {
   final bool supervisionMode;
+  final String? stationId;
+  final StationCounterApiService? apiService;
 
-  const CounterSearchScreen({super.key, this.supervisionMode = false});
+  const CounterSearchScreen({
+    super.key,
+    this.supervisionMode = false,
+    this.stationId,
+    this.apiService,
+  });
 
   @override
   State<CounterSearchScreen> createState() => _CounterSearchScreenState();
@@ -25,7 +32,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   static const int _pageSize = 20;
 
   final _searchController = TextEditingController();
-  final _apiService = StationCounterApiService();
+  late final StationCounterApiService _apiService;
 
   StationReservationListResponse? _listResponse;
   String? _listError;
@@ -42,6 +49,8 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = widget.apiService ?? StationCounterApiService();
+    _departureDate = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadReservations();
     });
@@ -60,7 +69,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       return _AccessDeniedContent(user: user);
     }
 
-    final canSellCash = _canSellCash(user) && !widget.supervisionMode;
+    final canSellCash = _canSellCash(user);
     if (!canSellCash) {
       return _buildSearchPane(user);
     }
@@ -84,6 +93,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
                 _buildSearchPane(user),
                 CounterSalesScreen(
                   user: user,
+                  stationId: widget.stationId,
                   counterApiService: _apiService,
                 ),
               ],
@@ -135,17 +145,23 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   bool _canAccessCounter(User user) {
     final scopes = user.scopes.toSet();
     return scopes.contains('station.reservations.search') ||
+        user.isSuperuser ||
+        scopes.contains('station.all.read') ||
         scopes.contains('station.reservations.read') ||
         scopes.contains('station.tickets.print') ||
         scopes.contains('station.tickets.read');
   }
 
   bool _canSellCash(User user) {
-    return hasCounterSalesCashScope(user.scopes);
+    return user.isSuperuser || hasCounterSalesCashScope(user.scopes);
   }
 
   bool _canPrint(User user) {
     return hasCounterTicketPrintScope(user.scopes);
+  }
+
+  bool _canEditReservationItems(User user) {
+    return user.isSuperuser || user.scopes.contains('station.reports.manage');
   }
 
   Future<void> _loadReservations({int? page}) async {
@@ -166,6 +182,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
         dateFrom: _formatApiDate(_departureDate),
         dateTo: _formatApiDate(_departureDate),
         serviceClass: _serviceClass,
+        stationId: widget.stationId,
         page: nextPage,
         pageSize: _pageSize,
       );
@@ -185,12 +202,57 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
   Future<void> _openReservationDetail(
     StationReservationListItem reservation,
     User user,
-  ) {
-    return showStationReservationDetailDialog(
+  ) async {
+    await showStationReservationDetailDialog(
       context: context,
       reservation: reservation,
       loadDetail: (reservationId) =>
           _apiService.getReservationDetail(reservationId: reservationId),
+      editItem: ({
+        required reservationId,
+        required itemId,
+        travelerLastname,
+        travelerFirstname,
+        travelerPhone,
+        newDepartureId,
+        newDepartureSeatId,
+        notes,
+      }) =>
+          _apiService.editReservationItem(
+        reservationId: reservationId,
+        itemId: itemId,
+        travelerLastname: travelerLastname,
+        travelerFirstname: travelerFirstname,
+        travelerPhone: travelerPhone,
+        newDepartureId: newDepartureId,
+        newDepartureSeatId: newDepartureSeatId,
+        stationId: widget.stationId,
+        notes: notes,
+      ),
+      suspendTicket: ({
+        required reservationId,
+        required itemId,
+        required suspendedUntil,
+        notes,
+      }) =>
+          _apiService.suspendReservationItemTicket(
+        reservationId: reservationId,
+        itemId: itemId,
+        suspendedUntil: suspendedUntil,
+        stationId: widget.stationId,
+        notes: notes,
+      ),
+      reactivateTicket: ({
+        required reservationId,
+        required itemId,
+      }) =>
+          _apiService.reactivateReservationItemTicket(
+        reservationId: reservationId,
+        itemId: itemId,
+        stationId: widget.stationId,
+      ),
+      canEditItems: _canEditReservationItems(user),
+      stationId: widget.stationId,
       canPrint: canPrintCounterTicket(
         hasPrintScope: _canPrint(user),
         backendAllowsPrint: reservation.actions.canPrintTicket,
@@ -198,6 +260,9 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
       onPrint: _showPrintInfo,
       onPdf: _openPdf,
     );
+    if (mounted) {
+      await _loadReservations();
+    }
   }
 
   Future<void> _showPrintInfo(String ticketId) async {
@@ -295,7 +360,7 @@ class _CounterSearchScreenState extends State<CounterSearchScreen> {
     if (response == null) {
       return const _StatePanel(
         icon: Icons.table_rows,
-        title: 'Réservations gare',
+        title: 'Réservations',
         message: 'Les réservations de la gare apparaîtront ici.',
       );
     }
@@ -338,15 +403,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final station = user.internalProfile?.station?.name;
-    final title =
-        supervisionMode ? 'Réservations gare' : 'Réservations & tickets';
+    const title = 'Réservations';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             color: Color(0xFF0F056B),
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -811,7 +875,9 @@ class _ClientCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _StackedCell(
-      primary: reservation.customer.displayName,
+      primary: reservation.primaryTraveler?.fullName.isNotEmpty == true
+          ? reservation.primaryTraveler!.fullName
+          : reservation.customer.displayName,
       secondary: reservation.customer.phone ?? '-',
       width: 150,
     );

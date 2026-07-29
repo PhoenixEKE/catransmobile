@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 class TrajetPopulaire extends StatelessWidget {
   final String depart;
   final String arrivee;
-  final double prix;
-  final String duree;
+  final double? prix;
+  final String detail;
 
   const TrajetPopulaire({
     super.key,
     required this.depart,
     required this.arrivee,
-    required this.prix,
-    required this.duree,
+    this.prix,
+    required this.detail,
   });
 
   @override
@@ -68,26 +68,28 @@ class TrajetPopulaire extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      duree,
+                      detail,
                       style: const TextStyle(
                         color: Colors.grey,
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(width: 15),
-                    const Icon(
-                      Icons.attach_money,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${prix.toStringAsFixed(0)} FCFA',
-                      style: const TextStyle(
+                    if (prix != null) ...[
+                      const SizedBox(width: 15),
+                      const Icon(
+                        Icons.attach_money,
+                        size: 14,
                         color: Colors.grey,
-                        fontSize: 12,
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${prix!.toStringAsFixed(0)} FCFA',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],

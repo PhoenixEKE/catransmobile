@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
 
+import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/models/operations/seat_layout.dart';
 import 'package:catrans_app/models/operations/seat_layout_seat.dart';
 import 'package:catrans_app/models/staff/admin/admin_operations_models.dart';
@@ -156,7 +158,8 @@ class FakeAdminOperationsApiService extends AdminOperationsApiService {
               next: null,
               previous: null,
               results: const [],
-            );
+            ),
+        super(apiClient: _testApiClient());
 
   @override
   Future<PagedResult<AdminOperationRecord>> listSeatLayouts({
@@ -254,4 +257,10 @@ class FakeAdminOperationsApiService extends AdminOperationsApiService {
       ],
     );
   }
+}
+
+ApiClient _testApiClient() {
+  return ApiClient(
+    dio: Dio(BaseOptions(baseUrl: 'https://test.invalid/api/v1/')),
+  );
 }

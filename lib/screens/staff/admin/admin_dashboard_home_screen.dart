@@ -94,7 +94,7 @@ class _AdminDashboardHomeScreenState extends State<AdminDashboardHomeScreen> {
             children: [
               StaffModuleHeader(
                 icon: Icons.query_stats,
-                title: 'Tableau de bord',
+                title: 'Tableau admin',
                 description:
                     'Pilotage opérationnel de la journée: revenus, réservations, tickets et départs.',
                 trailing: _HeaderActions(
@@ -579,7 +579,7 @@ class _DetailedActivity extends StatelessWidget {
           title: 'Demandes',
           rows: [
             _DataRowData(
-                'Reports en attente', overview.requests.pendingChanges),
+                'Modifications en attente', overview.requests.pendingChanges),
             _DataRowData(
               'Annulations en attente',
               overview.requests.pendingCancellations,
@@ -942,7 +942,7 @@ class _AttentionPoints extends StatelessWidget {
         icon: Icons.swap_horiz,
         tone: PersonnelColors.warning,
         text:
-            '${_DashboardFormatters.number(overview.requests.pendingChanges)} demande(s) de report en attente.',
+            '${_DashboardFormatters.number(overview.requests.pendingChanges)} demande(s) de modification en attente.',
       ));
     }
 

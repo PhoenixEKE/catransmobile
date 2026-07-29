@@ -34,6 +34,8 @@ class StationCashSaleCreateRequest {
   final String serviceClassCode;
   final String customerId;
   final List<StationCashSaleItemRequest> items;
+  final String? stationId;
+  final String? counterId;
   final String? note;
 
   const StationCashSaleCreateRequest({
@@ -41,6 +43,8 @@ class StationCashSaleCreateRequest {
     required this.serviceClassCode,
     this.customerId = '',
     required this.items,
+    this.stationId,
+    this.counterId,
     this.note,
   });
 
@@ -48,6 +52,10 @@ class StationCashSaleCreateRequest {
         'departure_id': departureId.trim(),
         'service_class_code': serviceClassCode.trim().toUpperCase(),
         'customer_id': customerId.trim(),
+        if (stationId != null && stationId!.trim().isNotEmpty)
+          'station_id': stationId!.trim(),
+        if (counterId != null && counterId!.trim().isNotEmpty)
+          'counter_id': counterId!.trim(),
         'items': items.map((item) => item.toJson()).toList(),
         if (note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
       };

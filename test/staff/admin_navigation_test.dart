@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
 
+import 'package:catrans_app/core/network/api_client.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/staff/admin/admin_internal_user_models.dart';
@@ -133,6 +135,13 @@ User _internalUser({
 class _NavigationAdminUsersApiService extends AdminUsersApiService {
   int listRolesCalls = 0;
   int listUsersCalls = 0;
+
+  _NavigationAdminUsersApiService()
+      : super(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://localhost/')),
+          ),
+        );
 
   @override
   Future<List<AdminInternalRoleOption>> listRoles() async {

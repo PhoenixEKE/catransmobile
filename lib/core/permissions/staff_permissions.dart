@@ -6,6 +6,15 @@ class StaffPermissions {
   static const adminOperationsRead = 'admin.operations.read';
   static const adminOperationsManage = 'admin.operations.manage';
   static const adminDashboardRead = 'admin.dashboard.read';
+  static const stationAllRead = 'station.all.read';
+  static const stationDashboardRead = 'station.dashboard.read';
+  static const stationDeparturesRead = 'station.departures.read';
+  static const stationDeparturesManage = 'station.departures.manage';
+  static const stationReservationsSearch = 'station.reservations.search';
+  static const stationReservationsRead = 'station.reservations.read';
+  static const stationTicketsRead = 'station.tickets.read';
+  static const stationTicketsPrint = 'station.tickets.print';
+  static const stationReportsManage = 'station.reports.manage';
   static const stationSalesCash = 'station.sales.cash';
   static const boardingManifestRead = 'boarding.manifest.read';
   static const boardingSummaryRead = 'boarding.summary.read';
@@ -47,6 +56,8 @@ class StaffPermissions {
   bool get canManageAdminOperations => hasScope(adminOperationsManage);
 
   bool get canReadAdminDashboard => hasScope(adminDashboardRead);
+
+  bool get canReadAllStations => hasScope(stationAllRead);
 
   bool get canSellCashAtStation => hasScope(stationSalesCash);
 

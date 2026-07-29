@@ -42,6 +42,8 @@ class StationReservationListItem {
   final StationReservationListTrip trip;
   final int itemsCount;
   final List<String> seatNumbers;
+  final StationReservationListTraveler? primaryTraveler;
+  final List<StationReservationListTraveler> travelers;
   final StationReservationListPayment? payment;
   final List<StationReservationListTicket> tickets;
   final StationReservationListActions actions;
@@ -59,6 +61,8 @@ class StationReservationListItem {
     required this.trip,
     required this.itemsCount,
     required this.seatNumbers,
+    this.primaryTraveler,
+    this.travelers = const [],
     this.payment,
     required this.tickets,
     required this.actions,
@@ -91,6 +95,16 @@ class StationReservationListItem {
           .map((seat) => seat.toString())
           .where((seat) => seat.isNotEmpty)
           .toList(),
+      primaryTraveler: json['primary_traveler'] == null
+          ? null
+          : StationReservationListTraveler.fromJson(
+              _readObject(json['primary_traveler']),
+            ),
+      travelers: _readList(json['travelers'])
+          .map((traveler) => StationReservationListTraveler.fromJson(
+                _readObject(traveler),
+              ))
+          .toList(),
       payment: paymentJson == null
           ? null
           : StationReservationListPayment.fromJson(_readObject(paymentJson)),
@@ -102,6 +116,50 @@ class StationReservationListItem {
       actions: StationReservationListActions.fromJson(
         _readObject(json['actions']),
       ),
+    );
+  }
+}
+
+class StationReservationListTraveler {
+  final String itemId;
+  final String? ticketId;
+  final String? ticketReference;
+  final String? ticketStatus;
+  final String? lastname;
+  final String? firstname;
+  final String? phone;
+  final int? seatNumber;
+  final bool canEdit;
+
+  const StationReservationListTraveler({
+    required this.itemId,
+    this.ticketId,
+    this.ticketReference,
+    this.ticketStatus,
+    this.lastname,
+    this.firstname,
+    this.phone,
+    this.seatNumber,
+    this.canEdit = false,
+  });
+
+  String get fullName {
+    return [firstname, lastname]
+        .where((part) => part != null && part.trim().isNotEmpty)
+        .join(' ');
+  }
+
+  factory StationReservationListTraveler.fromJson(Map<String, dynamic> json) {
+    return StationReservationListTraveler(
+      itemId: _readString(json['item_id']),
+      ticketId: _readNullableString(json['ticket_id']),
+      ticketReference: _readNullableString(json['ticket_reference']),
+      ticketStatus: _readNullableString(json['ticket_status']),
+      lastname: _readNullableString(json['lastname']),
+      firstname: _readNullableString(json['firstname']),
+      phone: _readNullableString(json['phone']),
+      seatNumber: _readNullableInt(json['seat_number']),
+      canEdit: json['can_edit'] == true,
     );
   }
 }
@@ -235,6 +293,12 @@ String? _readNullableString(dynamic value) {
 int _readInt(dynamic value) {
   if (value is int) return value;
   return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _readNullableInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
 }
 
 DateTime? _parseDateTime(dynamic value) {
