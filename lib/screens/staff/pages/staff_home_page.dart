@@ -153,7 +153,7 @@ class StaffHomePage extends StatelessWidget {
   String _businessMessage(InternalRole? role) {
     switch (role) {
       case InternalRole.cashier:
-        return 'Utilisez “Réservations & tickets” pour retrouver une réservation, consulter le détail et accéder aux actions d’impression disponibles.';
+        return 'Utilisez “Réservations” pour retrouver une réservation, consulter le détail et accéder aux actions d’impression disponibles.';
       case InternalRole.station_manager:
         return 'Consultez les réservations de la gare et gardez une vue claire sur les prochaines opérations.';
       case InternalRole.station_agent:

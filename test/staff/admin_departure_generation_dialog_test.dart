@@ -80,7 +80,73 @@ void main() {
       '2026-08-04',
       '2026-08-05',
     ]);
-    expect(find.textContaining('Créés: 3'), findsOneWidget);
+    expect(find.text('Nouveau départ'), findsNothing);
+    expect(find.textContaining('3 départ(s) créé(s)'), findsOneWidget);
+  });
+
+  testWidgets('existing seat layout is reused instead of creating a new one',
+      (tester) async {
+    final operations = _FakeOperationsApiService()
+      ..seatLayoutsToReturn = const [
+        AdminOperationRecord(
+          id: 'layout-existing-1',
+          name: 'Bus 40 places',
+          isActive: true,
+          raw: {'total_seats': 40},
+        ),
+      ];
+    final transport = _FakeTransportApiService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  showAdminDepartureGenerationDialog(
+                    context: context,
+                    templates: const [],
+                    previewGeneration: operations.previewDepartures,
+                    generateDepartures: operations.generateDepartures,
+                    isSubmitting: false,
+                    apiService: operations,
+                    transportApiService: transport,
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nouveau départ'), findsOneWidget);
+    expect(
+      find.byKey(const Key('admin-departure-layout-existing-field')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('admin-departure-layout-capacity-field')),
+      findsNothing,
+    );
+
+    await _enter(tester, const Key('admin-departure-zone-start-field'), '1');
+    await _enter(tester, const Key('admin-departure-zone-end-field'), '40');
+    await _enter(
+        tester, const Key('admin-departure-start-date-field'), '2026-08-03');
+    await _enter(
+        tester, const Key('admin-departure-end-date-field'), '2026-08-03');
+
+    await _tapKey(tester, const Key('admin-departure-generate-submit'));
+    await tester.pumpAndSettle();
+
+    expect(operations.createdLayoutRequest, isNull);
+    expect(operations.createdTemplateRequest?.seatLayoutId, 'layout-existing-1');
   });
 }
 
@@ -109,6 +175,7 @@ class _FakeOperationsApiService extends AdminOperationsApiService {
   List<AdminSeatClassZoneDraft> replacedZones = const [];
   String? generatedTemplateId;
   AdminDepartureDatesRequest? generatedRequest;
+  List<AdminOperationRecord> seatLayoutsToReturn = const [];
 
   _FakeOperationsApiService() : super(apiClient: _testApiClient());
 
@@ -120,11 +187,11 @@ class _FakeOperationsApiService extends AdminOperationsApiService {
     int page = 1,
     int pageSize = 20,
   }) async {
-    return const PagedResult(
-      count: 0,
+    return PagedResult(
+      count: seatLayoutsToReturn.length,
       next: null,
       previous: null,
-      results: [],
+      results: seatLayoutsToReturn,
     );
   }
 

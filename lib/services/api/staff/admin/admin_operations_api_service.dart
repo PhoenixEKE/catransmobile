@@ -363,7 +363,7 @@ class AdminOperationsApiService {
   ) async {
     final response = await _apiClient.post(
       'admin/operations/promotions/',
-      data: await _promotionFormData(request, includeImage: true),
+      data: _promotionFormData(request, includeImage: true),
       options: Options(contentType: 'multipart/form-data'),
     );
     return AdminPromotion.fromJson(_readMap(response.data));
@@ -375,7 +375,7 @@ class AdminOperationsApiService {
   ) async {
     final response = await _apiClient.patch(
       'admin/operations/promotions/$promotionId/',
-      data: await _promotionFormData(request, includeImage: false),
+      data: _promotionFormData(request, includeImage: false),
       options: Options(contentType: 'multipart/form-data'),
     );
     return AdminPromotion.fromJson(_readMap(response.data));
@@ -391,6 +391,18 @@ class AdminOperationsApiService {
   Future<AdminPromotion> deactivatePromotion(String promotionId) async {
     final response = await _apiClient
         .post('admin/operations/promotions/$promotionId/deactivate/');
+    return AdminPromotion.fromJson(
+        _readActionObject(response.data, 'promotion'));
+  }
+
+  Future<AdminPromotion> movePromotion(
+    String promotionId,
+    String direction,
+  ) async {
+    final response = await _apiClient.post(
+      'admin/operations/promotions/$promotionId/move/',
+      data: {'direction': direction},
+    );
     return AdminPromotion.fromJson(
         _readActionObject(response.data, 'promotion'));
   }
@@ -466,19 +478,21 @@ class AdminOperationsApiService {
     return AdminOperationRecord.fromJson(_readMap(response.data));
   }
 
-  Future<FormData> _promotionFormData(
+  FormData _promotionFormData(
     AdminPromotionWriteRequest request, {
     required bool includeImage,
-  }) async {
+  }) {
     final fields = <String, dynamic>{
       'title': request.title.trim(),
       'text': request.text.trim(),
-      'display_order': request.displayOrder,
       'is_active': request.isActive,
     };
-    final imagePath = request.imagePath?.trim();
-    if (imagePath != null && imagePath.isNotEmpty) {
-      fields['image'] = await MultipartFile.fromFile(imagePath);
+    final imageBytes = request.imageBytes;
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      fields['image'] = MultipartFile.fromBytes(
+        imageBytes,
+        filename: request.imageFileName ?? 'promotion.jpg',
+      );
     } else if (includeImage) {
       fields['image'] = '';
     }

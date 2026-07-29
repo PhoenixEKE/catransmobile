@@ -230,7 +230,7 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
       if (!mounted) return;
       setState(() {
         if (!keepData) _changesPage = null;
-        _changesError = _messageFromError(error, 'reports');
+        _changesError = _messageFromError(error, 'modifications');
       });
     } finally {
       if (mounted) setState(() => _changesLoading = false);
@@ -640,12 +640,12 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
   Widget _buildContent() {
     if (_selectedTab == _ReportsTab.changes) {
       if (_changesLoading && _changesPage == null) {
-        return const _LoadingPanel(message: 'Chargement des reports...');
+        return const _LoadingPanel(message: 'Chargement des modifications...');
       }
       if (_changesError != null && _changesPage == null) {
         return _StatePanel(
           icon: Icons.error_outline,
-          title: 'Reports indisponibles',
+          title: 'Modifications indisponibles',
           message: _changesError!,
           actionLabel: 'Réessayer',
           onAction: _loadChanges,
@@ -655,8 +655,8 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
       if (page == null) {
         return _StatePanel(
           icon: Icons.edit_calendar,
-          title: 'Reports / annulations',
-          message: 'Les demandes de report de la gare apparaîtront ici.',
+          title: 'Demandes voyageurs',
+          message: 'Les demandes de modification de la gare apparaîtront ici.',
           actionLabel: 'Actualiser',
           onAction: _loadChanges,
         );
@@ -664,9 +664,9 @@ class _StationReportsScreenState extends State<StationReportsScreen> {
       if (page.results.isEmpty) {
         return _StatePanel(
           icon: Icons.inbox_outlined,
-          title: 'Aucun report',
+          title: 'Aucune modification',
           message:
-              'Aucune demande de report ne correspond aux critères sélectionnés.',
+              'Aucune demande de modification ne correspond aux critères sélectionnés.',
           actionLabel: 'Réinitialiser',
           onAction: _resetCurrentFilters,
         );
@@ -794,7 +794,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Reports / annulations',
+                'Demandes voyageurs',
                 style: TextStyle(
                     color: _brandPurple,
                     fontSize: 24,
@@ -868,7 +868,7 @@ class _Tabs extends StatelessWidget {
           final isNarrow = constraints.maxWidth < 560;
           final children = [
             _TabButton(
-              label: 'Reports',
+              label: 'Modifications',
               count: changesCount,
               icon: Icons.edit_calendar,
               selected: selectedTab == _ReportsTab.changes,
@@ -1134,7 +1134,7 @@ class _ChangesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      title: 'Demandes de report',
+      title: 'Demandes de modification',
       trailing: isRefreshing ? const _SmallProgress() : null,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1979,7 +1979,7 @@ class _AccessDeniedReports extends StatelessWidget {
           icon: Icons.lock_outline,
           title: 'Accès refusé',
           message:
-              'Votre profil ne permet pas de consulter les reports et annulations de la gare.',
+              'Votre profil ne permet pas de consulter les demandes voyageurs de la gare.',
         ),
       ],
     );

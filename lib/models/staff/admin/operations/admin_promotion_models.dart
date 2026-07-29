@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:catrans_app/models/staff/paged_result.dart';
 
 class AdminPromotion {
@@ -35,16 +37,16 @@ class AdminPromotion {
 class AdminPromotionWriteRequest {
   final String title;
   final String text;
-  final int displayOrder;
   final bool isActive;
-  final String? imagePath;
+  final Uint8List? imageBytes;
+  final String? imageFileName;
 
   const AdminPromotionWriteRequest({
     required this.title,
     required this.text,
-    required this.displayOrder,
     required this.isActive,
-    this.imagePath,
+    this.imageBytes,
+    this.imageFileName,
   });
 }
 

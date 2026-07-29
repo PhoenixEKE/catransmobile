@@ -402,14 +402,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final station = user.internalProfile?.station?.name;
-    final title = supervisionMode ? 'Réservations' : 'Réservations & tickets';
+    const title = 'Réservations';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             color: Color(0xFF0F056B),
             fontSize: 28,
             fontWeight: FontWeight.bold,

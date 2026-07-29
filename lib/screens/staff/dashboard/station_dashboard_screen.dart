@@ -4,6 +4,7 @@ import 'package:catrans_app/core/network/api_exception.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/station/dashboard/station_dashboard_overview.dart';
 import 'package:catrans_app/screens/staff/dashboard/station_dashboard_alerts_dialog.dart';
+import 'package:catrans_app/screens/staff/shell/staff_module_registry.dart';
 import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 import 'package:catrans_app/services/api/station_dashboard_api_service.dart';
 import 'package:catrans_app/widgets/staff/staff_metric_card.dart';
@@ -689,7 +690,9 @@ class _AlertsSection extends StatelessWidget {
       case 'departures':
         return capabilities.canReadDepartures ? 'departures' : null;
       case 'reports':
-        return capabilities.canManageReports ? 'reports' : null;
+        return capabilities.canManageReports
+            ? StaffModuleRegistry.reportsId
+            : null;
     }
     return null;
   }
@@ -791,7 +794,7 @@ class _SecondaryMetrics extends StatelessWidget {
         summary.departuresWithTravelers.toString(),
       ),
       _SecondaryMetric('Sièges bloqués', summary.blockedSeats.toString()),
-      _SecondaryMetric('Reports en attente', pending.reports.toString()),
+      _SecondaryMetric('Modifications en attente', pending.reports.toString()),
       _SecondaryMetric(
         'Annulations en attente',
         pending.cancellations.toString(),
@@ -857,7 +860,7 @@ class _QuickAccess extends StatelessWidget {
       if (capabilities.canReadReservations)
         const _QuickAction(
           id: 'station_reservations',
-          title: 'Réservations gare',
+          title: 'Réservations',
           icon: Icons.confirmation_number,
         ),
       if (capabilities.canReadDepartures || capabilities.canManageDepartures)
@@ -874,8 +877,8 @@ class _QuickAccess extends StatelessWidget {
         ),
       if (capabilities.canManageReports)
         const _QuickAction(
-          id: 'reports',
-          title: 'Reports / annulations',
+          id: StaffModuleRegistry.reportsId,
+          title: 'Demandes voyageurs',
           icon: Icons.edit_calendar,
         ),
     ];

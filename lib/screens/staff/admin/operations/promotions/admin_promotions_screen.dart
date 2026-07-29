@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'package:catrans_app/core/network/api_exception.dart';
@@ -22,13 +25,14 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
   final _queryController = TextEditingController();
   final _titleController = TextEditingController();
   final _textController = TextEditingController();
-  final _orderController = TextEditingController(text: '0');
-  final _imagePathController = TextEditingController();
 
   PagedResult<AdminPromotion>? _page;
   AdminPromotion? _selectedPromotion;
+  Uint8List? _pickedImageBytes;
+  String? _pickedImageName;
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isReordering = false;
   bool _isActiveDraft = true;
   bool? _isActiveFilter;
   String? _error;
@@ -45,8 +49,6 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
     _queryController.dispose();
     _titleController.dispose();
     _textController.dispose();
-    _orderController.dispose();
-    _imagePathController.dispose();
     super.dispose();
   }
 
@@ -82,8 +84,8 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
       _selectedPromotion = promotion;
       _titleController.text = promotion.title;
       _textController.text = promotion.text;
-      _orderController.text = promotion.displayOrder.toString();
-      _imagePathController.clear();
+      _pickedImageBytes = null;
+      _pickedImageName = null;
       _isActiveDraft = promotion.isActive;
     });
   }
@@ -93,25 +95,37 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
       _selectedPromotion = null;
       _titleController.clear();
       _textController.clear();
-      _orderController.text = '0';
-      _imagePathController.clear();
+      _pickedImageBytes = null;
+      _pickedImageName = null;
       _isActiveDraft = true;
+    });
+  }
+
+  Future<void> _pickImage() async {
+    final file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _pickedImageBytes = bytes;
+      _pickedImageName = file.name;
+    });
+  }
+
+  void _clearPickedImage() {
+    setState(() {
+      _pickedImageBytes = null;
+      _pickedImageName = null;
     });
   }
 
   Future<void> _save() async {
     final title = _titleController.text.trim();
-    final imagePath = _imagePathController.text.trim();
-    final order = int.tryParse(_orderController.text.trim());
     if (title.isEmpty) {
       _showMessage('Le titre est obligatoire.');
       return;
     }
-    if (order == null || order < 0) {
-      _showMessage("L'ordre d'affichage doit être un entier positif.");
-      return;
-    }
-    if (_selectedPromotion == null && imagePath.isEmpty) {
+    if (_selectedPromotion == null && _pickedImageBytes == null) {
       _showMessage("L'image est obligatoire à la création.");
       return;
     }
@@ -121,24 +135,43 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
       final request = AdminPromotionWriteRequest(
         title: title,
         text: _textController.text,
-        displayOrder: order,
         isActive: _isActiveDraft,
-        imagePath: imagePath.isEmpty ? null : imagePath,
+        imageBytes: _pickedImageBytes,
+        imageFileName: _pickedImageName,
       );
       final selected = _selectedPromotion;
       final saved = selected == null
           ? await _apiService.createPromotion(request)
           : await _apiService.updatePromotion(selected.id, request);
       if (!mounted) return;
-      _showMessage(
-          selected == null ? 'Promotion créée.' : 'Promotion mise à jour.');
-      _selectPromotion(saved);
+      if (selected == null) {
+        _showMessage('Promotion créée.');
+        _newPromotion();
+      } else {
+        _showMessage('Promotion mise à jour.');
+        _selectPromotion(saved);
+      }
       await _load();
     } catch (error) {
       if (!mounted) return;
       _showMessage(_readableError(error));
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _movePromotion(AdminPromotion promotion, String direction) async {
+    if (!widget.canManage || _isReordering) return;
+    setState(() => _isReordering = true);
+    try {
+      await _apiService.movePromotion(promotion.id, direction);
+      if (!mounted) return;
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(_readableError(error));
+    } finally {
+      if (mounted) setState(() => _isReordering = false);
     }
   }
 
@@ -207,8 +240,10 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
           selectedId: _selectedPromotion?.id,
           isLoading: _isLoading,
           canManage: widget.canManage,
+          isReordering: _isReordering,
           onSelect: _selectPromotion,
           onToggleActive: _toggleActive,
+          onMove: _movePromotion,
           onPrevious: (_page?.hasPrevious ?? false)
               ? () => _load(page: (_pageIndex - 1).clamp(1, 999).toInt())
               : null,
@@ -220,12 +255,14 @@ class _AdminPromotionsScreenState extends State<AdminPromotionsScreen> {
           selectedPromotion: _selectedPromotion,
           titleController: _titleController,
           textController: _textController,
-          orderController: _orderController,
-          imagePathController: _imagePathController,
+          pickedImageBytes: _pickedImageBytes,
+          pickedImageName: _pickedImageName,
           isActive: _isActiveDraft,
           isSaving: _isSaving,
           canManage: widget.canManage,
           onActiveChanged: (value) => setState(() => _isActiveDraft = value),
+          onPickImage: _pickImage,
+          onClearPickedImage: _clearPickedImage,
           onSave: _save,
         );
 
@@ -336,8 +373,10 @@ class _PromotionList extends StatelessWidget {
   final String? selectedId;
   final bool isLoading;
   final bool canManage;
+  final bool isReordering;
   final ValueChanged<AdminPromotion> onSelect;
   final ValueChanged<AdminPromotion> onToggleActive;
+  final void Function(AdminPromotion promotion, String direction) onMove;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
@@ -346,8 +385,10 @@ class _PromotionList extends StatelessWidget {
     required this.selectedId,
     required this.isLoading,
     required this.canManage,
+    required this.isReordering,
     required this.onSelect,
     required this.onToggleActive,
+    required this.onMove,
     required this.onPrevious,
     required this.onNext,
   });
@@ -369,8 +410,13 @@ class _PromotionList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ...results.map((promotion) {
+        ...results.asMap().entries.map((entry) {
+          final index = entry.key;
+          final promotion = entry.value;
           final selected = promotion.id == selectedId;
+          final isFirstOverall = index == 0 && !(page?.hasPrevious ?? false);
+          final isLastOverall =
+              index == results.length - 1 && !(page?.hasNext ?? false);
           return Card(
             margin: const EdgeInsets.only(bottom: 10),
             color: selected ? const Color(0xFFF3F5FF) : Colors.white,
@@ -383,19 +429,41 @@ class _PromotionList extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
               subtitle: Text(
-                'Ordre ${promotion.displayOrder} · ${promotion.isActive ? 'Active' : 'Inactive'}',
+                promotion.isActive ? 'Active' : 'Inactive',
               ),
               selected: selected,
               onTap: () => onSelect(promotion),
               trailing: canManage
-                  ? IconButton(
-                      tooltip: promotion.isActive ? 'Désactiver' : 'Activer',
-                      onPressed: () => onToggleActive(promotion),
-                      icon: Icon(
-                        promotion.isActive
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Monter',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: !isReordering && !isFirstOverall
+                              ? () => onMove(promotion, 'up')
+                              : null,
+                          icon: const Icon(Icons.arrow_upward),
+                        ),
+                        IconButton(
+                          tooltip: 'Descendre',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: !isReordering && !isLastOverall
+                              ? () => onMove(promotion, 'down')
+                              : null,
+                          icon: const Icon(Icons.arrow_downward),
+                        ),
+                        IconButton(
+                          tooltip: promotion.isActive ? 'Désactiver' : 'Activer',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => onToggleActive(promotion),
+                          icon: Icon(
+                            promotion.isActive
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                        ),
+                      ],
                     )
                   : null,
             ),
@@ -425,30 +493,38 @@ class _PromotionForm extends StatelessWidget {
   final AdminPromotion? selectedPromotion;
   final TextEditingController titleController;
   final TextEditingController textController;
-  final TextEditingController orderController;
-  final TextEditingController imagePathController;
+  final Uint8List? pickedImageBytes;
+  final String? pickedImageName;
   final bool isActive;
   final bool isSaving;
   final bool canManage;
   final ValueChanged<bool> onActiveChanged;
+  final VoidCallback onPickImage;
+  final VoidCallback onClearPickedImage;
   final VoidCallback onSave;
 
   const _PromotionForm({
     required this.selectedPromotion,
     required this.titleController,
     required this.textController,
-    required this.orderController,
-    required this.imagePathController,
+    required this.pickedImageBytes,
+    required this.pickedImageName,
     required this.isActive,
     required this.isSaving,
     required this.canManage,
     required this.onActiveChanged,
+    required this.onPickImage,
+    required this.onClearPickedImage,
     required this.onSave,
   });
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = selectedPromotion?.imageUrl;
+    final pickedBytes = pickedImageBytes;
+    final hasExistingImage = imageUrl != null && imageUrl.isNotEmpty;
+    final isCreate = selectedPromotion == null;
+    final enabled = canManage && !isSaving;
     return SingleChildScrollView(
       child: Card(
         margin: EdgeInsets.zero,
@@ -463,9 +539,7 @@ class _PromotionForm extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      selectedPromotion == null
-                          ? 'Nouvelle promotion'
-                          : 'Modifier la promotion',
+                      isCreate ? 'Nouvelle promotion' : 'Modifier la promotion',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
@@ -475,53 +549,75 @@ class _PromotionForm extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              if (imageUrl != null && imageUrl.isNotEmpty) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 7,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFFE9ECF4),
-                        child: const Icon(Icons.broken_image_outlined),
-                      ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: 16 / 7,
+                  child: pickedBytes != null
+                      ? Image.memory(pickedBytes, fit: BoxFit.cover)
+                      : hasExistingImage
+                          ? Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: const Color(0xFFE9ECF4),
+                                child:
+                                    const Icon(Icons.broken_image_outlined),
+                              ),
+                            )
+                          : Container(
+                              color: const Color(0xFFE9ECF4),
+                              child: const Icon(
+                                Icons.image_outlined,
+                                color: Color(0xFF687083),
+                              ),
+                            ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: enabled ? onPickImage : null,
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: Text(
+                      hasExistingImage || pickedBytes != null
+                          ? "Changer l'image"
+                          : 'Choisir une image...',
                     ),
                   ),
+                  if (pickedBytes != null) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: enabled ? onClearPickedImage : null,
+                      child: const Text('Retirer'),
+                    ),
+                  ],
+                ],
+              ),
+              if (pickedImageName != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Sélectionné : $pickedImageName',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF687083),
+                  ),
                 ),
-                const SizedBox(height: 16),
               ],
+              const SizedBox(height: 16),
               TextField(
                 controller: titleController,
-                enabled: canManage && !isSaving,
+                enabled: enabled,
                 decoration: const InputDecoration(labelText: 'Titre'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: textController,
-                enabled: canManage && !isSaving,
+                enabled: enabled,
                 minLines: 2,
                 maxLines: 4,
                 decoration: const InputDecoration(labelText: 'Texte'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: orderController,
-                enabled: canManage && !isSaving,
-                keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: "Ordre d'affichage"),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: imagePathController,
-                enabled: canManage && !isSaving,
-                decoration: InputDecoration(
-                  labelText: selectedPromotion == null
-                      ? 'Chemin image local'
-                      : 'Nouvelle image locale',
-                ),
               ),
               const SizedBox(height: 12),
               SwitchListTile(

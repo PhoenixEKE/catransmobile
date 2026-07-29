@@ -81,8 +81,10 @@ class _AdminDepartureGenerationDialogState
   List<AdminStation> _stations = const [];
   List<AdminRoute> _routes = const [];
   List<AdminServiceClass> _serviceClasses = const [];
+  List<AdminOperationRecord> _seatLayouts = const [];
 
   bool _useExistingTemplate = true;
+  bool _useExistingSeatLayout = false;
   bool _loadingRefs = true;
   bool _previewing = false;
   bool _generating = false;
@@ -92,8 +94,8 @@ class _AdminDepartureGenerationDialogState
   String? _stationId;
   String? _routeId;
   String? _serviceClassId;
+  String? _seatLayoutId;
   Map<String, dynamic>? _previewData;
-  AdminDepartureGenerationResult? _generationResult;
 
   bool get _isBusy => _loadingRefs || _previewing || _generating;
 
@@ -160,17 +162,25 @@ class _AdminDepartureGenerationDialogState
         ordering: 'name',
         pageSize: 100,
       );
+      final seatLayoutsPage = await widget.apiService.listSeatLayouts(
+        isActive: true,
+        ordering: 'name',
+        pageSize: 100,
+      );
       if (!mounted) return;
       setState(() {
         _stations = stationsPage.results;
         _routes = routesPage.results;
         _serviceClasses = serviceClassesPage.results;
+        _seatLayouts = seatLayoutsPage.results;
         _stationId = _stations.isNotEmpty ? _stations.first.id : null;
         _serviceClassId =
             _serviceClasses.isNotEmpty ? _serviceClasses.first.id : null;
         _routeId = _availableRoutes.isNotEmpty
             ? _availableRoutes.first.id
             : (_routes.isNotEmpty ? _routes.first.id : null);
+        _useExistingSeatLayout = _seatLayouts.isNotEmpty;
+        _seatLayoutId = _seatLayouts.isNotEmpty ? _seatLayouts.first.id : null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -264,28 +274,7 @@ class _AdminDepartureGenerationDialogState
                 if (!_useExistingTemplate) ...[
                   const _SectionTitle(number: 2, label: 'Plan de sièges'),
                   const SizedBox(height: 8),
-                  TextFormField(
-                    key: const Key('admin-departure-layout-capacity-field'),
-                    controller: _capacityController,
-                    decoration: const InputDecoration(
-                      labelText: 'Capacité',
-                      prefixIcon: Icon(Icons.confirmation_number_outlined),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (_useExistingTemplate) return null;
-                      final capacity = int.tryParse(value?.trim() ?? '');
-                      if (capacity == null || capacity < 1) {
-                        return 'La capacité doit être un entier positif.';
-                      }
-                      if (capacity > 200) {
-                        return 'La capacité maximale est 200.';
-                      }
-                      return null;
-                    },
-                    onChanged: (_) => _markConfigDirty(),
-                    enabled: !_isBusy,
-                  ),
+                  _buildSeatLayoutFields(),
                   const SizedBox(height: 16),
                 ],
                 if (!_useExistingTemplate && _selectedClassIsPrestige) ...[
@@ -358,16 +347,6 @@ class _AdminDepartureGenerationDialogState
                   _PreviewList(previewData: _previewData!),
                   const SizedBox(height: 16),
                 ],
-                if (_generationResult != null) ...[
-                  _ResultHeader(
-                    title: 'Génération',
-                    subtitle:
-                        'Créés: ${_generationResult!.createdCount} · Déjà existants: ${_generationResult!.existingCount}',
-                  ),
-                  const SizedBox(height: 10),
-                  _GenerationList(result: _generationResult!),
-                  const SizedBox(height: 16),
-                ],
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: 8,
@@ -387,7 +366,7 @@ class _AdminDepartureGenerationDialogState
                     ElevatedButton(
                       key: const Key('admin-departure-generate-submit'),
                       onPressed: _isBusy ? null : _generate,
-                      child: const Text('Générer'),
+                      child: const Text('Générer les départs'),
                     ),
                   ],
                 ),
@@ -397,6 +376,93 @@ class _AdminDepartureGenerationDialogState
         ),
       ),
     );
+  }
+
+  Widget _buildSeatLayoutFields() {
+    final hasExistingLayouts = _seatLayouts.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(
+              value: true,
+              icon: Icon(Icons.event_seat_outlined),
+              label: Text('Existant'),
+            ),
+            ButtonSegment(
+              value: false,
+              icon: Icon(Icons.add_circle_outline),
+              label: Text('Capacité'),
+            ),
+          ],
+          selected: {_useExistingSeatLayout && hasExistingLayouts},
+          onSelectionChanged: _isBusy || !hasExistingLayouts
+              ? null
+              : (values) => setState(() {
+                    _useExistingSeatLayout = values.first;
+                    _markConfigDirty();
+                  }),
+        ),
+        const SizedBox(height: 12),
+        if (_useExistingSeatLayout && hasExistingLayouts)
+          DropdownButtonFormField<String>(
+            key: const Key('admin-departure-layout-existing-field'),
+            initialValue: _seatLayoutId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Plan de sièges'),
+            items: _seatLayouts
+                .map(
+                  (layout) => DropdownMenuItem(
+                    value: layout.id,
+                    child: Text(_seatLayoutLabel(layout)),
+                  ),
+                )
+                .toList(),
+            validator: (value) =>
+                !_useExistingTemplate && _useExistingSeatLayout &&
+                        (value == null || value.isEmpty)
+                    ? 'Le plan de sièges est obligatoire.'
+                    : null,
+            onChanged: _isBusy
+                ? null
+                : (value) => setState(() {
+                      _seatLayoutId = value;
+                      _markConfigDirty();
+                    }),
+          )
+        else
+          TextFormField(
+            key: const Key('admin-departure-layout-capacity-field'),
+            controller: _capacityController,
+            decoration: const InputDecoration(
+              labelText: 'Capacité',
+              prefixIcon: Icon(Icons.confirmation_number_outlined),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (_useExistingTemplate || _useExistingSeatLayout) return null;
+              final capacity = int.tryParse(value?.trim() ?? '');
+              if (capacity == null || capacity < 1) {
+                return 'La capacité doit être un entier positif.';
+              }
+              if (capacity > 200) {
+                return 'La capacité maximale est 200.';
+              }
+              return null;
+            },
+            onChanged: (_) => _markConfigDirty(),
+            enabled: !_isBusy,
+          ),
+      ],
+    );
+  }
+
+  String _seatLayoutLabel(AdminOperationRecord layout) {
+    final totalSeats = layout.raw['total_seats'];
+    return totalSeats == null
+        ? layout.name
+        : '${layout.name} ($totalSeats places)';
   }
 
   Widget _buildNewTemplateFields(bool compact) {
@@ -522,7 +588,6 @@ class _AdminDepartureGenerationDialogState
     setState(() {
       _previewing = true;
       _error = null;
-      _generationResult = null;
     });
     try {
       final templateId = await _resolveTemplateId();
@@ -555,7 +620,17 @@ class _AdminDepartureGenerationDialogState
         AdminDepartureDatesRequest(departureDates: _dateRange()),
       );
       if (!mounted || result == null) return;
-      setState(() => _generationResult = result);
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.createdCount} départ(s) créé(s)'
+            '${result.existingCount > 0 ? ' · ${result.existingCount} déjà existant(s)' : ''}.',
+          ),
+        ),
+      );
+      return;
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = _messageFromError(error));
@@ -604,6 +679,13 @@ class _AdminDepartureGenerationDialogState
   }
 
   Future<String> _resolveSeatLayoutId() async {
+    if (_useExistingSeatLayout) {
+      final layoutId = _seatLayoutId;
+      if (layoutId == null || layoutId.isEmpty) {
+        throw StateError('Le plan de sièges est obligatoire.');
+      }
+      return layoutId;
+    }
     final capacity = int.parse(_capacityController.text.trim());
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final layout = await widget.apiService.createSeatLayout(
@@ -642,7 +724,6 @@ class _AdminDepartureGenerationDialogState
   void _markConfigDirty() {
     _resolvedTemplateId = null;
     _previewData = null;
-    _generationResult = null;
     _error = null;
   }
 
@@ -799,44 +880,6 @@ class _PreviewList extends StatelessWidget {
                 color: existing
                     ? const Color(0xFFB54708)
                     : const Color(0xFF0F056B),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _GenerationList extends StatelessWidget {
-  final AdminDepartureGenerationResult result;
-
-  const _GenerationList({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    if (result.departures.isEmpty) {
-      return const Text('Aucun départ généré.');
-    }
-    return Column(
-      children: result.departures.map((item) {
-        final created = item.created;
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE4E7EF)),
-          ),
-          child: Row(
-            children: [
-              Expanded(child: Text(item.departureDate)),
-              _MiniBadge(
-                label: created ? 'Créé' : 'Existant',
-                color:
-                    created ? const Color(0xFF027A48) : const Color(0xFF667085),
               ),
             ],
           ),

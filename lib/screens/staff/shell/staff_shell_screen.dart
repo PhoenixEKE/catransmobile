@@ -8,19 +8,9 @@ import 'package:catrans_app/core/permissions/staff_permissions.dart';
 import 'package:catrans_app/models/accounts/internal_profile.dart';
 import 'package:catrans_app/models/accounts/user.dart';
 import 'package:catrans_app/models/staff/staff_refs.dart';
-import 'package:catrans_app/screens/staff/admin/admin_dashboard_home_screen.dart';
-import 'package:catrans_app/screens/staff/admin/admin_operations_home_screen.dart';
-import 'package:catrans_app/screens/staff/admin/admin_transport_home_screen.dart';
-import 'package:catrans_app/screens/staff/admin/admin_users_home_screen.dart';
-import 'package:catrans_app/screens/staff/boarding/boarding_screen.dart';
-import 'package:catrans_app/screens/staff/dashboard/station_dashboard_screen.dart';
-import 'package:catrans_app/screens/staff/departures/station_departures_screen.dart';
 import 'package:catrans_app/screens/staff/pages/staff_access_denied_page.dart';
-import 'package:catrans_app/screens/staff/pages/staff_home_page.dart';
 import 'package:catrans_app/screens/staff/pages/staff_placeholder_page.dart';
-import 'package:catrans_app/screens/staff/reports/station_reports_screen.dart';
-import 'package:catrans_app/screens/staff/counter/counter_search_screen.dart';
-import 'package:catrans_app/screens/staff/shell/staff_menu_item.dart';
+import 'package:catrans_app/screens/staff/shell/staff_module_registry.dart';
 import 'package:catrans_app/screens/staff/shell/staff_navigation_request.dart';
 import 'package:catrans_app/services/api/staff/admin/admin_users_api_service.dart';
 import 'package:catrans_app/services/auth_service.dart';
@@ -61,7 +51,9 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
 
     _ensureInitialSelection(user, menuItems);
 
-    final selectedId = _selectedId ?? menuItems.first.id;
+    final selectedId = StaffModuleRegistry.canonicalMenuId(
+      _selectedId ?? menuItems.first.id,
+    );
     final selectedItem = menuItems.firstWhere(
       (item) => item.id == selectedId,
       orElse: () => menuItems.first,
@@ -147,96 +139,30 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
     StaffMenuItem selectedItem,
     List<StaffMenuItem> menuItems,
   ) {
-    final stationId = _requiresAdminStationSelection(user, selectedItem)
-        ? _selectedAdminStationId
-        : null;
-
-    if (selectedItem.id == 'home') {
-      if (user.internalProfile?.role == InternalRole.station_manager) {
-        return StationDashboardScreen(
-          user: user,
-          onNavigate: _navigate,
-        );
-      }
-
-      return StaffHomePage(user: user, menuItems: menuItems);
+    final requiresAdminStation =
+        _requiresAdminStationSelection(user, selectedItem);
+    final stationId = requiresAdminStation ? _selectedAdminStationId : null;
+    if (StaffModuleRegistry.definitionForMenuItem(selectedItem) == null) {
+      return StaffPlaceholderPage(user: user, item: selectedItem);
     }
 
-    if (selectedItem.id == 'station_dashboard') {
-      return StationDashboardScreen(
+    return StaffModuleRegistry.buildContent(
+      StaffModuleContext(
         user: user,
+        selectedItem: selectedItem,
+        menuItems: menuItems,
         stationId: stationId,
+        isStationSupervision: requiresAdminStation,
         onNavigate: _navigate,
-      );
-    }
-
-    if (selectedItem.id == 'admin_dashboard') {
-      return AdminDashboardHomeScreen(user: user);
-    }
-
-    if (selectedItem.id == 'admin_users') {
-      return AdminUsersHomeScreen(user: user);
-    }
-
-    if (selectedItem.id == 'admin_transport') {
-      return AdminTransportHomeScreen(user: user);
-    }
-
-    if (selectedItem.id == 'admin_operations') {
-      return AdminOperationsHomeScreen(user: user);
-    }
-
-    if (selectedItem.id == 'reservation_search') {
-      return CounterSearchScreen(
-        stationId: stationId,
-        supervisionMode: _requiresAdminStationSelection(user, selectedItem),
-      );
-    }
-
-    if (selectedItem.id == 'station_reservations') {
-      return CounterSearchScreen(
-        stationId: stationId,
-        supervisionMode: true,
-      );
-    }
-
-    if (selectedItem.id == 'boarding') {
-      final request = _navigationRequestFor('boarding');
-      return BoardingScreen(
-        stationId: stationId,
-        initialDepartureId: request?.departureId,
-        onInitialDepartureConsumed: _clearNavigationRequest,
-      );
-    }
-
-    if (selectedItem.id == 'departures') {
-      final request = _navigationRequestFor('departures');
-      return StationDeparturesScreen(
-        user: user,
-        stationId: stationId,
-        initialDepartureId: request?.departureId,
-        onInitialDepartureConsumed: _clearNavigationRequest,
-        onNavigate: _navigate,
-      );
-    }
-
-    if (selectedItem.id == 'reports') {
-      return StationReportsScreen(user: user, stationId: stationId);
-    }
-
-    return StaffPlaceholderPage(user: user, item: selectedItem);
+        navigationRequest: _navigationRequest,
+        clearNavigationRequest: _clearNavigationRequest,
+      ),
+    );
   }
 
   bool _requiresAdminStationSelection(User user, StaffMenuItem item) {
     if (!_adminCanUseStationSelection(user)) return false;
-    return const {
-      'station_dashboard',
-      'departures',
-      'reservation_search',
-      'station_reservations',
-      'boarding',
-      'reports',
-    }.contains(item.id);
+    return StaffModuleRegistry.isStationScoped(item);
   }
 
   bool _adminCanUseStationSelection(User user) {
@@ -351,22 +277,16 @@ class _StaffShellScreenState extends State<StaffShellScreen> {
         menuItems.first.id;
   }
 
-  StaffNavigationRequest? _navigationRequestFor(String menuId) {
-    final request = _navigationRequest;
-    if (request == null || request.menuId != menuId) return null;
-    return request;
-  }
-
   void _selectMenu(String id) {
     setState(() {
-      _selectedId = id;
+      _selectedId = StaffModuleRegistry.canonicalMenuId(id);
       _navigationRequest = null;
     });
   }
 
   void _navigate(StaffNavigationRequest request) {
     setState(() {
-      _selectedId = request.menuId;
+      _selectedId = StaffModuleRegistry.canonicalMenuId(request.menuId);
       _navigationRequest = request.hasDepartureContext ? request : null;
     });
   }

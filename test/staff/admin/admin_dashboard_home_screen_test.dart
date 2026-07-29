@@ -228,7 +228,7 @@ void main() {
       await _pumpDashboard(tester, apiService: api);
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Tableau de bord'), findsOneWidget);
+      expect(find.text('Tableau admin'), findsOneWidget);
     });
 
     testWidgets('dashboard tablette', (tester) async {
@@ -305,7 +305,7 @@ User _buildAdminUser({List<String> scopes = const ['admin.dashboard.read']}) {
     phoneNumber: '+2250700000000',
     userType: UserType.staff,
     isStaff: true,
-    internalProfile: InternalProfile(
+    internalProfile: const InternalProfile(
       id: 'profile-admin-1',
       role: InternalRole.admin,
       roleLabel: 'Administrateur',

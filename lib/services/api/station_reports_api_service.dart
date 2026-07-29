@@ -43,7 +43,7 @@ class StationReportsApiService {
     }
 
     throw ApiException(
-      message: 'Réponse liste reports gare invalide.',
+      message: 'Réponse liste demandes de modification invalide.',
       details: data,
     );
   }

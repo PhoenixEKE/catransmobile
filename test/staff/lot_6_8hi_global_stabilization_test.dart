@@ -199,7 +199,7 @@ void main() {
         'departures',
         'station_reservations',
         'boarding',
-        'reports',
+        'traveler_requests',
       ]);
       expect(
         menuItems
@@ -227,7 +227,7 @@ void main() {
         'departures',
         'station_reservations',
         'boarding',
-        'reports',
+        'traveler_requests',
       ]);
     });
 
