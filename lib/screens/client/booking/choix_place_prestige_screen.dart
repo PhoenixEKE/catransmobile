@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:catrans_app/core/navigation/route_paths.dart';
 
 import 'package:catrans_app/core/network/api_exception.dart';
+import 'package:catrans_app/models/booking/prestige_seat_layout.dart';
 import 'package:catrans_app/models/booking/seat_hold_response.dart';
 import 'package:catrans_app/models/booking/seat_map_response.dart';
 import 'package:catrans_app/models/booking/seat_map_seat.dart';
@@ -356,14 +357,14 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     }
 
     if (!seat.isInServiceClassZone) {
-      _showMessage('Ce siège n’est pas disponible pour la classe Prestige.');
+      _showMessage('Ce siège n\'est pas disponible pour la classe Prestige.');
       return;
     }
 
     if (!seat.canSelect) {
       final isOccupied = seat.isHeld || seat.isReserved;
       _showMessage(
-        isOccupied ? 'Ce siège n’est plus disponible.' : 'Ce siège est indisponible.',
+        isOccupied ? 'Ce siège n\'est plus disponible.' : 'Ce siège est indisponible.',
       );
       return;
     }
@@ -644,33 +645,17 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   }
 
   Widget _buildBusGrid(SeatMapResponse seatMap) {
-    // Regroupement dynamique par rangée réelle (pas de numérotation figée),
-    // pour rester correct quelle que soit la capacité du bus et pour
-    // respecter le filtre "plage Prestige uniquement" appliqué en amont
-    // dans _loadSeatMap (seatMap.seats ne contient déjà que ces sièges).
-    final seatsByRow = <int, List<SeatMapSeat>>{};
-    for (final seat in seatMap.seats) {
-      seatsByRow.putIfAbsent(seat.visual.rowNumber, () => []).add(seat);
-    }
-
-    final rowNumbers = seatsByRow.keys.toList()..sort();
-    if (rowNumbers.isEmpty) {
-      final sortedSeats = [...seatMap.seats]
-        ..sort((a, b) => a.seatNumber.compareTo(b.seatNumber));
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.center,
-        children: sortedSeats.map(_buildSeatButton).toList(),
-      );
-    }
+    final seatsByNumber = <int, SeatMapSeat>{
+      for (final seat in seatMap.seats) seat.seatNumber: seat,
+    };
+    final rows = PrestigeSeatLayout.rowsFor(seatsByNumber.keys);
 
     return Column(
       children: [
         Align(
           alignment: Alignment.centerLeft,
           child: Container(
-            width: 112,
+            width: 116,
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(vertical: 4),
             decoration: BoxDecoration(
@@ -680,10 +665,16 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.directions_car, color: Colors.grey, size: 20),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(Icons.circle_outlined, color: Colors.grey, size: 22),
+                    Icon(Icons.add, color: Colors.grey, size: 15),
+                  ],
+                ),
                 SizedBox(width: 6),
                 Text(
-                  'CHAUFFEUR',
+                  'VOLANT',
                   style: TextStyle(
                     color: Colors.grey,
                     fontWeight: FontWeight.bold,
@@ -695,51 +686,33 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             ),
           ),
         ),
-        ...rowNumbers.map((rowNumber) {
-          final seats = seatsByRow[rowNumber]!
-            ..sort((a, b) => a.visual.columnNumber.compareTo(
-                  b.visual.columnNumber,
-                ));
-          return _buildBusSeatRow(seats);
-        }),
+        ...rows.map((row) => _buildBusSeatRow(row, seatsByNumber)),
       ],
     );
   }
 
-  Widget _buildBusSeatRow(List<SeatMapSeat> seats) {
-    Widget slot(SeatMapSeat seat) =>
-        Expanded(child: Center(child: _buildSeatButton(seat)));
+  Widget _buildBusSeatRow(
+    List<int?> row,
+    Map<int, SeatMapSeat> seatsByNumber,
+  ) {
+    Widget slot(int? seatNumber) => Expanded(
+          child: Center(
+            child: seatNumber == null
+                ? const SizedBox(width: 50, height: 40)
+                : _buildSeatButton(seatsByNumber[seatNumber]!),
+          ),
+        );
 
-    // Rangée standard 2+2 : allée centrale entre les deux paires, comme
-    // dans la disposition physique du bus.
-    if (seats.length == 4) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 7),
-        child: Row(
-          children: [
-            slot(seats[0]),
-            slot(seats[1]),
-            const SizedBox(width: 24),
-            slot(seats[2]),
-            slot(seats[3]),
-          ],
-        ),
-      );
-    }
-
-    // Rangée partielle (coupée par le filtre de plage Prestige) ou
-    // irrégulière (ex. siège arrière isolé) : les sièges présents sont
-    // simplement centrés.
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: seats
-            .map((seat) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: _buildSeatButton(seat),
-                ))
-            .toList(),
+        children: [
+          slot(row[0]),
+          slot(row[1]),
+          const SizedBox(width: 32),
+          slot(row[2]),
+          slot(row[3]),
+        ],
       ),
     );
   }
