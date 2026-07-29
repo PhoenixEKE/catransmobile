@@ -201,7 +201,7 @@ class RecapitulatifScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Réservation en attente de paiement',
+                              'Réservation en attente',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -210,7 +210,7 @@ class RecapitulatifScreen extends StatelessWidget {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'Vos places sont gardées pendant quelques minutes. Finalisez le paiement pour confirmer votre voyage.',
+                              'Finalisez votre paiement pour reserver votre siege.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -763,7 +763,7 @@ class RecapitulatifScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Réservation en attente de paiement',
+                  'Réservation en attente',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.green,
