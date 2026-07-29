@@ -220,11 +220,6 @@ class _BilletScreenState extends State<BilletScreen> {
     return 'Présentez ce QR code à l\'embarquement';
   }
 
-  String? _physicalPickupMessage(TicketDigital? ticket) {
-    final message = ticket?.physicalTicketPickup.message?.trim();
-    return message == null || message.isEmpty ? null : message;
-  }
-
   void _shareBillet(BuildContext context) {
     final ticket = _ticketDigital;
     final reference = _reference(ticket);
@@ -262,7 +257,7 @@ class _BilletScreenState extends State<BilletScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Mon Billet'),
+        title: const Text('Mon ticket'),
         backgroundColor: const Color(0xFF0F056B),
         elevation: 0,
         actions: [
@@ -333,7 +328,6 @@ class _BilletScreenState extends State<BilletScreen> {
     final heure = _heure(ticket);
     final classe = _classe(ticket);
     final passagers = _passagers(ticket);
-    final physicalPickupMessage = _physicalPickupMessage(ticket);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -424,10 +418,8 @@ class _BilletScreenState extends State<BilletScreen> {
                       ),
                       const SizedBox(height: 20),
                       _buildQrBlock(ticket),
-                      if (physicalPickupMessage != null) ...[
-                        const SizedBox(height: 12),
-                        _buildNotice(physicalPickupMessage),
-                      ],
+                      const SizedBox(height: 12),
+                      _buildTravelConditionsNotice(),
                     ],
                   ),
                 ),
@@ -494,33 +486,6 @@ class _BilletScreenState extends State<BilletScreen> {
                   color: Colors.white,
                 );
               },
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'CITRANS',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 3,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFD807),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              'MOBILE',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-                letterSpacing: 1,
-              ),
             ),
           ),
         ],
@@ -626,7 +591,7 @@ class _BilletScreenState extends State<BilletScreen> {
     );
   }
 
-  Widget _buildNotice(String message) {
+  Widget _buildTravelConditionsNotice() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -640,9 +605,15 @@ class _BilletScreenState extends State<BilletScreen> {
           const Icon(Icons.info_outline, size: 18, color: Color(0xFF0F056B)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF0F056B)),
+            child: const Text(
+              '1. Enregistrement 30 min avant le départ\n'
+              '2. Passé le délai, contactez le service client\n'
+              '3. Ticket non remboursable',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: Color(0xFF0F056B),
+              ),
             ),
           ),
         ],
