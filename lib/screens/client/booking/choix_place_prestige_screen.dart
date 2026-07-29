@@ -580,7 +580,6 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
           _buildLegendeItem('Occupé', Colors.grey),
           _buildLegendeItem('Verrouillé', Colors.grey.shade600),
           _buildLegendeItem('Bloqué', Colors.red),
-          _buildLegendeItem('Hors zone Prestige', Colors.grey.shade300),
         ],
       ),
     );
