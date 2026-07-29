@@ -25,7 +25,7 @@ class ChoixClasseScreen extends StatefulWidget {
 
 class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
   String _selectedClasse = 'economie';
-  static const int _nombrePassagers = 1;
+  int _nombrePassagers = 1;
 
   static const Map<String, double> _prixParClasse = {
     'economie': 7000,
@@ -136,6 +136,68 @@ class _ChoixClasseScreenState extends State<ChoixClasseScreen> {
                         fontSize: 12,
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 5,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Nombre de passagers',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: _nombrePassagers > 1
+                            ? () => setState(() => _nombrePassagers--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        color: _nombrePassagers > 1
+                            ? const Color(0xFF0F056B)
+                            : Colors.grey,
+                      ),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$_nombrePassagers',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () =>
+                            setState(() => _nombrePassagers++),
+                        icon: const Icon(Icons.add_circle_outline),
+                        color: const Color(0xFF0F056B),
+                      ),
+                    ],
                   ),
                 ],
               ),

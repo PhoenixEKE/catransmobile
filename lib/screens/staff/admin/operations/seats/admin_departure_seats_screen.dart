@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:catrans_app/widgets/staff/staff_action_group.dart';
+
 import 'package:catrans_app/models/staff/admin/operations/admin_departure_models.dart';
 import 'package:catrans_app/models/staff/structured_api_error.dart';
 import 'package:catrans_app/screens/staff/admin/operations/admin_departure_status_badge.dart';
@@ -66,7 +68,7 @@ class _AdminDepartureSeatsScreenState extends State<AdminDepartureSeatsScreen> {
         icon: Icons.event_seat_outlined,
         title: 'Sélectionnez un départ',
         message:
-            'Les sièges sont toujours consultés dans le contexte d’un départ.',
+            'Les sièges sont toujours consultés dans le contexte d\'un départ.',
       );
     }
 
@@ -527,7 +529,7 @@ class _SeatActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
+    return StaffActionGroup(
       spacing: 2,
       children: [
         IconButton(

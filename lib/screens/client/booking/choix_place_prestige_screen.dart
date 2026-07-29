@@ -379,14 +379,14 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     }
 
     if (!seat.isInServiceClassZone) {
-      _showMessage('Ce siège n\'est pas disponible pour la classe Prestige.');
+      _showMessage('Ce siège n’est pas disponible pour la classe Prestige.');
       return;
     }
 
     if (!seat.canSelect) {
       final isOccupied = seat.isHeld || seat.isReserved;
       _showMessage(
-        isOccupied ? 'Ce siège n\'est plus disponible.' : 'Ce siège est indisponible.',
+        isOccupied ? 'Ce siège n’est plus disponible.' : 'Ce siège est indisponible.',
       );
       return;
     }
@@ -667,10 +667,26 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   }
 
   Widget _buildBusGrid(SeatMapResponse seatMap) {
-    final seatsByNumber = {
-      for (final seat in seatMap.seats) seat.seatNumber: seat,
-    };
-    final rearSeat = seatsByNumber[58];
+    // Regroupement dynamique par rangée réelle (pas de numérotation figée),
+    // pour rester correct quelle que soit la capacité du bus et pour
+    // respecter le filtre "plage Prestige uniquement" appliqué en amont
+    // dans _loadSeatMap (seatMap.seats ne contient déjà que ces sièges).
+    final seatsByRow = <int, List<SeatMapSeat>>{};
+    for (final seat in seatMap.seats) {
+      seatsByRow.putIfAbsent(seat.visual.rowNumber, () => []).add(seat);
+    }
+
+    final rowNumbers = seatsByRow.keys.toList()..sort();
+    if (rowNumbers.isEmpty) {
+      final sortedSeats = [...seatMap.seats]
+        ..sort((a, b) => a.seatNumber.compareTo(b.seatNumber));
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: sortedSeats.map(_buildSeatButton).toList(),
+      );
+    }
 
     return Column(
       children: [
@@ -702,52 +718,51 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             ),
           ),
         ),
-        for (int first = 2; first <= 54; first += 4)
-          _buildBusSeatRow(
-            [first + 1, first, first + 2, first + 3],
-            seatsByNumber,
-          ),
-        if (rearSeat != null) ...[
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              const Expanded(child: SizedBox()),
-              const SizedBox(width: 6),
-              _buildSeatButton(rearSeat),
-              const SizedBox(width: 6),
-              const Expanded(child: SizedBox()),
-            ],
-          ),
-        ],
+        ...rowNumbers.map((rowNumber) {
+          final seats = seatsByRow[rowNumber]!
+            ..sort((a, b) => a.visual.columnNumber.compareTo(
+                  b.visual.columnNumber,
+                ));
+          return _buildBusSeatRow(seats);
+        }),
       ],
     );
   }
 
-  Widget _buildBusSeatRow(
-    List<int> seatNumbers,
-    Map<int, SeatMapSeat> seatsByNumber,
-  ) {
-    Widget slot(int number) {
-      final seat = seatsByNumber[number];
-      return Expanded(
-        child: Center(
-          child: seat == null
-              ? const SizedBox(width: 50, height: 40)
-              : _buildSeatButton(seat),
+  Widget _buildBusSeatRow(List<SeatMapSeat> seats) {
+    Widget slot(SeatMapSeat seat) =>
+        Expanded(child: Center(child: _buildSeatButton(seat)));
+
+    // Rangée standard 2+2 : allée centrale entre les deux paires, comme
+    // dans la disposition physique du bus.
+    if (seats.length == 4) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Row(
+          children: [
+            slot(seats[0]),
+            slot(seats[1]),
+            const SizedBox(width: 24),
+            slot(seats[2]),
+            slot(seats[3]),
+          ],
         ),
       );
     }
 
+    // Rangée partielle (coupée par le filtre de plage Prestige) ou
+    // irrégulière (ex. siège arrière isolé) : les sièges présents sont
+    // simplement centrés.
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Row(
-        children: [
-          slot(seatNumbers[0]),
-          slot(seatNumbers[1]),
-          const SizedBox(width: 24),
-          slot(seatNumbers[2]),
-          slot(seatNumbers[3]),
-        ],
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: seats
+            .map((seat) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _buildSeatButton(seat),
+                ))
+            .toList(),
       ),
     );
   }

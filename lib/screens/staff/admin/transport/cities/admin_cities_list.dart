@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:catrans_app/widgets/staff/staff_action_group.dart';
+
 import 'package:catrans_app/models/staff/admin/transport/admin_city_models.dart';
 import 'package:catrans_app/models/staff/paged_result.dart';
 import 'package:catrans_app/screens/staff/admin/transport/shared/admin_transport_status_badge.dart';
@@ -168,8 +170,7 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 4,
+    return StaffActionGroup(
       children: [
         IconButton(
           key: Key('admin-city-detail-${city.id}'),
