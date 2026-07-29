@@ -341,6 +341,12 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
   }
 
   void _toggleSeat(SeatMapSeat seat) {
+    // ✅ Vérification du siège verrouillé
+    if (PrestigeSeatLayout.isLocked(seat.seatNumber)) {
+      _showMessage('Ce siège est verrouillé et ne peut pas être sélectionné.');
+      return;
+    }
+
     final existingIndex = _selectedSeats.indexWhere(
       (selected) => selected.seatNumber == seat.seatNumber,
     );
@@ -572,6 +578,7 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
           _buildLegendeItem('Disponible', Colors.green),
           _buildLegendeItem('Sélectionné', const Color(0xFF0F056B)),
           _buildLegendeItem('Occupé', Colors.grey),
+          _buildLegendeItem('Verrouillé', Colors.grey.shade600),
           _buildLegendeItem('Bloqué', Colors.red),
           _buildLegendeItem('Hors zone Prestige', Colors.grey.shade300),
         ],
@@ -721,12 +728,17 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
     final isSelected = _selectedSeatNumbers.contains(seat.seatNumber);
     final isOccupied = seat.isHeld || seat.isReserved;
     final isOutOfZone = seat.isOutOfServiceClassZone;
+    final isLocked = PrestigeSeatLayout.isLocked(seat.seatNumber);
 
     Color backgroundColor;
     Color borderColor;
     Color textColor;
 
-    if (isSelected) {
+    if (isLocked) {
+      backgroundColor = Colors.grey.shade400;
+      borderColor = Colors.grey.shade600;
+      textColor = Colors.grey.shade800;
+    } else if (isSelected) {
       backgroundColor = const Color(0xFF0F056B);
       borderColor = const Color(0xFF0F056B);
       textColor = Colors.white;
@@ -764,16 +776,36 @@ class _ChoixPlacePrestigeScreenState extends State<ChoixPlacePrestigeScreen> {
             ),
           ),
           child: Center(
-            child: Text(
-              seat.displayLabel.isNotEmpty
-                  ? seat.displayLabel
-                  : seat.seatNumber.toString(),
-              style: TextStyle(
-                color: textColor,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
-              ),
-            ),
+            // ✅ Affichage du cadenas pour les sièges verrouillés
+            child: isLocked
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock, size: 13, color: textColor),
+                      const SizedBox(width: 2),
+                      Text(
+                        seat.displayLabel.isNotEmpty
+                            ? seat.displayLabel
+                            : seat.seatNumber.toString(),
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    seat.displayLabel.isNotEmpty
+                        ? seat.displayLabel
+                        : seat.seatNumber.toString(),
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
           ),
         ),
       ),
