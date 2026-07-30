@@ -607,8 +607,9 @@ class _BilletScreenState extends State<BilletScreen> {
           Expanded(
             child: const Text(
               '1. Enregistrement 30 min avant le départ\n'
-              '2. Passé le délai, contactez le service client\n'
-              '3. Ticket non remboursable',
+              '2. Passé le délai, contactez 05 54 70 57 57\n'
+              '3. Ticket non remboursable\n'
+              '4. Service client 05 54 70 57 57',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.5,
